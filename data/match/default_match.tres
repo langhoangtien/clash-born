@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="MatchSettings" load_steps=8 format=3]
+[ext_resource type="Script" path="res://scripts/match/match_settings.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/units/unit_stats.gd" id="2"]
+[sub_resource type="Resource" id="hero"]
+script = ExtResource("2")
+display_name = "Hero"
+base_hp = 1600.0
+base_mana = 200.0
+base_hp_regen = 4.0
+physical_damage = 155.0
+physical_armor = 8.0
+attack_range = 550.0
+base_attacks_per_second = 1.3
+movement_speed = 430.0
+collision_radius = 32.0
+ranged_attacks = true
+projectile_speed = 1100.0
+[sub_resource type="Resource" id="melee"]
+script = ExtResource("2")
+display_name = "Melee creep"
+base_hp = 440.0
+physical_damage = 35.0
+physical_armor = 2.0
+attack_range = 110.0
+movement_speed = 360.0
+collision_radius = 20.0
+[sub_resource type="Resource" id="ranged"]
+script = ExtResource("2")
+display_name = "Ranged creep"
+base_hp = 300.0
+physical_damage = 45.0
+attack_range = 390.0
+base_attacks_per_second = 0.8
+movement_speed = 360.0
+collision_radius = 20.0
+ranged_attacks = true
+[sub_resource type="Resource" id="tower"]
+script = ExtResource("2")
+display_name = "Tower"
+base_hp = 1900.0
+physical_damage = 185.0
+physical_armor = 12.0
+attack_range = 750.0
+base_attacks_per_second = 0.9
+collision_radius = 52.0
+ranged_attacks = true
+projectile_speed = 1000.0
+[sub_resource type="Resource" id="core"]
+script = ExtResource("2")
+display_name = "Core"
+base_hp = 3000.0
+physical_damage = 100.0
+physical_armor = 8.0
+attack_range = 650.0
+collision_radius = 65.0
+ranged_attacks = true
+[resource]
+script = ExtResource("1")
+hero = SubResource("hero")
+melee_creep = SubResource("melee")
+ranged_creep = SubResource("ranged")
+tower = SubResource("tower")
+core = SubResource("core")

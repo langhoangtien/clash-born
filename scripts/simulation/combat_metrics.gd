@@ -6,7 +6,10 @@ var by_unit: Dictionary = {}
 func initialize(units: Array[UnitRuntimeState]) -> void:
 	by_unit.clear()
 	for unit in units:
-		by_unit[unit.unit_id] = {"name": unit.display_name, "team": unit.team_id, "damage_dealt": 0.0, "damage_received": 0.0, "physical_damage": 0.0, "magic_damage": 0.0, "pure_damage": 0.0, "missed_attacks": 0, "critical_strikes": 0, "stun_duration_applied": 0.0, "time_stunned": 0.0, "healing_received": 0.0, "survival_time": 0.0}
+		register_unit(unit)
+
+func register_unit(unit: UnitRuntimeState) -> void:
+	by_unit[unit.unit_id] = {"name": unit.display_name, "team": unit.team_id, "damage_dealt": 0.0, "damage_received": 0.0, "physical_damage": 0.0, "magic_damage": 0.0, "pure_damage": 0.0, "missed_attacks": 0, "critical_strikes": 0, "stun_duration_applied": 0.0, "time_stunned": 0.0, "healing_received": 0.0, "survival_time": 0.0}
 
 func consume(events: Array[Dictionary]) -> void:
 	for event in events:

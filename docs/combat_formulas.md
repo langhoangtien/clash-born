@@ -146,3 +146,14 @@ lên unit chết. Người bắn chết không hủy shot đã launch. Lifetime 
 Ground effect dùng disk tại điểm đích; directional dùng capsule đoạn nguồn–đích;
 effect-radius cộng bán kính collision đích khi kiểm tra intersection. Projectile
 ability chỉ áp effect khi tới endpoint. Chi tiết timing và quy ước: `DESIGN.md`.
+
+
+## Trận playable trên map
+
+Hero, creep, trụ và nhà chính dùng cùng CombatEngine và các công thức phía trên.
+`external_control` chỉ nhận vị trí/target từ map và giao điều kiện thắng cho scene;
+không thay mitigation, crit, hit, cooldown, regen hay timing projectile.
+Trụ/nhà chính là unit đứng yên với UnitStats riêng. Attack Range vẫn dùng khoảng
+cách mép collision. Trụ ưu tiên creep rồi hero trong tầm và có line-of-sight.
+Hero hồi sinh được phục hồi HP/Mana, xóa effect/cast/target và đặt cooldown mới.
+Thông số thử nghiệm nằm trong `data/match/default_match.tres`.

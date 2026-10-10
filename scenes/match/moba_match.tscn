@@ -1,0 +1,15 @@
+[gd_scene load_steps=6 format=3]
+[ext_resource type="Script" path="res://scripts/match/moba_match.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/map/map_world.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/map/map_camera.gd" id="3"]
+[ext_resource type="Resource" path="res://data/maps/moba_foundation.tres" id="4"]
+[ext_resource type="Resource" path="res://data/match/default_match.tres" id="5"]
+[node name="MobaMatch" type="Node2D"]
+script = ExtResource("1")
+layout = ExtResource("4")
+settings = ExtResource("5")
+[node name="World" type="Node2D" parent="."]
+script = ExtResource("2")
+[node name="Camera" type="Camera2D" parent="."]
+script = ExtResource("3")
+keyboard_pan_enabled = false

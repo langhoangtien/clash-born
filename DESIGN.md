@@ -115,7 +115,7 @@ The range/projectile subsystem adds no multiplayer, fog of war or new heroes.
 
 The user's Phase 6 is **MOBA Map Foundation**, replacing the older master prompt's
 Phase 6 Balance Laboratory label. No laboratory, creep/tower combat or later phases
-are implemented. `scenes/main.tscn` remains the Combat Sandbox default entry point;
+are implemented. `scenes/main.tscn` remains the Combat Sandbox entry point;
 its Map Prototype button opens `scenes/map/map_prototype.tscn`, with a return button.
 
 ### Data and terrain
@@ -180,3 +180,44 @@ reachability, non-cell-center movement, high-speed wall collision, pause, differ
 map sizes, larger agents, camera follow/pan/zoom/clamp, actual desktop input events,
 all seven overlays and scene transitions. See `docs/phase6_map.md` for execution
 results, modified-file inventory and known limitations.
+
+
+## Playable local match (subsequent requested extension)
+
+Default entry is now `scenes/match/moba_match.tscn`. The Phase 6 navigation-only
+scene and the existing Combat Sandbox remain separate modes. One player controls
+Blue with WASD/arrows/on-screen four directions; Red has a simple MID hero bot.
+Two melee and one ranged creep per lane/team spawn every 20 simulation seconds.
+Twelve authored tower markers become stationary towers; two cores determine victory.
+Hero deaths schedule an eight-second respawn, rather than ending the match.
+
+`MatchSettings` and `data/match/default_match.tres` hold prototype stats and timers.
+`moba_match.gd` owns waves, target priorities, routes, respawn, input and core victory.
+It reuses MapLayout, per-radius cached MapNavigation, MapUnit and CombatUnit.
+Each actor/view uses the exact UnitRuntimeState registered in the existing engine.
+`CombatEngine.external_control` accepts map-supplied positions/targets and bypasses
+arena AI movement/target selection and arena elimination/timeout. Default false
+preserves Sandbox behavior. `add_unit` also registers dynamic participants in metrics;
+dead creeps leave the live unit list, while historical metrics are retained.
+
+Damage, seeded hit/crit, attack range/cooldown, projectile flight, regen and status
+processing remain in the single engine at 30 Hz. The map controller does not
+implement alternate damage formulas. Godot CharacterBody2D movement remains on
+native physics ticks, then supplies positions for combat ticks. This local map
+mode does not promise replay determinism across differing physics schedules;
+the pure Sandbox deterministic replay contract remains unchanged. Pause freezes
+both native movement and the engine clock/wave/respawn timers.
+
+Target selection uses collision-edge distance and terrain line-of-sight. Creeps
+prefer creeps then heroes/buildings; towers/cores prefer creeps then heroes.
+The player has separate creep/structure and hero acquisition categories; moving
+cancels automatic approach/attack. Clicking an enemy locks that unit. Minimap,
+HP, kill score, wave count, floating damage, respawn and victory UI show match state.
+Touch direction tracking is independent per finger; desktop keyboard remains
+supported. Camera arrow pan is disabled only in this mode so arrows control hero.
+
+No hero skill/equipment/shop UI, creep rewards/economy, jungle objectives, dynamic
+unit avoidance, structure body blocking, invulnerability progression, team 5v5 or
+networking are introduced. Tower aggro does not include hero-on-hero retaliation.
+Prototype balance is configurable and not tuned as a finished MOBA.
+See `docs/playable_match.md` for controls, changed files and executed verification.

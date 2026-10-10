@@ -3,6 +3,7 @@ extends Camera2D
 @export var minimum_zoom: float = 0.15
 @export var maximum_zoom: float = 1.6
 @export var pan_speed: float = 1000.0
+@export var keyboard_pan_enabled: bool = true
 var map_size := Vector2(5120, 5120)
 var follow_target: Node2D
 var dragging := false
@@ -15,7 +16,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if follow_enabled and is_instance_valid(follow_target): position = follow_target.global_position
 	var direction := Vector2(float(Input.is_physical_key_pressed(KEY_RIGHT)) - float(Input.is_physical_key_pressed(KEY_LEFT)), float(Input.is_physical_key_pressed(KEY_DOWN)) - float(Input.is_physical_key_pressed(KEY_UP)))
-	if not direction.is_zero_approx(): pan_by(direction.normalized() * pan_speed * delta / zoom.x)
+	if keyboard_pan_enabled and not direction.is_zero_approx(): pan_by(direction.normalized() * pan_speed * delta / zoom.x)
 	clamp_to_map()
 
 func pan_by(world_offset: Vector2) -> void:

@@ -1,0 +1,226 @@
+extends SceneTree
+var checks := 0
+var failures := 0
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+func check(condition: bool, message: String) -> void:
+	checks += 1
+	if not condition:
+		failures += 1
+		push_error(message)
+
+func frames(count: int) -> void:
+	for frame in range(count): await physics_frame
+
+func _run() -> void:
+	_test_engine_bridge()
+	await _test_match()
+	print("Playable match: %d checks, %d failures" % [checks, failures])
+	quit(0 if failures == 0 else 1)
+
+func _test_engine_bridge() -> void:
+	var engine := CombatEngine.new(BalanceSettings.new())
+	var source := UnitStats.new()
+	engine.reset(source, source, Vector2(3000, 3000), Vector2(3200, 3000))
+	engine.external_control = true
+	var before := engine.units[0].position
+	engine.units[0].target_id = ""
+	engine.step()
+	check(engine.units[0].position == before and engine.units[0].target_id.is_empty(), "External map mode preserves supplied position/target")
+	var extra := engine.add_unit({"id": "creep", "team": 0, "source": source, "position": Vector2(3100, 3000), "ai": false})
+	check(extra != null and engine.units.size() == 3 and engine.metrics.by_unit.has("creep"), "Dynamic spawning registers runtime and metrics")
+	check(engine.add_unit({"id": "creep", "team": 0, "source": source}) == null, "Duplicate dynamic IDs rejected")
+	check(engine.add_unit({"id": "bad", "team": 9, "source": source}) == null, "Invalid dynamic team rejected")
+	for unit in engine.units:
+		if unit.team_id == 1: unit.alive = false
+	engine.step()
+	check(not engine.finished, "Hero/creep elimination does not prematurely end external match")
+
+func _test_match() -> void:
+	var main = load("res://scenes/match/moba_match.tscn").instantiate()
+	main.settings = main.settings.duplicate(true)
+	root.add_child(main)
+	await process_frame
+	await frames(2)
+	main.set_physics_process(false)
+	main.clock.set_running(false)
+	check(main.entities.size() == 34, "Two heroes, twelve towers, two cores and first eighteen-creep wave")
+	check(main.player.runtime == main.combat.get_unit("player") and main.player.view.runtime == main.player.runtime, "Map/visual/combat share a single runtime state")
+	var lanes: Dictionary = {}
+	for info in main.entities.values():
+		if info.kind == "creep": lanes["%d_%s" % [info.actor.runtime.team_id, info.lane]] = true
+	check(lanes.size() == 6, "Creeps spawn for both teams in all three lanes")
+	var player: MapUnit = main.player
+	var enemy: MapUnit = main.enemy_hero
+	main.camera.set_process(false)
+	# Let native physics execute: keyboard-style steering stays continuous/collidable.
+	var before := player.position
+	player.manual_direction = Vector2.RIGHT
+	await frames(5)
+	check(player.position.x > before.x and player.navigation.point_is_clear(player.position), "Player drives with continuous world movement")
+	player.manual_direction = Vector2.ZERO
+	player.stop()
+	# Mouse buttons and independent touch fingers both feed the direction pad.
+	main.controls.direction_buttons.up.button_down.emit()
+	check(main.controls.direction == Vector2.UP, "Up direction button works")
+	main.controls.direction_buttons.up.button_up.emit()
+	check(main.controls.direction == Vector2.ZERO, "Direction release stops movement")
+	for key in ["left", "down", "right"]:
+		main.controls.direction_buttons[key].button_down.emit()
+		check(not main.controls.direction.is_zero_approx(), "Direction button " + key)
+		main.controls.direction_buttons[key].button_up.emit()
+	var touch := InputEventScreenTouch.new()
+	touch.index = 1
+	touch.pressed = true
+	touch.position = main.controls.direction_buttons.right.get_global_rect().get_center()
+	main.controls._input(touch)
+	var attack_touch := InputEventScreenTouch.new()
+	attack_touch.index = 2
+	attack_touch.pressed = true
+	attack_touch.position = main.controls.attack_buttons.hero.get_global_rect().get_center()
+	main.controls._input(attack_touch)
+	check(main.controls.direction == Vector2.RIGHT and main.attack_mode == "hero", "Multi-touch movement and hero attack can be used simultaneously")
+	touch.pressed = false
+	main.controls._input(touch)
+	check(main.controls.direction.is_zero_approx(), "Touch release clears movement")
+	main.controls.release_all()
+	var move_key := InputEventKey.new()
+	move_key.physical_keycode = KEY_D
+	move_key.keycode = KEY_D
+	move_key.pressed = true
+	Input.parse_input_event(move_key)
+	Input.flush_buffered_events()
+	main._physics_process(0)
+	check(player.manual_direction == Vector2.RIGHT and main.attack_mode.is_empty(), "Actual keyboard polling steers hero and cancels auto attack")
+	before = player.position
+	await frames(5)
+	check(player.position.x > before.x, "Keyboard command moves the hero through native physics")
+	move_key.pressed = false
+	Input.parse_input_event(move_key)
+	Input.flush_buffered_events()
+	main._physics_process(0)
+	check(player.manual_direction.is_zero_approx() and not main.camera.keyboard_pan_enabled, "Keyboard release stops steering; arrows belong to hero instead of camera")
+	player.position = main.layout.cell_center(Vector2i(15, 24))
+	player.runtime.position = player.position
+	enemy.position = player.position + Vector2(200, -200)
+	enemy.runtime.position = enemy.position
+	enemy.stop()
+	var creep: MapUnit = main._spawn("test_creep", 1, main.settings.melee_creep, player.position + Vector2(100, 0), "creep", "MID")
+	main.request_attack("hero")
+	check(main._player_target() == enemy, "Hero button ignores a closer enemy creep")
+	main.request_attack("creep")
+	check(main._player_target() == creep, "Creep button ignores enemy hero")
+	main.controls.attack_buttons.hero.pressed.emit()
+	check(main.attack_mode == "hero", "On-screen hero attack button connects to match")
+	main.controls.attack_buttons.creep.pressed.emit()
+	check(main.attack_mode == "creep", "On-screen creep attack button connects to match")
+	# Freeze bodies while ticking combat; projectile engine is still the real engine.
+	for info in main.entities.values(): info.actor.paused = true
+	main.request_attack("hero")
+	var hp_before := enemy.runtime.current_hp
+	main.clock.step()
+	check(enemy.runtime.current_hp == hp_before and not main.combat.projectiles.is_empty(), "Player launches projectile without immediate damage")
+	for tick in range(15): main.clock.step()
+	check(enemy.runtime.current_hp < hp_before, "Player hero button actually damages enemy hero at impact")
+	main.request_attack("creep")
+	for tick in range(80): main.clock.step()
+	check(not main.entities.has("test_creep") and main.creep_kills > 0, "Player kills creep and dead creep is cleaned up")
+	# Tower picks a creep before a hero and deals damage through the same engine.
+	var tower: MapUnit = main.entities.tower_11.actor
+	player.position = tower.position + Vector2(-180, 180)
+	player.runtime.position = player.position
+	creep = main._spawn("test_tower_creep", 0, main.settings.melee_creep, tower.position + Vector2(-230, 170), "creep", "MID")
+	creep.paused = true
+	var info: Dictionary = main.entities[tower.runtime.unit_id]
+	check(main._choose_target(info, ["creep", "hero"], tower.runtime.attack_range()) == creep, "Enemy tower prioritizes friendly creep over player")
+	main._stop_player()
+	var creep_hp := creep.runtime.current_hp
+	for tick in range(40): main.clock.step()
+	check(creep.runtime.current_hp < creep_hp, "Tower automatically fires and damages creep")
+	# Wave timing is simulation time and bounded; paused clock does not spawn.
+	main.settings.wave_interval = 1
+	main.next_wave_tick = main.combat.tick_count + 1
+	var waves: int = main.wave_number
+	main.clock.step()
+	check(main.wave_number == waves + 1, "Next scheduled wave appears automatically")
+	main.set_paused(true)
+	var tick_before: int = main.combat.tick_count
+	main.clock.advance(10)
+	check(main.combat.tick_count == tick_before, "Pause freezes combat/projectiles/wave timer")
+	main.set_paused(false)
+	main.clock.set_running(false)
+	main.settings.maximum_live_creeps = 0
+	waves = main.wave_number
+	main.spawn_wave()
+	check(main.wave_number == waves, "Live-creep cap prevents unbounded spawning")
+	# A real lethal damage event triggers respawn; do not fake a view-only death.
+	main._revive("enemy_hero")
+	enemy.position = player.position + Vector2(100, 0)
+	enemy.runtime.position = enemy.position
+	var saved_damage: float = enemy.runtime.stats.physical_damage
+	var saved_ranged: bool = enemy.runtime.stats.ranged_attacks
+	enemy.runtime.stats.physical_damage = 10000
+	enemy.runtime.stats.ranged_attacks = false
+	enemy.runtime.next_attack_tick = main.combat.tick_count + 1
+	player.runtime.current_hp = 1
+	main.clock.step()
+	enemy.runtime.stats.physical_damage = saved_damage
+	enemy.runtime.stats.ranged_attacks = saved_ranged
+	check(not player.runtime.alive and main.respawns.has("player"), "Hero death schedules respawn")
+	main.settings.respawn_seconds = 0.1
+	main.respawns.player = main.combat.tick_count + 3
+	for tick in range(4): main.clock.step()
+	check(player.runtime.alive and player.runtime.current_hp == player.runtime.stats.max_hp and player.position == main.layout.spawn_points(0)[0], "Hero respawns at base with full HP")
+	main._clicked_entity("enemy_hero")
+	check(main.locked_target == "enemy_hero" and main.attack_mode == "hero", "Clicking enemy locks the correct target category")
+	# Keyboard input invokes attack and stop without a GUI button.
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_J
+	key.pressed = true
+	root.push_input(key, true)
+	check(main.attack_mode == "creep", "J keyboard attack command")
+	key.physical_keycode = KEY_K
+	root.push_input(key, true)
+	check(main.attack_mode == "hero", "K keyboard attack command")
+	key.physical_keycode = KEY_SPACE
+	root.push_input(key, true)
+	check(main.attack_mode.is_empty(), "Space stops automatic attacking")
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		player.position = main.layout.cell_center(Vector2i(20, 19))
+		player.runtime.position = player.position
+		enemy.position = player.position + Vector2(200, -160)
+		enemy.runtime.position = enemy.position
+		main.camera.follow_enabled = true
+		main.camera._process(0)
+		main.camera.force_update_scroll()
+		main.request_attack("hero")
+		main.clock.step()
+		main._refresh_hud()
+		await process_frame
+		await RenderingServer.frame_post_draw
+		check(root.get_texture().get_image().save_png("res://.local/playable-match.png") == OK, "Playable battle controls/hero/minimap rendered")
+	# Destroying the core ends the match, not killing a creep or hero.
+	main.cores[1].runtime.current_hp = 0
+	main.clock.step()
+	check(main.match_over and main.combat.winner_team == 0 and main.result_panel.visible and not main.clock.running, "Destroy enemy core produces victory and freezes match")
+	main.queue_free()
+	await process_frame
+	# A short autonomous native-physics run exercises movement, combat and waves together.
+	var live = load("res://scenes/match/moba_match.tscn").instantiate()
+	live.settings = live.settings.duplicate(true)
+	live.settings.wave_interval = 2
+	live.settings.creeps_per_lane = 1
+	live.settings.melee_creep.movement_speed = 5000
+	live.settings.ranged_creep.movement_speed = 5000
+	root.add_child(live)
+	await frames(240)
+	check(live.wave_number >= 2 and live.combat.tick_count > 60, "Live physics match continuously spawns waves")
+	var damage := 0.0
+	for metric in live.combat.metrics.by_unit.values(): damage += metric.damage_dealt
+	check(damage > 0, "Autonomous creep/tower battle resolves actual damage")
+	for info_live in live.entities.values():
+		if info_live.actor.runtime.alive: check(info_live.actor.navigation.point_is_clear(info_live.actor.position), "Active match entity respects terrain")
+	live.queue_free()
+	await process_frame

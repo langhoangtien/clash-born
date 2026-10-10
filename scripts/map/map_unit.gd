@@ -1,6 +1,6 @@
 class_name MapUnit
 extends CharacterBody2D
-## Navigation probe using existing combat data/view, without executing combat.
+## Continuous map actor sharing existing combat data/view; resolves no damage itself.
 signal selected(unit: MapUnit)
 signal arrived
 var runtime: UnitRuntimeState
@@ -13,10 +13,10 @@ var paused: bool = false
 var manual_direction := Vector2.ZERO
 var balance: BalanceSettings = preload("res://data/balance/default_balance.tres")
 
-func configure(source: UnitStats, team: int, point: Vector2, data: MapLayout) -> void:
+func configure(source: UnitStats, team: int, point: Vector2, data: MapLayout, shared_navigation: MapNavigation = null, existing_state: UnitRuntimeState = null) -> void:
 	position = point
-	runtime = UnitRuntimeState.new("map_blue" if team == 0 else "map_red", team, point, source, balance)
-	navigation = MapNavigation.new(data, runtime.stats.collision_radius)
+	runtime = existing_state if existing_state != null else UnitRuntimeState.new("map_blue" if team == 0 else "map_red", team, point, source, balance)
+	navigation = shared_navigation if shared_navigation != null else MapNavigation.new(data, runtime.stats.collision_radius)
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	collision_layer = 2
 	collision_mask = 1 # Static terrain only; no dynamic avoidance in this phase.

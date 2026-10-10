@@ -114,6 +114,7 @@ func _build_ui() -> void:
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status.add_theme_font_size_override("font_size", 14)
 	content.add_child(status)
+	_button(content, "Chơi trận MOBA", func(): get_tree().change_scene_to_file("res://scenes/match/moba_match.tscn"))
 
 func _button(parent: Node, text: String, action: Callable) -> void:
 	var button := Button.new()

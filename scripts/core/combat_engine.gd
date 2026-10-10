@@ -15,6 +15,8 @@ var projectiles: Array[CombatProjectile] = []
 var _next_projectile_id: int = 0
 var _cast_requests: Array[Dictionary] = []
 var _commands: Array[Dictionary] = []
+## Map match supplies movement/targets and decides victory; sandbox stays default.
+var external_control: bool = false
 
 func _init(settings: BalanceSettings) -> void:
 	balance = settings
@@ -37,11 +39,7 @@ func reset_scenario(entries: Array[Dictionary], seed_value: int = 1) -> bool:
 	if counts[0] not in range(1, 6) or counts[1] not in range(1, 6): return false
 	units.clear()
 	for entry in entries:
-		var items: Array[EquipmentData] = []
-		items.assign(entry.get("equipment", []))
-		var unit := UnitRuntimeState.new(entry.id, entry.team, entry.get("position", Vector2.ZERO), entry.source, balance, items)
-		unit.ai_enabled = entry.get("ai", true)
-		units.append(unit)
+		units.append(_make_unit(entry))
 	tick_count = 0
 	finished = false
 	winner_team = -1
@@ -54,6 +52,21 @@ func reset_scenario(entries: Array[Dictionary], seed_value: int = 1) -> bool:
 	_next_projectile_id = 0
 	metrics.initialize(units)
 	return true
+
+func _make_unit(entry: Dictionary) -> UnitRuntimeState:
+	var items: Array[EquipmentData] = []
+	items.assign(entry.get("equipment", []))
+	var unit := UnitRuntimeState.new(entry.id, entry.team, entry.get("position", Vector2.ZERO), entry.source, balance, items)
+	unit.ai_enabled = entry.get("ai", true)
+	return unit
+
+func add_unit(entry: Dictionary) -> UnitRuntimeState:
+	if not entry.has("id") or not entry.has("source") or not entry.source is UnitStats or entry.get("team", -1) not in [0, 1] or entry.id.is_empty() or get_unit(entry.id) != null: return null
+	var unit := _make_unit(entry)
+	unit.current_tick = tick_count
+	units.append(unit)
+	metrics.register_unit(unit)
+	return unit
 
 func get_unit(id: String) -> UnitRuntimeState:
 	for unit in units:
@@ -105,6 +118,7 @@ func step() -> Array[Dictionary]:
 		unit.current_hp = minf(unit.stats.max_hp, unit.current_hp + unit.stats.hp_regen * SimulationClock.TICK_SECONDS)
 		unit.current_mana = minf(unit.stats.max_mana, unit.current_mana + unit.stats.mana_regen * SimulationClock.TICK_SECONDS)
 		metrics.by_unit[unit.unit_id].healing_received += unit.current_hp - before
+		if external_control: continue
 		var target := CombatAI.select_target(unit, units)
 		if not unit.ai_enabled:
 			for candidate in units:
@@ -112,7 +126,7 @@ func step() -> Array[Dictionary]:
 					target = candidate
 					break
 		unit.target_id = target.unit_id if target != null else ""
-	CombatAI.move_units(units, balance)
+	if not external_control: CombatAI.move_units(units, balance)
 	var pending: Array[Dictionary] = []
 	_advance_projectiles(events, pending)
 	_resolve_abilities(events)
@@ -140,11 +154,11 @@ func step() -> Array[Dictionary]:
 			unit.casting.clear()
 			events.append(_event("death", "", unit.unit_id))
 		if unit.alive: teams_alive[unit.team_id] = true
-	if (not teams_alive[0] or not teams_alive[1]) and projectiles.is_empty():
+	if not external_control and (not teams_alive[0] or not teams_alive[1]) and projectiles.is_empty():
 		finished = true
 		winner_team = 0 if teams_alive[0] else (1 if teams_alive[1] else -1)
 		finish_reason = "elimination"
-	elif tick_count >= ceili(balance.battle_time_limit_seconds * SimulationClock.TICKS_PER_SECOND):
+	elif not external_control and tick_count >= ceili(balance.battle_time_limit_seconds * SimulationClock.TICKS_PER_SECOND):
 		finished = true
 		finish_reason = "time_limit"
 	if finished:

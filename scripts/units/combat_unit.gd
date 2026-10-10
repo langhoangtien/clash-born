@@ -9,6 +9,8 @@ var damage_flash: float = 0.0
 var hit_notice: String = ""
 var show_range_indicators: bool = true
 var show_resource_bars: bool = true
+var structure_visual: bool = false
+var compact_visual: bool = false
 
 func _process(delta: float) -> void:
 	damage_flash = maxf(0, damage_flash - delta)
@@ -47,12 +49,13 @@ func _draw() -> void:
 	var color := visual_data.team_color if runtime.alive else Color(0.3, 0.32, 0.34)
 	if damage_flash > 0 and runtime.alive: color = color.lightened(0.3)
 	draw_circle(Vector2(0, 5), radius + 3, Color(0, 0, 0, 0.3))
-	draw_circle(Vector2.ZERO, radius, color)
+	if structure_visual: draw_rect(Rect2(Vector2.ONE * -radius, Vector2.ONE * radius * 2), color)
+	else: draw_circle(Vector2.ZERO, radius, color)
 	draw_circle(Vector2.ZERO, 5, Color(1, 1, 1, 0.7))
-	_center_text(visual_data.display_name, -radius - 12, 20)
+	if not compact_visual: _center_text(visual_data.display_name, -radius - 12, 20)
 	if show_resource_bars:
-		_draw_bar(44, runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
-		_draw_bar(56, runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0, Color(0.25, 0.55, 0.95))
+		_draw_bar(32 if compact_visual else 44, runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
+		if not compact_visual: _draw_bar(56, runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0, Color(0.25, 0.55, 0.95))
 		if selected: _center_text("%.0f / %.0f" % [runtime.current_hp, runtime.stats.max_hp], 82, 20)
 	var statuses: PackedStringArray = []
 	for effect in runtime.effects.active:
@@ -64,5 +67,6 @@ func _draw() -> void:
 	elif damage_flash > 0: _center_text(hit_notice, -80, 24, Color(1, 0.78, 0.45))
 
 func _draw_bar(y: float, ratio: float, color: Color) -> void:
-	draw_rect(Rect2(Vector2(-45, y), Vector2(90, 8)), Color(0.02, 0.03, 0.04))
-	draw_rect(Rect2(Vector2(-45, y), Vector2(90 * clampf(ratio, 0, 1), 8)), color)
+	var width := 50.0 if compact_visual else 90.0
+	draw_rect(Rect2(Vector2(-width / 2, y), Vector2(width, 8)), Color(0.02, 0.03, 0.04))
+	draw_rect(Rect2(Vector2(-width / 2, y), Vector2(width * clampf(ratio, 0, 1), 8)), color)

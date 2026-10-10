@@ -88,6 +88,12 @@ func _build_ui() -> void:
 	map_button.size = Vector2(175, 38)
 	map_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/map/map_prototype.tscn"))
 	layer.add_child(map_button)
+	var match_button := Button.new()
+	match_button.text = "Chơi trận MOBA"
+	match_button.position = Vector2(1210, 28)
+	match_button.size = Vector2(180, 38)
+	match_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/match/moba_match.tscn"))
+	layer.add_child(match_button)
 	var team_content := _panel(layer, Vector2(24, 94), Vector2(1552, 98))
 	for team in range(2):
 		var row := HBoxContainer.new()
