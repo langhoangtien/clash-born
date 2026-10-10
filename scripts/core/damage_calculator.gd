@@ -3,6 +3,9 @@ extends RefCounted
 
 enum DamageType { PHYSICAL, MAGICAL, PURE }
 
+static func effective_armor(armor: float, flat_reduction: float, penetration: float = 0.0) -> float:
+	return (armor - maxf(0, flat_reduction)) * (1 - clampf(penetration, 0, 1))
+
 static func armor_multiplier(armor: float, coefficient: float) -> float:
 	var positive_curve := 1.0 / (1.0 + coefficient * absf(armor))
 	return positive_curve if armor >= 0.0 else 2.0 - positive_curve

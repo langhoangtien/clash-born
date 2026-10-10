@@ -5,13 +5,19 @@ extends Node2D
 var runtime: UnitRuntimeState
 var last_damage: float = 0.0
 var damage_flash: float = 0.0
+var hit_notice: String = ""
 
 func _process(delta: float) -> void:
 	damage_flash = maxf(0.0, damage_flash - delta)
 	queue_redraw()
 
-func show_damage(amount: float) -> void:
+func show_damage(amount: float, critical: bool = false) -> void:
 	last_damage = amount
+	hit_notice = ("CRIT " if critical else "") + "-%.1f" % amount
+	damage_flash = 0.5
+
+func show_miss() -> void:
+	hit_notice = "MISS"
 	damage_flash = 0.5
 
 func _draw() -> void:
@@ -38,16 +44,24 @@ func _draw() -> void:
 	var hp_text := "HP %.1f / %.1f   MP %.1f / %.1f" % [runtime.current_hp, runtime.stats.max_hp, runtime.current_mana, runtime.stats.max_mana]
 	var width := font.get_string_size(hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(-width / 2, 104), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
-	var details := "STR %.1f · AGI %.1f · INT %.1f\nDMG P %.1f / M %.1f / Pure %.1f\nArmor P %.2f / M %.2f" % [combat_data.strength, combat_data.agility, combat_data.intelligence, runtime.stats.physical_damage, runtime.stats.magic_damage, runtime.stats.pure_damage, runtime.stats.physical_armor, runtime.stats.magic_armor]
+	var details := "STR %.1f · AGI %.1f · INT %.1f\nDMG P %.1f / M %.1f / Pure %.1f\nArmor P %.2f / M %.2f · APS %.2f\nEvade %.0f%% · Accuracy %.0f%% · Crit %.0f%%\nResist %.0f%% · Move %.0f" % [combat_data.strength, combat_data.agility, combat_data.intelligence, runtime.stats.physical_damage, runtime.stats.magic_damage, runtime.stats.pure_damage, runtime.physical_armor(), runtime.stats.magic_armor, runtime.stats.attack_speed, runtime.stats.evasion * 100, runtime.stats.accuracy * 100, runtime.stats.critical_chance * 100, runtime.stats.status_resistance * 100, runtime.movement_speed(preload("res://data/balance/default_balance.tres"))]
 	var y := 135.0
 	for line in details.split("\n"):
 		width = font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 		draw_string(font, Vector2(-width / 2, y), line, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.67, 0.74, 0.8))
 		y += 24
+	var status: PackedStringArray = []
+	for effect in runtime.effects.active:
+		var kind_name: String = ["STUN", "SLOW", "ARMOR -"][effect.kind]
+		status.append("%s %.1fs" % [kind_name, effect.remaining_seconds(runtime.current_tick)])
+	if not status.is_empty():
+		var effect_text := " · ".join(status)
+		width = font.get_string_size(effect_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+		draw_string(font, Vector2(-width / 2, y), effect_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 0.78, 0.45))
 	if not runtime.alive:
 		draw_string(font, Vector2(-27, 8), "DEAD", HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
 	elif damage_flash > 0:
-		draw_string(font, Vector2(-30, -95), "-%.1f" % last_damage, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.78, 0.45))
+		draw_string(font, Vector2(-30, -95), hit_notice, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.78, 0.45))
 
 func _draw_bar(origin: Vector2, ratio: float, color: Color) -> void:
 	draw_rect(Rect2(origin, Vector2(160, 10)), Color(0.02, 0.03, 0.04))

@@ -15,3 +15,6 @@ magic_damage = 48.0
 pure_damage = 6.0
 physical_armor = 3.0
 magic_armor = 10.0
+evasion = 0.3
+critical_chance = 0.15
+status_resistance = 0.25

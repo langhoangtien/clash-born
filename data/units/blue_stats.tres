@@ -13,3 +13,6 @@ base_mana = 80.0
 physical_damage = 90.0
 physical_armor = 12.0
 magic_armor = 2.0
+accuracy = 0.3
+critical_chance = 0.25
+status_resistance = 0.25

@@ -10,5 +10,12 @@ extends Resource
 @export var primary_damage_enabled: bool = true
 @export var primary_damage_coefficient: float = 0.7
 @export var armor_coefficient: float = 0.06
-## Phase 2 fixed cadence. Configurable attack speed is deferred to Phase 3.
-@export var basic_attack_interval_ticks: int = 30
+@export var attack_speed_per_agility: float = 0.005
+@export var minimum_attack_speed: float = 0.3
+@export var maximum_attack_speed: float = 3.0
+@export var minimum_attack_interval: float = 0.1
+@export var evasion_cap: float = 0.75
+@export var multiplicative_evasion: bool = true
+@export var default_critical_multiplier: float = 2.0
+@export var status_resistance_cap: float = 0.6
+@export var minimum_movement_speed: float = 100.0

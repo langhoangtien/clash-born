@@ -19,3 +19,20 @@ enum PrimaryAttribute { NONE, STRENGTH, AGILITY, INTELLIGENCE }
 @export var physical_armor: float = 0.0
 @export var magic_armor: float = 0.0
 @export var attack_range: float = 700.0
+## Probabilities/bonuses use fractions: 0.30 means 30 percent.
+@export var base_attacks_per_second: float = 1.0
+@export var attack_speed_bonus: float = 0.0
+@export var movement_speed: float = 300.0
+@export var evasion: float = 0.0
+@export var evasion_sources: Array[float] = []
+@export var accuracy: float = 0.0
+@export var critical_chance: float = 0.0
+## Zero uses the central balance default.
+@export var critical_multiplier: float = 0.0
+@export var status_resistance: float = 0.0
+@export var armor_reduction: float = 0.0
+@export var magic_armor_reduction: float = 0.0
+@export var physical_armor_penetration: float = 0.0
+@export var attacks_can_miss: bool = true
+@export var attacks_can_crit: bool = true
+@export var pure_attacks_can_crit: bool = false
