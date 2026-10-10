@@ -51,7 +51,7 @@ func _test_stats_and_hits() -> void:
 	_near(stats.status_resistance, 0.6, "Status resistance cap")
 	_near(stats.critical_multiplier, 2, "Central critical multiplier default")
 	source.base_attacks_per_second = 100
-	_near(StatCalculator.calculate(source, balance).attack_speed, 3, "Attack speed maximum")
+	_near(StatCalculator.calculate(source, balance).attack_speed, 4.2, "Attack speed maximum")
 	source.base_attacks_per_second = 0
 	_near(StatCalculator.calculate(source, balance).attack_speed, 0.3, "Attack speed minimum")
 	balance.minimum_attack_interval = 0.5

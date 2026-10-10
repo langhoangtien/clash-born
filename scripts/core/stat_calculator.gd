@@ -62,6 +62,7 @@ static func calculate(source: UnitStats, balance: BalanceSettings, equipment: Ar
 		"bash_duration": maxf(0, bonuses.get("bash_duration", 0.0)),
 		"bash_damage": maxf(0, bonuses.get("bash_damage", 0.0)),
 		"damage_reflect": clampf(bonuses.get("damage_reflect", 0.0), 0, 1),
+		"lifesteal": clampf(bonuses.get("lifesteal", 0.0), 0, 1),
 		"attack_slow": clampf(bonuses.get("attack_slow", 0.0), 0, 0.9),
 		"attack_slow_duration": maxf(0, bonuses.get("attack_slow_duration", 0.0)),
 	}

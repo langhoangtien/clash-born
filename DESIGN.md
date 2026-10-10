@@ -334,9 +334,19 @@ at projectile impact for ranged attacks. Reflected damage is tagged and cannot
 recurse. ATTACK_SLOW is an ordinary tick-expiring status.
 
 Match heroes have BAT 2.0, regular creeps BAT 2.5, and towers/catapults BAT 3.0.
-A per-source five-times-base APS cap remains. A startup draft pauses simulation
+A per-source seven-times-base APS cap supports a displayed 700% maximum. A startup draft pauses simulation
 until one of twelve named heroes is selected. HeroGrowth stores starting attributes,
 per-level attribute growth, primary attribute and one fixed five-rank skill.
 HeroProgression owns its rank/points and permanent kill damage. Brakk's skill lowers
 BAT from 1.9 to 1.5; Pure Throw scales 20/25/30/35/40%. Two active skill slots
 remain future work. See `docs/late_game_items_passives.md`.
+
+## Expanded match map and neutral camps
+
+The match map now authors twelve jungle camps, twenty-two team-owned towers,
+separate fountain/throne points and rounded wall runs. Each team owns three towers
+on every lane plus two throne guards. Jungle units use neutral team 2 only for
+targeting, remain within a 420-unit leash and return home after losing aggro.
+Lane creeps only swap to another wave at close distance, so a new spawn cannot
+pull a wave away from a nearby tower. Mobile actors receive deterministic
+separation; dead towers are removed from scene collision and targeting.

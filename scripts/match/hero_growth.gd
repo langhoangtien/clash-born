@@ -20,6 +20,6 @@ func source_at_level(base: UnitStats, level: int) -> UnitStats:
 func growth_summary() -> String:
 	var parts: PackedStringArray = []
 	for key in per_level:
-		var label: String = {"base_hp": "máu", "physical_damage": "công vật lý", "magic_damage": "công phép", "movement_speed": "tốc chạy", "attack_speed_bonus": "tốc đánh", "physical_armor": "giáp", "base_mana": "mana"}.get(key, key)
+		var label: String = {"strength": "STR", "agility": "AGI", "intelligence": "INT", "base_hp": "máu", "physical_damage": "công vật lý", "magic_damage": "công phép", "movement_speed": "tốc chạy", "attack_speed_bonus": "tốc đánh", "physical_armor": "giáp", "base_mana": "mana"}.get(key, key)
 		parts.append("+%.1f%% %s" % [per_level[key] * 100, label] if key == "attack_speed_bonus" else "+%.1f %s" % [per_level[key], label])
 	return " / ".join(parts)

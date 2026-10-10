@@ -222,8 +222,8 @@ line-of-sight, vẫn kiểm tra range và damage tại impact như trước.
 ## Item late game, BAT và nội tại
 
 Match APS = clamp(BaseAPS × (1 + AGI×0.005 + các bonus AS), minimum,
-min(absolute_cap, BaseAPS×5)). Hero match dùng BaseAPS=0.5 (BAT 2.0), nên trần
-500% là 2.5 đòn/s. Slow tốc đánh nhân tiếp `(1 − strongest_attack_slow)`;
+min(absolute_cap, BaseAPS×7)). Hero match dùng BaseAPS=0.5 (BAT 2.0), nên trần
+700% là 3.5 đòn/s. Slow tốc đánh nhân tiếp `(1 − strongest_attack_slow)`;
 Cuồng Tốc nhân `(1 + stacks × rank_value)`, rank value là
 10/12.5/15/17.5/20%, rồi vẫn clamp ở cap. Lính thường dùng BAT 2.5; trụ và xe
 bắn đá dùng BAT 3.0. Nhịp Chiến đổi BAT thành 1.9/1.8/1.7/1.6/1.5 theo rank.
@@ -242,3 +242,6 @@ Desolator I/II thêm 50/80 damage và trừ 10/15 armor qua công thức armor r
 hiện có. Giá total dùng cho bán lại. Crit I override
 hệ số crit thành 1.2; Crit II thành 2.5. Chi tiết item, passive và UI:
 `docs/late_game_items_passives.md`.
+
+Móng Vuốt Quỷ cộng 150% tốc đánh. Huyết Kiếm I/II hút 8%/15% lượng damage
+basic attack thực tế đã gây và không hút máu từ công trình. Hero tối đa level 20.

@@ -24,14 +24,14 @@ func _run() -> void:
 	check(ranger.award(99) == 0 and ranger.level == 1, "XP below threshold does not level")
 	check(ranger.award(1) == 1 and ranger.level == 2 and ranger.experience == 0, "Exact XP threshold raises level")
 	check(ranger.unit.stats.strength == 23 and ranger.unit.stats.agility == 30.2 and ranger.unit.stats.intelligence == 18.6, "Ranger gains hero-specific STR/AGI/INT")
-	check(ranger.unit.stats.attack_speed > 0.5 and ranger.unit.stats.movement_speed == 321, "Ranger attack/move speed growth")
+	check(ranger.unit.stats.attack_speed > 0.5 and ranger.unit.stats.movement_speed == 281, "Ranger attack/move speed growth")
 	tank.award(100)
 	mage.award(100)
 	check(tank.unit.stats.strength == 33.8 and tank.unit.stats.physical_armor > 10 and tank.unit.stats.base_attack_time == 1.9, "Tank prioritizes STR/armor and BAT skill")
 	check(mage.unit.stats.intelligence == 33.7 and mage.unit.stats.magic_damage == 83 and mage.unit.stats.max_mana > 700, "Mage intelligence, magic and mana growth")
 	check(ranger.award(400) == 2 and ranger.level == 4 and ranger.experience == 50, "Multiple levels retain overflow XP")
 	ranger.award(100000)
-	check(ranger.level == 15 and ranger.experience == 0, "Level cap clamps XP")
+	check(ranger.level == 20 and ranger.experience == 0, "Level cap clamps XP")
 	var previous: Dictionary = ranger.unit.stats.duplicate(true)
 	ranger.award(10000)
 	check(previous == ranger.unit.stats, "Capped XP does not keep growing stats")
@@ -79,7 +79,7 @@ func _test_scene() -> void:
 	main.set_physics_process(false)
 	main.clock.set_running(false)
 	var hero: HeroProgression = main.progression.player
-	check(main.shop.hero_select.item_count == 12 and main.shop.buy_buttons.size() == 25 and main.shop.slot_buttons.size() == 6, "Shop has named hero roster, expanded recipes and six slots")
+	check(main.shop.hero_select.item_count == 12 and main.shop.buy_buttons.size() == 29 and main.shop.slot_buttons.size() == 6, "Shop has named hero roster, expanded recipes and six slots")
 	var input := InputEventKey.new()
 	input.physical_keycode = KEY_B
 	input.pressed = true

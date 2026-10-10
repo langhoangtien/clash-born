@@ -20,8 +20,8 @@ func _run() -> void:
 	for info in main.entities.values(): info.actor.paused = true
 	var player: UnitRuntimeState = main.player.runtime
 	var enemy: UnitRuntimeState = main.enemy_hero.runtime
-	var blue: Vector2 = main.layout.spawn_points(0)[0]
-	var red: Vector2 = main.layout.spawn_points(1)[0]
+	var blue: Vector2 = main.layout.fountain_point(0)
+	var red: Vector2 = main.layout.fountain_point(1)
 	place(main.player, blue)
 	place(main.enemy_hero, red)
 	player.current_hp = 200

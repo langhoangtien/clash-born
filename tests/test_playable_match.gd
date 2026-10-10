@@ -47,14 +47,38 @@ func _test_match() -> void:
 	await frames(2)
 	main.set_physics_process(false)
 	main.clock.set_running(false)
-	check(main.entities.size() == 40, "Two heroes, twelve towers, two cores and first twenty-four-creep wave (actual %d)" % main.entities.size())
+	check(main.entities.size() == 50, "Two heroes, twenty-two towers, two cores and first twenty-four-creep wave (actual %d)" % main.entities.size())
+	check(main.layout.tower_cells.size() == 22 and main.layout.tower_teams.count(0) == 11 and main.layout.tower_teams.count(1) == 11, "Each team has three towers per lane and two throne guards")
+	check(main.layout.fountain_point(0).distance_to(main.layout.throne_point(0)) > main.settings.fountain_radius and main.layout.fountain_point(1).distance_to(main.layout.throne_point(1)) > main.settings.fountain_radius, "Thrones stand outside both fountain healing zones")
+	check(main.layout.jungle_camps.size() == 12, "Three authored jungle camps exist in each map quadrant")
 	check(main.player.runtime == main.combat.get_unit("player") and main.player.view.runtime == main.player.runtime, "Map/visual/combat share a single runtime state")
 	var lanes: Dictionary = {}
 	for info in main.entities.values():
 		if info.kind == "creep": lanes["%d_%s" % [info.actor.runtime.team_id, info.lane]] = true
 	check(lanes.size() == 6, "Creeps spawn for both teams in all three lanes (actual %s)" % [str(lanes.keys())])
+	var overlap_pair: Array[MapUnit] = []
+	for info in main.entities.values():
+		if info.kind == "creep" and info.actor.runtime.team_id == 0 and overlap_pair.size() < 2: overlap_pair.append(info.actor)
+	var saved_overlap_positions := [overlap_pair[0].position, overlap_pair[1].position]
+	var overlap_point: Vector2 = main.layout.cell_center(Vector2i(15, 24))
+	for actor in overlap_pair: actor.position = overlap_point; actor.runtime.position = overlap_point
+	main._separate_mobile_units()
+	check(overlap_pair[0].position.distance_to(overlap_pair[1].position) > 0, "Mobile unit separation resolves exact hero/creep-style overlap deterministically")
+	for index in range(2): overlap_pair[index].position = saved_overlap_positions[index]; overlap_pair[index].runtime.position = saved_overlap_positions[index]
 	var player: MapUnit = main.player
 	var enemy: MapUnit = main.enemy_hero
+	var bot: HeroProgression = main.progression.enemy_hero
+	bot.award(100)
+	main.clock.step()
+	check(bot.level == 2 and bot.passive_level == 2 and bot.skill_points == 0, "Enemy hero spends its new skill point automatically")
+	var player_home := player.position
+	var enemy_home := enemy.position
+	var blue_tower: MapUnit = main.entities.tower_00.actor
+	player.position = blue_tower.position; player.runtime.position = player.position
+	enemy.position = player.position + Vector2(180, 0); enemy.runtime.position = enemy.position
+	check(main._unsafe_tower_dive(enemy, player), "Enemy hero recognizes an unsupported dive into an allied tower")
+	player.position = player_home; player.runtime.position = player_home
+	enemy.position = enemy_home; enemy.runtime.position = enemy_home
 	main.camera.set_process(false)
 	# Let native physics execute: keyboard-style steering stays continuous/collidable.
 	var before := player.position
@@ -139,6 +163,17 @@ func _test_match() -> void:
 		main.clock.step()
 		if not main.entities.has("test_creep"): break
 	check(not main.entities.has("test_creep") and main.creep_kills > 0, "Player kills creep and dead creep is cleaned up")
+	var jungle_units: Array[String] = []
+	for id in main.entities:
+		if main.entities[id].get("neutral", false): jungle_units.append(id)
+	check(jungle_units.size() == 36, "Twelve camps spawn three neutral creeps each")
+	var jungle_info: Dictionary = main.entities[jungle_units[0]]
+	var jungle_actor: MapUnit = jungle_info.actor
+	jungle_actor.position = jungle_info.camp_center + Vector2(jungle_info.leash_range + 60.0, 0)
+	jungle_actor.runtime.position = jungle_actor.position
+	jungle_actor.runtime.target_id = "player"
+	main._drive_jungle_creep(jungle_info, main.combat.tick_count + 1)
+	check(jungle_actor.runtime.target_id.is_empty() and not jungle_actor.path.is_empty(), "Jungle creep drops aggro and returns after crossing its leash")
 	for unit in main.combat.units:
 		if timers.has(unit.unit_id): unit.next_attack_tick = timers[unit.unit_id]
 	# Tower picks a creep before a hero and deals damage through the same engine.
@@ -153,6 +188,18 @@ func _test_match() -> void:
 	var creep_hp := creep.runtime.current_hp
 	for tick in range(40): main.clock.step()
 	check(creep.runtime.current_hp < creep_hp, "Tower automatically fires and damages creep")
+	var saved_player_damage: float = player.runtime.stats.physical_damage
+	var saved_player_ranged: bool = player.runtime.stats.ranged_attacks
+	player.runtime.stats.physical_damage = 10000
+	player.runtime.stats.ranged_attacks = false
+	tower.runtime.current_hp = 1
+	player.runtime.next_attack_tick = main.combat.tick_count + 1
+	main.request_attack("creep")
+	main.locked_target = tower.runtime.unit_id
+	main.clock.step()
+	check(not main.entities.has(tower.runtime.unit_id), "Destroyed tower is removed from collision and scene entities")
+	player.runtime.stats.physical_damage = saved_player_damage
+	player.runtime.stats.ranged_attacks = saved_player_ranged
 	# Wave timing is simulation time and bounded; paused clock does not spawn.
 	main.settings.wave_interval = 1
 	main.next_wave_tick = main.combat.tick_count + 1

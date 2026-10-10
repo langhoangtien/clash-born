@@ -80,9 +80,10 @@ MISS, CHOÁNG, CHẬM and CHẬM ĐÁNH appear directly over affected units.
 
 ## Verification
 
-Godot 4.7.2 executed 80 focused headless checks and 82 renderer checks with zero
+Godot 4.7.2 executes focused headless and renderer checks with zero
 failures. Coverage includes full-slot crafting, component consumption, exact Crit
-I/II values, attribute/HP items, 500% cap, every passive category, skill points,
+I/II values, attribute/HP items, 700% cap, Demon Claw, 8%/15% lifesteal,
+generated bow/sickle/hammer icons, every passive category, skill points,
 melee and projectile-impact bash, frost AS slow, finite 15% reflect, max-HP pure
 damage, detailed UI, startup draft, and confirmed-draft transition. Renderer
 captures: `.local/late-game-shop.png` and `.local/hero-passive-draft.png`.

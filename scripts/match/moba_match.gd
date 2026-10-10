@@ -33,6 +33,7 @@ var rewards: MatchRewards
 var death_gold_losses: Dictionary = {}
 var draft_mode: bool = false
 var bot_build_index: int = 0
+var jungle_spawned: bool = false
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -64,11 +65,11 @@ func _ready() -> void:
 	camera.position = player.position
 	camera.set_zoom_level(0.65)
 	for team in range(2):
-		var point := layout.cell_center(Vector2i(4, 35) if team == 0 else Vector2i(35, 4))
+		var point := layout.throne_point(team)
 		cores.append(_spawn("core_%d" % team, team, settings.core, point, "core"))
 	for index in range(layout.tower_cells.size()):
 		var cell: Vector2 = layout.tower_cells[index]
-		var team := 0 if cell.y > cell.x else 1
+		var team := layout.tower_team(index)
 		_spawn("tower_%02d" % index, team, settings.tower, layout.cell_center(Vector2i(cell)), "tower")
 	var fountain_view := Node2D.new()
 	fountain_view.set_script(preload("res://scripts/match/fountain_view.gd"))
@@ -114,7 +115,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	actor.configure(source, state.team_id, state.position, layout, _navigation(state.stats.collision_radius), state)
 	actor.view.visual_data.unit_id = state.unit_id
 	actor.view.visual_data.display_name = "BẠN" if state.unit_id == "player" else ("BOT ĐỎ" if kind == "hero" else {"creep": "LÍNH", "tower": "TRỤ", "core": "NHÀ CHÍNH"}[kind])
-	actor.view.show_resource_bars = true
+	actor.view.show_resource_bars = kind != "creep"
 	actor.view.compact_visual = kind == "creep"
 	actor.view.siege_visual = siege
 	actor.view.structure_visual = kind in ["tower", "core"]
@@ -143,7 +144,7 @@ func _spawn(id: String, team: int, source: UnitStats, point: Vector2, kind: Stri
 func spawn_wave() -> void:
 	var live := 0
 	for info in entities.values():
-		if info.kind == "creep" and info.actor.runtime.alive: live += 1
+		if info.kind == "creep" and not info.get("neutral", false) and info.actor.runtime.alive: live += 1
 	var has_siege := settings.siege_creep != null and settings.siege_wave_interval > 0 and wave_number % settings.siege_wave_interval == 0
 	var per_lane := settings.creeps_per_lane + (1 if has_siege else 0)
 	if live + per_lane * 6 > settings.maximum_live_creeps: return
@@ -157,6 +158,20 @@ func spawn_wave() -> void:
 				if siege: source = settings.siege_creep
 				var point := layout.spawn_points(team)[0] + Vector2((slot - 1) * 45, 35 if lane == "TOP" else (-35 if lane == "BOT" else 0))
 				_spawn("creep_%d_%d_%s_%d" % [wave_number, team, lane, slot], team, source, point, "creep", lane, siege, ranged_creep)
+
+func spawn_jungle_camps() -> void:
+	for camp_index in range(layout.jungle_camps.size()):
+		var center := layout.cell_center(Vector2i(layout.jungle_camps[camp_index]))
+		for slot in range(3):
+			var source := settings.melee_creep if slot < 2 else settings.ranged_creep
+			var point := center + Vector2((slot - 1) * 34, -18 if slot % 2 == 0 else 20)
+			var actor := _spawn("jungle_%02d_%d" % [camp_index, slot], 2, source, point, "creep", "JUNGLE", false, slot == 2)
+			actor.view.visual_data.display_name = "QUÁI RỪNG"
+			actor.view.visual_data.team_color = Color(0.85, 0.58, 0.18)
+			var info: Dictionary = entities[actor.runtime.unit_id]
+			info.neutral = true
+			info.camp_center = center
+			info.leash_range = 420.0
 
 func _physics_process(delta: float) -> void:
 	if player == null: return
@@ -185,6 +200,11 @@ func _tick(_index: int) -> void:
 	if tick >= next_wave_tick:
 		spawn_wave()
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
+	if not jungle_spawned and tick >= 30:
+		spawn_jungle_camps()
+		jungle_spawned = true
+	var bot_progression: HeroProgression = progression.enemy_hero
+	while bot_progression.skill_points > 0: bot_progression.upgrade_passive()
 	for id in respawns.keys():
 		if tick >= respawns[id]:
 			_revive(id)
@@ -199,9 +219,16 @@ func _tick(_index: int) -> void:
 		elif info.kind in ["tower", "core"]:
 			var target := _choose_target(info, ["creep", "hero"], actor.runtime.attack_range())
 			actor.runtime.target_id = target.runtime.unit_id if target != null else ""
+		elif info.get("neutral", false):
+			_drive_jungle_creep(info, tick)
 		else:
-			var categories: Array = ["hero", "creep", "tower", "core"] if info.kind == "hero" else ["creep", "hero", "tower", "core"]
-			var target := _choose_target(info, categories, settings.aggro_range)
+			var target: MapUnit
+			if info.kind == "hero":
+				var categories: Array = ["hero", "creep", "tower", "core"]
+				if actor == enemy_hero and _unsafe_tower_dive(actor, player): categories = ["creep", "tower", "core"]
+				target = _choose_target(info, categories, settings.aggro_range)
+			else:
+				target = _choose_lane_creep_target(info)
 			_drive_target(info, target, tick)
 	_heal_fountains()
 	var events := combat.step()
@@ -212,8 +239,9 @@ func _tick(_index: int) -> void:
 		elif event.kind == "miss" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_miss()
 		elif event.kind == "death": _on_death(event.target_unit_id, events)
-	for id in entities.keys():
-		if entities[id].kind == "creep" and not entities[id].actor.runtime.alive:
+	_separate_mobile_units()
+	for id in entities.keys().duplicate():
+		if entities[id].kind in ["creep", "tower"] and not entities[id].actor.runtime.alive:
 			var actor: MapUnit = entities[id].actor
 			combat.units.erase(actor.runtime)
 			actor.queue_free()
@@ -225,7 +253,7 @@ func _tick(_index: int) -> void:
 			break
 
 func in_fountain(unit: UnitRuntimeState) -> bool:
-	return unit.alive and unit.position.distance_to(layout.spawn_points(unit.team_id)[0]) <= settings.fountain_radius
+	return unit.alive and unit.team_id in [0, 1] and unit.position.distance_to(layout.fountain_point(unit.team_id)) <= settings.fountain_radius
 
 func _heal_fountains() -> void:
 	for hero in progression.values():
@@ -253,6 +281,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 	for candidate in entities.values():
 		var target: MapUnit = candidate.actor
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
+		if info.kind in ["tower", "core"] and candidate.get("neutral", false): continue
 		if info.kind == "creep" and candidate.kind in ["creep", "tower"] and candidate.lane != info.lane: continue
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
@@ -263,6 +292,28 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		best_priority = priority
 		best_distance = distance
 	return best
+
+func _choose_lane_creep_target(info: Dictionary) -> MapUnit:
+	# A wave only swaps to another wave at close combat distance. Once it has
+	# reached a tower, newly spawned creeps at the enemy base cannot pull it away.
+	var target := _choose_target(info, ["creep"], 430.0)
+	if target == null: target = _choose_target(info, ["tower", "core"], settings.aggro_range)
+	if target == null: target = _choose_target(info, ["hero"], 430.0)
+	return target
+
+func _unsafe_tower_dive(source: MapUnit, target: MapUnit) -> bool:
+	if source == null or target == null: return false
+	for info in entities.values():
+		if info.kind != "tower": continue
+		var tower: MapUnit = info.actor
+		if not tower.runtime.alive or tower.runtime.team_id != target.runtime.team_id: continue
+		if tower.runtime.distance_to_unit(target.runtime) > tower.runtime.attack_range() + 80.0: continue
+		for ally_info in entities.values():
+			if ally_info.kind != "creep" or ally_info.get("neutral", false): continue
+			var ally: MapUnit = ally_info.actor
+			if ally.runtime.alive and ally.runtime.team_id == source.runtime.team_id and tower.runtime.distance_to_unit(ally.runtime) <= tower.runtime.attack_range(): return false
+		return true
+	return false
 
 func _player_target() -> MapUnit:
 	if entities.has(locked_target):
@@ -296,6 +347,50 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 			if actor.path.is_empty() or actor.path[-1].distance_to(waypoint) > 0.1: actor.go_to(waypoint)
 	else: actor.stop()
 	if target != null: info.chasing = true
+
+func _drive_jungle_creep(info: Dictionary, tick: int) -> void:
+	var actor: MapUnit = info.actor
+	var center: Vector2 = info.camp_center
+	var leash: float = info.leash_range
+	if actor.position.distance_to(center) > leash:
+		actor.runtime.target_id = ""
+		if tick % 10 == 1 or actor.path.is_empty(): actor.go_to(center)
+		return
+	var target := _choose_target(info, ["hero"], 330.0)
+	if target != null and target.position.distance_to(center) <= leash:
+		_drive_target(info, target, tick)
+	elif actor.position.distance_to(center) > 35.0:
+		actor.runtime.target_id = ""
+		if tick % 10 == 1 or actor.path.is_empty(): actor.go_to(center)
+	else:
+		actor.runtime.target_id = ""
+		actor.stop()
+
+func _separate_mobile_units() -> void:
+	var ids: Array = entities.keys()
+	ids.sort()
+	for first_index in range(ids.size()):
+		var first_info: Dictionary = entities[ids[first_index]]
+		if first_info.kind in ["tower", "core"]: continue
+		var first: MapUnit = first_info.actor
+		if not first.runtime.alive: continue
+		if first_info.kind == "hero" and in_fountain(first.runtime): continue
+		for second_index in range(first_index + 1, ids.size()):
+			var second_info: Dictionary = entities[ids[second_index]]
+			if second_info.kind in ["tower", "core"]: continue
+			var second: MapUnit = second_info.actor
+			if not second.runtime.alive: continue
+			if second_info.kind == "hero" and in_fountain(second.runtime): continue
+			var minimum: float = first.runtime.stats.collision_radius + second.runtime.stats.collision_radius + 3.0
+			var offset := second.position - first.position
+			var distance := offset.length()
+			if distance >= minimum: continue
+			var direction := offset / distance if distance > 0.001 else Vector2.RIGHT.rotated(float(first_index + second_index))
+			var correction := direction * minf((minimum - distance) * 0.5, 12.0)
+			var first_next := first.position - correction
+			var second_next := second.position + correction
+			if first.navigation.point_is_clear(first_next): first.position = first_next; first.runtime.position = first_next
+			if second.navigation.point_is_clear(second_next): second.position = second_next; second.runtime.position = second_next
 
 func request_attack(category: String) -> void:
 	if match_over or paused or shop.visible or opponent_panel.visible or not player.runtime.alive: return

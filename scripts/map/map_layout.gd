@@ -10,6 +10,10 @@ extends Resource
 @export var red_spawns: PackedVector2Array = []
 @export var base_areas: Array[Rect2i] = []
 @export var tower_cells: PackedVector2Array = []
+@export var tower_teams: PackedInt32Array = []
+@export var jungle_camps: PackedVector2Array = []
+@export var fountain_cells: PackedVector2Array = []
+@export var throne_cells: PackedVector2Array = []
 
 func world_size() -> Vector2:
 	return Vector2(dimensions) * tile_size
@@ -41,6 +45,19 @@ func spawn_points(team: int) -> PackedVector2Array:
 	for cell in blue_spawns if team == 0 else red_spawns: result.append(cell_center(Vector2i(cell)))
 	return result
 
+func fountain_point(team: int) -> Vector2:
+	if fountain_cells.size() == 2: return cell_center(Vector2i(fountain_cells[team]))
+	return spawn_points(team)[0]
+
+func throne_point(team: int) -> Vector2:
+	if throne_cells.size() == 2: return cell_center(Vector2i(throne_cells[team]))
+	return spawn_points(team)[0]
+
+func tower_team(index: int) -> int:
+	if index >= 0 and index < tower_teams.size(): return tower_teams[index]
+	var point := cell_center(Vector2i(tower_cells[index]))
+	return 0 if point.distance_to(spawn_points(0)[0]) < point.distance_to(spawn_points(1)[0]) else 1
+
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
 	if dimensions.x < 3 or dimensions.y < 3 or tile_size <= 0: errors.append("Invalid dimensions/tile size")
@@ -58,4 +75,11 @@ func validation_errors() -> PackedStringArray:
 		if spawns.is_empty(): errors.append("Missing team spawn")
 		for point in spawns:
 			if not is_walkable(Vector2i(point)): errors.append("Blocked spawn")
+	if tower_teams.size() != tower_cells.size(): errors.append("Tower team count mismatch")
+	for point in tower_cells:
+		if not is_walkable(Vector2i(point)): errors.append("Blocked tower")
+	for point in jungle_camps:
+		if not is_walkable(Vector2i(point)): errors.append("Blocked jungle camp")
+	for point in fountain_cells + throne_cells:
+		if not is_walkable(Vector2i(point)): errors.append("Blocked base marker")
 	return errors

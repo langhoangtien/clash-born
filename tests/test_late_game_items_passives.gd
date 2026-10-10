@@ -28,7 +28,7 @@ func passive_index(id: String) -> int:
 
 func _test_catalog_and_recipes() -> void:
 	var items := MatchItemCatalog.items()
-	check(items.size() == 25, "Catalog has components, Desolator and late-game recipes")
+	check(items.size() == 29, "Catalog has components, unique icons, lifesteal and late-game recipes")
 	var crit1 := MatchItemCatalog.by_id("critical_blade")
 	var crit2 := MatchItemCatalog.by_id("critical_blade_2")
 	check(crit1.modifiers.physical_damage == 25 and crit1.modifiers.critical_chance == 0.20, "Crit I requested damage/chance")
@@ -58,10 +58,12 @@ func _test_catalog_and_recipes() -> void:
 	check(full.equipment.items().size() == 6 and full.buy(MatchItemCatalog.by_id("heart")), "Recipe can craft while all six slots occupied")
 	check(full.equipment.items().size() == 4 and full.equipment.count_id("heart") == 1, "Three components become one item")
 	var capped := StatCalculator.calculate(settings.hero, BalanceSettings.new(), [MatchItemCatalog.by_id("swift_gloves"), MatchItemCatalog.by_id("butterfly"), MatchItemCatalog.by_id("assault_armor")])
-	near(capped.attack_speed_cap, 2.5, "BAT 2.0 gives 2.5 APS cap at 500 percent")
-	check(capped.attack_speed <= 2.5, "Items respect 500 percent attack-speed cap")
+	near(capped.attack_speed_cap, 3.5, "BAT 2.0 gives 3.5 APS cap at 700 percent")
+	check(capped.attack_speed <= 3.5, "Items respect 700 percent attack-speed cap")
 	check(MatchItemCatalog.by_id("heart").modifiers.max_hp == 2400 and MatchItemCatalog.by_id("power_treads").modifiers.strength == 15, "HP specialization and attribute boots are substantial")
 	check(MatchItemCatalog.by_id("desolator").modifiers.armor_reduction == 10 and MatchItemCatalog.by_id("desolator_2").modifiers.physical_damage == 80 and MatchItemCatalog.by_id("desolator_2").modifiers.armor_reduction == 15, "Desolator I/II provide requested damage and armor reduction")
+	check(MatchItemCatalog.by_id("demon_claw").modifiers.attack_speed_bonus == 1.5 and MatchItemCatalog.by_id("lifesteal_1").modifiers.lifesteal == 0.08 and MatchItemCatalog.by_id("lifesteal_2").modifiers.lifesteal == 0.15, "Demon Claw and both lifesteal tiers use requested values")
+	check(MatchItemCatalog.by_id("storm_bow").icon != null and MatchItemCatalog.by_id("desolator").icon != null and MatchItemCatalog.by_id("skull_basher").icon != null and MatchItemCatalog.by_id("storm_bow").icon != MatchItemCatalog.by_id("desolator").icon, "Bow, sickle and hammer use generated distinct icons without import files")
 
 func _test_passives() -> void:
 	var settings := _settings()
@@ -154,6 +156,13 @@ func _test_combat_effects() -> void:
 	var reflected := DamageCalculator.calculate(100, DamageCalculator.DamageType.PHYSICAL, 20, 0, BalanceSettings.new()) * 0.15
 	near(engine.units[0].current_hp, source.base_hp - reflected, "Reflect returns 15 percent of applied attack damage as pure")
 	check(engine.units[1].current_hp < target.base_hp, "Original reflected attack still damages defender")
+	var lifesteal := MatchItemCatalog.by_id("lifesteal_2")
+	engine.reset(source, target, Vector2.ZERO, Vector2(100, 0), 7, [lifesteal])
+	engine.external_control = true
+	engine.units[0].current_hp = 1000
+	engine.units[0].target_id = "red_01"
+	engine.step()
+	near(engine.units[0].current_hp - 1000, (target.base_hp - engine.units[1].current_hp) * 0.15, "Lifesteal II heals 15 percent of applied attack damage")
 	var feast_state := UnitRuntimeState.new("blue", 0, Vector2.ZERO, source, BalanceSettings.new())
 	feast_state.passive_id = "feast"
 	feast_state.passive_level = 1
@@ -176,14 +185,15 @@ func _test_match_ui() -> void:
 	await process_frame
 	main.set_physics_process(false)
 	main.clock.set_running(false)
-	check(main.player.runtime.stats.movement_speed == 320 and main.player.runtime.stats.attack_speed_cap == 2.5, "Match hero uses slower movement and BAT 2.0 cap")
-	check(main.settings.tower.attack_range == 600, "Tower range reduced")
-	check(main.shop.buy_buttons.size() == 25 and main.shop.passive_select.item_count == 1 and main.shop.passive_select.disabled, "Shop exposes recipes and hero-locked skill")
+	check(main.player.runtime.stats.movement_speed == 280 and main.player.runtime.stats.attack_speed_cap == 3.5, "Match hero uses slower movement and 700 percent BAT cap")
+	check(main.settings.tower.attack_range == 550, "Tower range reduced")
+	check(main.shop.buy_buttons.size() == 29 and main.shop.passive_select.item_count == 1 and main.shop.passive_select.disabled, "Shop exposes recipes and hero-locked skill")
 	check(is_equal_approx(main.settings.tower.base_attacks_per_second, 1.0 / 3.0) and is_equal_approx(main.settings.siege_creep.base_attacks_per_second, 1.0 / 3.0), "Tower and catapult use BAT 3.0")
 	check(main.settings.melee_creep.base_attacks_per_second == 0.4 and main.settings.ranged_creep.base_attacks_per_second == 0.4, "Regular creeps use BAT 2.5")
 	main.toggle_shop()
 	main.shop.refresh()
 	check("STR" in main.shop.stats_label.text and "giảm" in main.shop.stats_label.text and "miss" in main.shop.stats_label.text and "BAT" in main.shop.stats_label.text, "Hero panel displays detailed requested combat stats")
+	check("TĂNG MỖI LV" in main.shop.stats_label.text and main.settings.maximum_level == 20, "Hero draft displays per-level growth and level 20 cap")
 	check("HP" in main.quick_stats.text and "Mana" in main.quick_stats.text and "AGI" in main.quick_stats.text and "BAT" in main.quick_stats.text, "Always-visible bottom panel shows compact combat stats")
 	main.player.view.show_damage(10, false, DamageCalculator.DamageType.PHYSICAL)
 	check(main.player.view.hit_notice_color == Color(0.25, 0.68, 1.0), "Physical damage text is blue")

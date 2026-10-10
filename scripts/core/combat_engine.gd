@@ -61,7 +61,7 @@ func _make_unit(entry: Dictionary) -> UnitRuntimeState:
 	return unit
 
 func add_unit(entry: Dictionary) -> UnitRuntimeState:
-	if not entry.has("id") or not entry.has("source") or not entry.source is UnitStats or entry.get("team", -1) not in [0, 1] or entry.id.is_empty() or get_unit(entry.id) != null: return null
+	if not entry.has("id") or not entry.has("source") or not entry.source is UnitStats or entry.get("team", -1) not in [0, 1, 2] or entry.id.is_empty() or get_unit(entry.id) != null: return null
 	var unit := _make_unit(entry)
 	unit.current_tick = tick_count
 	units.append(unit)
@@ -149,6 +149,13 @@ func step() -> Array[Dictionary]:
 		target.current_hp = maxf(0, target.current_hp - damage.final_damage)
 		events.append(damage)
 		var source := get_unit(damage.source_unit_id)
+		if damage.get("is_attack", false) and source != null and source.alive and not target.is_structure and damage.applied_damage > 0:
+			var lifesteal: float = source.stats.get("lifesteal", 0.0)
+			if lifesteal > 0:
+				var applied_heal: float = minf(source.stats.max_hp - source.current_hp, damage.applied_damage * lifesteal)
+				if applied_heal > 0:
+					source.current_hp += applied_heal
+					events.append({"kind": "heal", "source_unit_id": source.unit_id, "target_unit_id": source.unit_id, "applied_heal": applied_heal})
 		if damage.get("is_attack", false) and source != null and source.alive and target.stats.get("attack_slow", 0.0) > 0:
 			_apply_effect({"source": target.unit_id, "target": source.unit_id, "kind": StatusEffect.Kind.ATTACK_SLOW, "duration": target.stats.attack_slow_duration, "magnitude": target.stats.attack_slow, "id": "frost_retaliation_" + target.unit_id}, events)
 		if not damage.get("reflected", false) and source != null and source.alive and target.stats.get("damage_reflect", 0.0) > 0 and damage.applied_damage > 0:
@@ -167,7 +174,7 @@ func step() -> Array[Dictionary]:
 			unit.alive = false
 			unit.casting.clear()
 			events.append(_event("death", "", unit.unit_id))
-		if unit.alive: teams_alive[unit.team_id] = true
+		if unit.alive and unit.team_id in [0, 1]: teams_alive[unit.team_id] = true
 	if not external_control and (not teams_alive[0] or not teams_alive[1]) and projectiles.is_empty():
 		finished = true
 		winner_team = 0 if teams_alive[0] else (1 if teams_alive[1] else -1)

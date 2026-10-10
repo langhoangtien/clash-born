@@ -21,7 +21,8 @@ func _ready() -> void:
 	walls.collision_layer = 1
 	walls.collision_mask = 0
 	add_child(walls)
-	# Merge horizontal blocked runs into rectangles; no duplicate collision tiles.
+	# Merge each blocked run into a capsule. Long walls remain solid, while the
+	# rounded ends stop moving circles from catching on square outer corners.
 	for y in range(layout.dimensions.y):
 		var x := 0
 		while x < layout.dimensions.x:
@@ -30,11 +31,23 @@ func _ready() -> void:
 				continue
 			var first := x
 			while x < layout.dimensions.x and not layout.is_walkable(Vector2i(x, y)): x += 1
-			var shape := RectangleShape2D.new()
-			shape.size = Vector2(x - first, 1) * layout.tile_size
 			var collision := CollisionShape2D.new()
-			collision.shape = shape
 			collision.position = Vector2(first + (x - first) * 0.5, y + 0.5) * layout.tile_size
+			var run_width: float = (x - first) * layout.tile_size
+			if y == 0 or y == layout.dimensions.y - 1 or first == 0 or x == layout.dimensions.x:
+				var edge := RectangleShape2D.new()
+				edge.size = Vector2(run_width, layout.tile_size)
+				collision.shape = edge
+			elif x - first == 1:
+				var circle := CircleShape2D.new()
+				circle.radius = layout.tile_size * 0.47
+				collision.shape = circle
+			else:
+				var capsule := CapsuleShape2D.new()
+				capsule.radius = layout.tile_size * 0.47
+				capsule.height = run_width - layout.tile_size * 0.06
+				collision.shape = capsule
+				collision.rotation = PI * 0.5
 			walls.add_child(collision)
 	# Physical bounds also support edited layouts without blocked perimeter cells.
 	var size := layout.world_size()
@@ -60,16 +73,64 @@ func _label(text: String, point: Vector2, color: Color, size_value: int = 36) ->
 	var readable_size := maxi(size_value, ceili(18 / maxf(0.01, get_global_transform_with_canvas().get_scale().x)))
 	draw_string(ThemeDB.fallback_font, point, text, HORIZONTAL_ALIGNMENT_LEFT, -1, readable_size, color)
 
+func _interior_wall_bounds() -> Array[Rect2i]:
+	var result: Array[Rect2i] = []
+	var visited: Dictionary = {}
+	for y in range(1, layout.dimensions.y - 1):
+		for x in range(1, layout.dimensions.x - 1):
+			var start := Vector2i(x, y)
+			if layout.is_walkable(start) or visited.has(start): continue
+			var pending: Array[Vector2i] = [start]
+			visited[start] = true
+			var minimum := start
+			var maximum := start
+			while not pending.is_empty():
+				var cell: Vector2i = pending.pop_back()
+				minimum = Vector2i(mini(minimum.x, cell.x), mini(minimum.y, cell.y))
+				maximum = Vector2i(maxi(maximum.x, cell.x), maxi(maximum.y, cell.y))
+				for direction in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+					var next: Vector2i = cell + direction
+					if next.x <= 0 or next.y <= 0 or next.x >= layout.dimensions.x - 1 or next.y >= layout.dimensions.y - 1: continue
+					if visited.has(next) or layout.is_walkable(next): continue
+					visited[next] = true
+					pending.append(next)
+			result.append(Rect2i(minimum, maximum - minimum + Vector2i.ONE))
+	return result
+
 func _draw() -> void:
 	if layout == null: return
 	var tile := layout.tile_size
+	var ground_color: Color = layout.terrain_definitions.get(".", {}).get("color", Color(0.29, 0.40, 0.29))
+	var river_color: Color = layout.terrain_definitions.get("W", {}).get("color", Color(0.20, 0.42, 0.58))
+	var river_points := PackedVector2Array()
 	for y in range(layout.dimensions.y):
+		var river_total: float = 0.0
+		var river_count: int = 0
 		for x in range(layout.dimensions.x):
 			var cell := Vector2i(x, y)
 			var rect := Rect2(Vector2(cell) * tile, Vector2.ONE * tile)
-			draw_rect(rect, layout.terrain_at(cell).get("color", Color.MAGENTA))
+			var terrain: Dictionary = layout.terrain_at(cell)
+			var terrain_name: String = terrain.get("name", "")
+			if terrain_name in ["Wall", "River"]:
+				draw_rect(rect, ground_color)
+			else:
+				draw_rect(rect, terrain.get("color", Color.MAGENTA))
+			if terrain_name == "River":
+				river_total += x + 0.5
+				river_count += 1
 			if walkability_overlay:
 				draw_rect(rect.grow(-6), Color(0.3, 1, 0.4, 0.12) if layout.is_walkable(cell) else Color(1, 0.2, 0.15, 0.65), false, 4)
+		if river_count > 0: river_points.append(Vector2(river_total / river_count * tile, (y + 0.5) * tile))
+	if river_points.size() > 1: draw_polyline(river_points, river_color, tile * 1.4, true)
+	var wall_color: Color = layout.terrain_definitions.get("#", {}).get("color", Color(0.20, 0.23, 0.24))
+	for bounds in _interior_wall_bounds():
+		var wall_style := StyleBoxFlat.new()
+		wall_style.bg_color = wall_color
+		wall_style.set_corner_radius_all(roundi(tile * 0.65))
+		draw_style_box(wall_style, Rect2(Vector2(bounds.position) * tile + Vector2(5, 5), Vector2(bounds.size) * tile - Vector2(10, 10)))
+	# The outer boundary remains a continuous frame.
+	for rect in [Rect2(0, 0, layout.world_size().x, tile), Rect2(0, layout.world_size().y - tile, layout.world_size().x, tile), Rect2(0, tile, tile, layout.world_size().y - tile * 2), Rect2(layout.world_size().x - tile, tile, tile, layout.world_size().y - tile * 2)]:
+		draw_rect(rect, wall_color)
 	if grid_overlay:
 		for x in range(layout.dimensions.x + 1): draw_line(Vector2(x * tile, 0), Vector2(x * tile, layout.world_size().y), Color(1, 1, 1, 0.15), 1)
 		for y in range(layout.dimensions.y + 1): draw_line(Vector2(0, y * tile), Vector2(layout.world_size().x, y * tile), Color(1, 1, 1, 0.15), 1)
@@ -95,6 +156,10 @@ func _draw() -> void:
 	if towers_overlay:
 		for cell in layout.tower_cells:
 			draw_rect(Rect2(layout.cell_center(Vector2i(cell)) - Vector2(40, 50), Vector2(80, 100)), Color(1, 1, 0.9, 0.8), false, 5)
+		for cell in layout.jungle_camps:
+			var center := layout.cell_center(Vector2i(cell))
+			draw_arc(center, 38, 0, TAU, 28, Color(0.95, 0.62, 0.18), 5, true)
+			_label("CAMP", center + Vector2(-38, 65), Color(1, 0.78, 0.3), 20)
 	if paths_overlay:
 		for unit in units:
 			if unit.path_index >= unit.path.size(): continue

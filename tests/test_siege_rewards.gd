@@ -94,7 +94,7 @@ func _test_durability() -> void:
 	check(settings.melee_creep.base_hp == 700 and settings.ranged_creep.base_hp == 450, "Both regular creep types more durable")
 	check(siege > melee * 2 and siege >= 300, "Real tower projectiles leave siege alive more than twice as long as melee")
 	check(settings.siege_creep.ranged_attacks and settings.siege_creep.projectile_speed == 650, "Catapult uses shared projectile attacks")
-	check(settings.tower.attack_range == 600 and settings.hero.attack_range == 550 and settings.melee_creep.attack_range == 110 and settings.ranged_creep.attack_range == 390 and settings.siege_creep.attack_range == 300, "Tower, hero and three creep profiles retain independent attack ranges")
+	check(settings.tower.attack_range == 550 and settings.hero.attack_range == 550 and settings.melee_creep.attack_range == 110 and settings.ranged_creep.attack_range == 390 and settings.siege_creep.attack_range == 300, "Tower, hero and three creep profiles retain independent attack ranges")
 	for source in [settings.tower, settings.hero, settings.melee_creep, settings.ranged_creep, settings.siege_creep]:
 		var engine := CombatEngine.new(BalanceSettings.new())
 		engine.external_control = true

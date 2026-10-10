@@ -116,7 +116,7 @@ func _test_loadouts() -> void:
 	loadout.clear()
 	source.base_attacks_per_second = 2
 	for slot in range(6): loadout.equip(slot, _item("swift_gloves"))
-	_near(StatCalculator.calculate(source, balance, loadout.items()).attack_speed, 3, "Equipment APS respects cap")
+	_near(StatCalculator.calculate(source, balance, loadout.items()).attack_speed, 4.2, "Equipment APS respects cap")
 	var attribute_item := EquipmentData.new()
 	attribute_item.id = "attributes"
 	attribute_item.display_name = "Attribute test"
