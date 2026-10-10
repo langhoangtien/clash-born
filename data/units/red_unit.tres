@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="UnitVisualData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/units/unit_visual_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+unit_id = "red_01"
+display_name = "Red Unit"
+team_color = Color(0.94, 0.32, 0.36, 1)
+radius = 32.0
