@@ -13,7 +13,7 @@
 | Creep damage to structures after mitigation | 100% | 65% |
 | Opening gold | 1000 | 250 |
 | Passive income | 3/second | 1 every 2 seconds |
-| Creep / hero kill gold | 40 / 250 | 20 / 125 + 8 × victim level |
+| Creep / hero kill gold | 20 / 125 + 8 × level | melee 40, ranged 50, catapult 75 / 250 + 16 × level |
 | Ranger opening damage / per-level damage | 155 / 12 | 100 / 7 |
 | Ranger attack-speed bonus per level | 3.5 percentage points | 2.5 percentage points |
 | Tank opening / per-level physical damage | 145 / 7 | 95 / 5 |

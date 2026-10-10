@@ -34,7 +34,7 @@ func hero_kill_credit(victim: UnitRuntimeState, killer: String, killer_team: int
 			newest = hit_tick
 	return credited
 
-func calculate(victim: UnitRuntimeState, kind: String, killer: String, killer_team: int, victim_level: int, tick: int, heroes: Dictionary, siege: bool = false) -> Dictionary:
+func calculate(victim: UnitRuntimeState, kind: String, killer: String, killer_team: int, victim_level: int, tick: int, heroes: Dictionary, siege: bool = false, ranged_creep: bool = false) -> Dictionary:
 	var result: Dictionary = {}
 	var team_ids: Array[String] = []
 	var nearby: Array[String] = []
@@ -49,7 +49,8 @@ func calculate(victim: UnitRuntimeState, kind: String, killer: String, killer_te
 	var xp: int = {"creep": settings.siege_xp if siege else settings.creep_xp, "hero": settings.hero_xp + settings.hero_xp_per_level * maxi(1, victim_level), "tower": settings.tower_xp}.get(kind, 0)
 	_split(result, nearby, "xp", xp)
 	if kind != "hero":
-		var gold: int = {"creep": settings.siege_gold if siege else settings.creep_gold, "tower": settings.tower_gold}.get(kind, 0)
+		var creep_bounty := settings.siege_gold if siege else (settings.ranged_creep_gold if ranged_creep else settings.creep_gold)
+		var gold: int = {"creep": creep_bounty, "tower": settings.tower_gold}.get(kind, 0)
 		if result.has(killer): result[killer].gold += gold
 		return result
 	var bounty := settings.hero_gold + settings.hero_gold_per_level * maxi(1, victim_level)

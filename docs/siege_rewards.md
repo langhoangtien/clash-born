@@ -35,10 +35,10 @@ scene applies them through existing HeroProgression. Settings remain configurabl
 The following are Clashborn defaults inspired by Dota's reward principles, not a
 full reproduction of a particular Dota patch's formulas:
 
-- Regular creep: 20 last-hit gold, **45 total XP**.
-- Catapult: 45 last-hit gold, **90 total XP**.
-- Hero: kill gold **125 + 8 × victim level**; **100 + 40 × victim level total XP**.
-- Hero assistance: a separate pool **40 + 6 × victim level**, shared by eligible
+- Melee creep: 40 last-hit gold; ranged creep: 50; both give **45 total XP**.
+- Catapult: 75 last-hit gold, **90 total XP**.
+- Hero: kill gold **250 + 16 × victim level**; **100 + 40 × victim level total XP**.
+- Hero assistance: a separate pool **80 + 12 × victim level**, shared by eligible
   assistants (nearby living heroes or heroes damaging the victim in the last 30s),
   excluding the credited killer. No assist pool is paid for an uncredited team kill.
 - Tower: 250 last-hit gold, **150 total XP**; cores have no death bounty.
@@ -59,8 +59,8 @@ kill gold, even if that hero has left the area or died. Simultaneous-tick ties u
 sorted hero IDs. Prior contributors or living nearby allies can receive assists.
 If no recent hostile hero exists, the kill bounty is split across the killing
 team's entire hero roster, including dead/distant heroes. A single Blue player
-therefore receives 133 gold for a level-one Red hero dying to Blue tower even
-without prior damage; five Blue heroes split the same bounty 27/27/27/26/26.
+therefore receives 266 gold for a level-one Red hero dying to Blue tower even
+without prior damage; five Blue heroes split the same bounty 54/53/53/53/53.
 XP is still local. Death and respawn clear attribution so a previous life cannot
 claim a later kill. Pause freezes the clock, including credit-window aging.
 
@@ -78,7 +78,7 @@ reference stats are unchanged.
 
 ## Verification
 
-Godot 4.7.2 executed siege/rewards tests: 46 headless checks, 47 with the NVIDIA
+Godot 4.7.2 executed siege/rewards tests: 50 headless checks, 51 with the NVIDIA
 OpenGL renderer, zero failures. Tower-only tests measured regular melee survival
 3.50s and catapult survival 12.40s using actual combat projectiles. Tests cover
 five-hero team bounty conservation, two-hero XP sharing, assists, high-level

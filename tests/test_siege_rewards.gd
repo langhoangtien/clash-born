@@ -28,36 +28,40 @@ func _test_rewards() -> void:
 	for index in range(2, 5): heroes["0_%d" % index].unit.position = Vector2(3000, 0)
 	var payouts := rewards.calculate(victim, "creep", "0_0", 0, 1, 100, heroes)
 	check(payouts["0_0"].xp == 23 and payouts["0_1"].xp == 22, "Two nearby heroes share all 45 creep XP with deterministic remainder")
-	check(payouts["0_0"].gold == 20 and payouts["0_1"].gold == 0, "Only creep last hitter gets gold")
+	check(payouts["0_0"].gold == 40 and payouts["0_1"].gold == 0, "Melee creep last hitter gets 40 gold")
+	payouts = rewards.calculate(victim, "creep", "0_0", 0, 1, 100, heroes, false, true)
+	check(payouts["0_0"].gold == 50, "Ranged creep last hitter gets 50 gold")
 	check(payouts["0_2"].xp == 0 and not payouts.has("1_1"), "Distant and victim-team heroes receive no XP")
 	payouts = rewards.calculate(victim, "creep", "tower", 0, 1, 100, heroes, true)
 	check(payouts["0_0"].xp == 45 and payouts["0_1"].xp == 45 and payouts["0_0"].gold == 0, "Siege XP shared, no proximity creep gold")
+	payouts = rewards.calculate(victim, "creep", "0_0", 0, 1, 100, heroes, true)
+	check(payouts["0_0"].gold == 75, "Catapult last hitter gets 75 gold")
 	heroes["0_1"].unit.alive = false
 	payouts = rewards.calculate(victim, "creep", "0_0", 0, 1, 100, heroes)
 	check(payouts["0_0"].xp == 45 and payouts["0_1"].xp == 0, "Dead nearby hero neither receives nor dilutes XP")
 	heroes["0_1"].unit.alive = true
 	payouts = rewards.calculate(victim, "hero", "0_0", 0, 1, 100, heroes)
-	check(payouts["0_0"].gold == 133 and payouts["0_1"].gold == 46, "Level-one hero pays kill bounty and nearby assist pool")
+	check(payouts["0_0"].gold == 266 and payouts["0_1"].gold == 92, "Level-one hero pays doubled kill bounty and assist pool")
 	check(payouts["0_0"].xp == 70 and payouts["0_1"].xp == 70, "Hero death XP shared")
 	var high := rewards.calculate(victim, "hero", "0_0", 0, 10, 100, heroes)
-	check(high["0_0"].gold == 205 and high["0_0"].xp == 250, "Higher victim level increases gold and XP")
+	check(high["0_0"].gold == 410 and high["0_0"].xp == 250, "Higher victim level increases doubled gold and XP")
 	rewards.record_damage(victim.unit_id, "0_0", 50, heroes)
 	rewards.record_damage(victim.unit_id, "0_1", 60, heroes)
 	payouts = rewards.calculate(victim, "hero", "tower", 0, 1, 100, heroes)
-	check(payouts["0_1"].gold == 133 and payouts["0_0"].gold == 46, "Tower credits most recent hostile hero; earlier hero gets assist")
+	check(payouts["0_1"].gold == 266 and payouts["0_0"].gold == 92, "Tower credits most recent hostile hero; earlier hero gets doubled assist")
 	check(rewards.hero_kill_credit(victim, "tower", 0, 100, heroes) == "0_1", "Tower kill credit is reusable by kill-stack passives")
 	payouts = rewards.calculate(victim, "hero", "0_0", 0, 1, 100, heroes)
-	check(payouts["0_0"].gold == 133, "Actual hero last hit overrides recent damage credit")
+	check(payouts["0_0"].gold == 266, "Actual hero last hit overrides recent damage credit")
 	heroes["0_1"].unit.alive = false
 	heroes["0_1"].unit.position = Vector2(4000, 0)
 	payouts = rewards.calculate(victim, "hero", "creep", 0, 1, 100, heroes)
-	check(payouts["0_1"].gold == 133 and payouts["0_1"].xp == 0, "Dead/distant recent contributor retains kill credit without nearby XP")
+	check(payouts["0_1"].gold == 266 and payouts["0_1"].xp == 0, "Dead/distant recent contributor retains kill credit without nearby XP")
 	payouts = rewards.calculate(victim, "hero", "tower", 0, 1, 960, heroes)
-	check(payouts["0_1"].gold == 133, "Thirty-second credit boundary is inclusive")
+	check(payouts["0_1"].gold == 266, "Thirty-second credit boundary is inclusive")
 	payouts = rewards.calculate(victim, "hero", "tower", 0, 1, 961, heroes)
 	var sum := 0
 	for id in payouts: sum += payouts[id].gold
-	check(sum == 133 and payouts["0_0"].gold == 27 and payouts["0_4"].gold == 26, "Expired damage gives exactly one team bounty split over five heroes, even dead/distant")
+	check(sum == 266 and payouts["0_0"].gold == 54 and payouts["0_4"].gold == 53, "Expired damage gives exactly one doubled team bounty split over five heroes, even dead/distant")
 	var reversed: Dictionary = {}
 	var ids: Array = heroes.keys(); ids.reverse()
 	for id in ids: reversed[id] = heroes[id]
@@ -71,7 +75,7 @@ func _test_rewards() -> void:
 	heroes["0_1"].unit.alive = true
 	heroes["0_1"].unit.position = Vector2(settings.xp_radius + 1, 0)
 	payouts = rewards.calculate(victim, "creep", "0_1", 0, 1, 100, heroes)
-	check(payouts["0_0"].xp == 45 and payouts["0_1"].xp == 0 and payouts["0_1"].gold == 20, "XP center-distance boundary and distant last-hit gold remain independent")
+	check(payouts["0_0"].xp == 45 and payouts["0_1"].xp == 0 and payouts["0_1"].gold == 40, "XP center-distance boundary and distant last-hit gold remain independent")
 
 func _lifetime(source: UnitStats, tower: UnitStats) -> int:
 	var engine := CombatEngine.new(BalanceSettings.new())
@@ -155,7 +159,7 @@ func _test_scene() -> void:
 	main.clock.step()
 	check(main.enemy_hero.runtime.current_hp >= hp and main.progression.player.gold == before, "Tower launch does not prematurely grant kill gold")
 	for tick in range(25): main.clock.step()
-	check(not main.enemy_hero.runtime.alive and main.progression.player.gold == before + 133, "Actual tower lethal impact credits recent player exactly once")
+	check(not main.enemy_hero.runtime.alive and main.progression.player.gold == before + 266, "Actual tower lethal impact credits recent player exactly once")
 	check(not main.rewards.damage_history.has("enemy_hero"), "Scene death clears damage credit")
 	main._revive("enemy_hero")
 	check(not main.rewards.damage_history.has("enemy_hero"), "Scene revive cannot reuse old credit")
@@ -164,7 +168,7 @@ func _test_scene() -> void:
 	main.enemy_hero.runtime.current_hp = 40
 	tower.runtime.next_attack_tick = main.combat.tick_count + 1
 	for tick in range(25): main.clock.step()
-	check(not main.enemy_hero.runtime.alive and main.progression.player.gold == before + 266, "Unassisted real tower kill pays single-player team bounty after respawn")
+	check(not main.enemy_hero.runtime.alive and main.progression.player.gold == before + 532, "Unassisted real tower kill pays single-player doubled team bounty after respawn")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		main.camera.follow_enabled = false
 		main.camera.position = main.layout.spawn_points(0)[0]

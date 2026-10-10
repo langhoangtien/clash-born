@@ -283,7 +283,8 @@ shots whose source died. Sandbox default rules and existing formulas remain inta
 The match catalog has useful components and substantially stronger late-game recipes.
 Icon SVGs are reused from the established item set. Hero opening damage
 and offensive level growth are reduced; opening gold is 250, passive income one
-gold each two seconds, creep last-hit gold 20 and level-scaled hero kill gold (125 + 8 × level). No forced
+gold each two seconds, melee/ranged last-hit gold is 40/50, catapult gold is 75,
+and level-scaled hero kill gold is doubled to 250 + 16 × level. No forced
 match duration or artificial health timer is introduced.
 
 Creeps now resume an interrupted route through A* to the nearest forward lane

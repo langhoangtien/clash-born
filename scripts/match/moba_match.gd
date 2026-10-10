@@ -102,7 +102,7 @@ func _navigation(radius: float) -> MapNavigation:
 	if not navigation_cache.has(radius): navigation_cache[radius] = MapNavigation.new(layout, radius)
 	return navigation_cache[radius]
 
-func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: String, siege: bool = false) -> MapUnit:
+func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: String, siege: bool = false, ranged_creep: bool = false) -> MapUnit:
 	state.is_structure = kind in ["tower", "core"]
 	state.structure_damage_multiplier = settings.hero_structure_damage_multiplier if kind == "hero" else (settings.creep_structure_damage_multiplier if kind == "creep" else 1.0)
 	if siege: state.structure_damage_multiplier = settings.siege_structure_damage_multiplier
@@ -120,7 +120,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	add_child(actor)
 	var route := PackedVector2Array()
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = actor.navigation.lane_path(actor.position, lane, state.team_id)
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege}
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep}
 	return actor
 
 func _nearest_lane(point: Vector2) -> String:
@@ -133,9 +133,9 @@ func _nearest_lane(point: Vector2) -> String:
 			if distance < closest: closest = distance; result = lane
 	return result
 
-func _spawn(id: String, team: int, source: UnitStats, point: Vector2, kind: String, lane: String = "", siege: bool = false) -> MapUnit:
+func _spawn(id: String, team: int, source: UnitStats, point: Vector2, kind: String, lane: String = "", siege: bool = false, ranged_creep: bool = false) -> MapUnit:
 	var state := combat.add_unit(_entry(id, team, source, point))
-	return _attach(state, source, kind, lane, siege)
+	return _attach(state, source, kind, lane, siege, ranged_creep)
 
 func spawn_wave() -> void:
 	var live := 0
@@ -149,10 +149,11 @@ func spawn_wave() -> void:
 		for lane in ["TOP", "MID", "BOT"]:
 			for slot in range(per_lane):
 				var siege := has_siege and slot == settings.creeps_per_lane
-				var source := settings.ranged_creep if slot == settings.creeps_per_lane - 1 else settings.melee_creep
+				var ranged_creep := not siege and slot == settings.creeps_per_lane - 1
+				var source := settings.ranged_creep if ranged_creep else settings.melee_creep
 				if siege: source = settings.siege_creep
 				var point := layout.spawn_points(team)[0] + Vector2((slot - 1) * 45, 35 if lane == "TOP" else (-35 if lane == "BOT" else 0))
-				_spawn("creep_%d_%d_%s_%d" % [wave_number, team, lane, slot], team, source, point, "creep", lane, siege)
+				_spawn("creep_%d_%d_%s_%d" % [wave_number, team, lane, slot], team, source, point, "creep", lane, siege, ranged_creep)
 
 func _physics_process(delta: float) -> void:
 	if player == null: return
@@ -336,7 +337,7 @@ func _reward_death(info: Dictionary, killer: String) -> void:
 	# identify the hostile team without retaining freed scene nodes.
 	var killer_team: int = killer_state.team_id if killer_state != null else 1 - victim.runtime.team_id
 	var level: int = progression[victim.runtime.unit_id].level if progression.has(victim.runtime.unit_id) else 1
-	var payouts := rewards.calculate(victim.runtime, info.kind, killer, killer_team, level, combat.tick_count, progression, info.get("siege", false))
+	var payouts := rewards.calculate(victim.runtime, info.kind, killer, killer_team, level, combat.tick_count, progression, info.get("siege", false), info.get("ranged_creep", false))
 	for hero_id in payouts:
 		var hero: HeroProgression = progression[hero_id]
 		var levels := hero.award(payouts[hero_id].xp, payouts[hero_id].gold)

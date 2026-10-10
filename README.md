@@ -226,5 +226,6 @@ rồi mới đánh khi đủ range/line-of-sight. Chi tiết: `docs/death_lane_a
 
 Shop trận có 23 component/recipe mạnh, Crit I/II, Bash, Giáp Băng, Giáp Phản,
 Heart, giày và đồ attribute. Trận mở bằng chọn hero + một nội tại 5 cấp; bảng
-shop/Tab hiển thị chỉ số đầy đủ. Hero BAT 2.0, trần AS 500%, tốc chạy đầu 320,
+shop/Tab hiển thị chỉ số đầy đủ. Lính melee/ranged/xe thưởng 40/50/75 vàng;
+hero bounty và assist được tăng gấp đôi. Hero BAT 2.0, trần AS 500%, tốc chạy đầu 320,
 tầm trụ 600. Chi tiết: `docs/late_game_items_passives.md`.

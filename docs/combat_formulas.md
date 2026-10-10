@@ -200,10 +200,11 @@ floor(pool/N), phần dư 1 XP phân theo ID đã sort. Creep thường pool=45,
 trụ=150, hero=100+40×level nạn nhân. Không last hit vẫn nhận phần XP này;
 ngoài range hoặc chết nhận 0. N=0 không phát XP. Level cap bỏ phần XP được chia.
 
-Creep last-hit gold=20, xe=45, trụ=250. Hero kill gold=125+8×level nạn nhân.
+Creep melee last-hit gold=40, ranged=50, xe=75, trụ=250. Hero kill gold=
+250+16×level nạn nhân.
 Hero last hit nhận kill bounty; trụ/creep kết liễu ghi công hero đối phương gây
 positive applied damage gần nhất trong 30s. Không có hero đủ điều kiện thì bounty
-chia cho toàn roster đội hạ địch. Assist pool=40+6×level, chia cho người hỗ trợ
+chia cho toàn roster đội hạ địch. Assist pool=80+12×level, chia cho người hỗ trợ
 đứng gần còn sống hoặc đã gây damage trong 30s, trừ người được ghi công.
 Kill gold không phụ thuộc radius XP. Đây là cơ chế rút gọn lấy cảm hứng từ Dota,
 không phải toàn bộ công thức Dota 2. Chi tiết: `docs/siege_rewards.md`.

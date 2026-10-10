@@ -28,8 +28,8 @@ the existing mixed physical/magical damage system; there are still no skill butt
 - Maximum level 15; next-level XP = 100 + 50 × (level − 1). Overflow is retained
   and can grant multiple levels; capped heroes stop accumulating XP.
 - Living opposing heroes within 1000 world units split death XP, even when an
-  allied tower/creep lands the last hit. Regular creep 45 total XP / 20 last-hit
-  gold; catapult 90 total XP / 45 last-hit gold; tower 150 total XP / 250 gold.
+  allied tower/creep lands the last hit. Melee/ranged creeps give 45 total XP and
+  40/50 last-hit gold; catapult gives 90 XP/75 gold; tower gives 150 XP/250 gold.
 - Hero bounty scales with victim level. Tower/creep kills credit recent hero
   damage or share team gold; nearby/recent contributors can receive assists.
   Exact formulas and eligibility: `docs/siege_rewards.md`.
