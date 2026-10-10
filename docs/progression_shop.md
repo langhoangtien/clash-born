@@ -1,6 +1,6 @@
 # Hero level and shop
 
-Press **B** or **Shop / Hero** in the match. Buy from a match-tuned copy of the original 14-item catalog with icons,
+Press **B** or **Shop / Hero** in the match. Buy from the 23-item match catalog of components and recipes with icons,
 inspect six slots, click an equipped item to sell. Purchase auto-equips into the
 first free slot. Insufficient gold, duplicate exclusive items and a full inventory
 are rejected without charging. Selling refunds 50% (rounded down). No recipes.
@@ -59,7 +59,9 @@ All regression suites also executed: Phase 1–6 **23/112/170/645/170/690**, ran
 **93**, playable match **66** checks; zero failures.
 
 Hero growth/economy remain experimental. No persistence between matches,
-item recipes, team-shared XP splitting or skill scaling UI.
+The original limitation above has been superseded: recipes and one five-rank
+starting passive are implemented in `docs/late_game_items_passives.md`. Two future
+active skill slots are still pending.
 
 Latest siege/economy/navigation tuning: `match_balance.md`.
 

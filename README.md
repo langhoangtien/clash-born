@@ -4,7 +4,8 @@ Trận MOBA 2D điều khiển hero Blue đấu bot Red, có creep ba lane, tr�
 Combat Sandbox và Map Prototype vẫn là hai mode riêng có thể mở từ trận đấu.
 Godot **4.7.2 stable**, GDScript, Compatibility renderer; không cần thư viện ngoài.
 Đã có STR/AGI/INT, HP/Mana, ba loại damage, giáp âm/dương, attack speed,
-evasion/accuracy/crit, status effects và 14 món trang bị với sáu slot mỗi unit.
+evasion/accuracy/crit và status effects. Sandbox giữ 14 đồ tham chiếu; trận MOBA
+có 23 component/recipe late game trong sáu slot.
 Phase 5 thêm cấu hình 1–5 unit mỗi team, AI, kỹ năng tối thiểu, editor stats,
 combat log và kết quả từng unit. Combat chạy 30 Hz độc lập với rendering/input.
 
@@ -222,3 +223,8 @@ Công thức, cấu hình và giới hạn: `docs/siege_rewards.md`.
 Hồi sinh tăng theo cấp: 8 + 2 × (LV−1) giây; chết mất tối đa 25 × LV vàng.
 Đã sửa J không tiếp cận creep bị tường che ở TOP/BOT; hero tìm đường vòng
 rồi mới đánh khi đủ range/line-of-sight. Chi tiết: `docs/death_lane_attacks.md`.
+
+Shop trận có 23 component/recipe mạnh, Crit I/II, Bash, Giáp Băng, Giáp Phản,
+Heart, giày và đồ attribute. Trận mở bằng chọn hero + một nội tại 5 cấp; bảng
+shop/Tab hiển thị chỉ số đầy đủ. Hero BAT 2.0, trần AS 500%, tốc chạy đầu 320,
+tầm trụ 600. Chi tiết: `docs/late_game_items_passives.md`.

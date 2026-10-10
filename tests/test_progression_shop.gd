@@ -22,7 +22,7 @@ func _run() -> void:
 	check(ranger.award(99) == 0 and ranger.level == 1, "XP below threshold does not level")
 	check(ranger.award(1) == 1 and ranger.level == 2 and ranger.experience == 0, "Exact XP threshold raises level")
 	check(ranger.unit.stats.max_hp == 1720 and ranger.unit.stats.physical_damage == 107, "Ranger HP and damage growth")
-	check(is_equal_approx(ranger.unit.stats.attack_speed, 1.3 * 1.025) and ranger.unit.stats.movement_speed == 432, "Ranger attack/move speed growth")
+	check(is_equal_approx(ranger.unit.stats.attack_speed, 0.5 * 1.025) and ranger.unit.stats.movement_speed == 322, "Ranger attack/move speed growth")
 	tank.award(100)
 	mage.award(100)
 	check(tank.unit.stats.max_hp == 2600 and is_equal_approx(tank.unit.stats.physical_armor, 12.8), "Tank prioritizes HP and armor growth")
@@ -67,6 +67,7 @@ func _test_scene() -> void:
 	HeroProgression.selected_profile = 0
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
 	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	main.settings.creep_xp = 100
 	main.settings.starting_gold = 1200
 	root.add_child(main)
@@ -75,18 +76,18 @@ func _test_scene() -> void:
 	main.set_physics_process(false)
 	main.clock.set_running(false)
 	var hero: HeroProgression = main.progression.player
-	check(main.shop.hero_select.item_count == 3 and main.shop.buy_buttons.size() == 14 and main.shop.slot_buttons.size() == 6, "Shop has hero chooser, original catalog and six slots")
+	check(main.shop.hero_select.item_count == 3 and main.shop.buy_buttons.size() == 23 and main.shop.slot_buttons.size() == 6, "Shop has hero/passive chooser, recipe catalog and six slots")
 	var input := InputEventKey.new()
 	input.physical_keycode = KEY_B
 	input.pressed = true
 	root.push_input(input, true)
 	check(main.shop.visible, "B opens shop through real viewport input")
 	var tick: int = main.combat.tick_count
-	main.shop.buy_buttons[7].pressed.emit()
-	check(hero.equipment.items().size() == 1 and hero.unit.stats.physical_damage == 130 and main.combat.tick_count == tick, "Shop button equips sword without restarting combat")
+	main.shop.buy_buttons[2].pressed.emit()
+	check(hero.equipment.items().size() == 1 and hero.unit.stats.physical_damage == 140 and main.combat.tick_count == tick, "Shop button equips buffed sword without restarting combat")
 	check(not main.buy_item(STAFF), "Controller enforces affordability")
 	main.shop.slot_buttons[0].pressed.emit()
-	check(hero.gold == 600 and hero.unit.stats.physical_damage == 100, "UI sell button removes sword")
+	check(hero.gold == 850 and hero.unit.stats.physical_damage == 115, "UI sell button removes sword")
 	root.push_input(input, true)
 	check(not main.shop.visible, "B closes shop")
 	main.player.position = main.layout.cell_center(Vector2i(15, 24))
@@ -139,9 +140,11 @@ func _test_scene() -> void:
 	await process_frame
 	HeroProgression.selected_profile = 2
 	var mage_scene = load("res://scenes/match/moba_match.tscn").instantiate()
+	mage_scene.settings = mage_scene.settings.duplicate(true)
+	mage_scene.settings.show_draft_on_start = false
 	root.add_child(mage_scene)
 	await process_frame
-	check(mage_scene.player.runtime.stats.magic_damage == 60 and mage_scene.progression.player.level == 1, "New match uses selected mage and fresh progression")
+	check(mage_scene.player.runtime.stats.magic_damage == 60 and mage_scene.player.runtime.stats.physical_damage == 46 and mage_scene.progression.player.level == 1, "New match uses selected mage/passive and fresh progression")
 	mage_scene.queue_free()
 	await process_frame
 	HeroProgression.selected_profile = 0

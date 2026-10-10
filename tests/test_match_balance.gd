@@ -55,6 +55,7 @@ func _test_siege() -> void:
 func _test_match() -> void:
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
 	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	main.settings.maximum_live_creeps = 0
 	root.add_child(main)
 	await process_frame
@@ -62,14 +63,14 @@ func _test_match() -> void:
 	main.clock.set_running(false)
 	for info in main.entities.values(): info.actor.paused = true
 	check(main.settings.tower.base_hp == 5000 and main.settings.tower.physical_damage == 220, "Towers use the revised siege tuning")
-	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage == 100, "Core durability and opening hero damage tuned")
+	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage == 115, "Core durability and selected opening passive applied")
 	check(main.progression.player.gold == 250, "Opening budget cannot buy a full damage item")
 	var original = preload("res://scripts/ui/equipment_panel.gd").CATALOG
 	var catalog := MatchItemCatalog.items()
 	for index in range(catalog.size()):
 		check(catalog[index].icon != null and catalog[index].icon.get_width() > 0, "Equipment icon loads: " + catalog[index].id)
-	check(original[7].modifiers.physical_damage == 60 and catalog[7].modifiers.physical_damage == 30, "Match damage items halved; Sandbox source intact")
-	check(catalog[4].price == 1800 and catalog[10].modifiers.attack_speed_bonus == 0.15, "High offense prices/attack-speed bonuses tuned")
+	check(original[7].modifiers.physical_damage == 60 and MatchItemCatalog.by_id("heavy_sword").modifiers.physical_damage == 25, "Buffed match sword; Sandbox source intact")
+	check(MatchItemCatalog.by_id("critical_blade_2").modifiers.physical_damage == 80 and MatchItemCatalog.by_id("swift_gloves").modifiers.attack_speed_bonus == 0.40, "Late offense and component attack speed buffed")
 	var opening_tick: int = main.combat.tick_count
 	for tick in range(59 - opening_tick): main.clock.step()
 	check(main.progression.player.gold == 250, "No passive gold before two seconds")
@@ -83,7 +84,7 @@ func _test_match() -> void:
 	key.pressed = true
 	root.push_input(key, true)
 	check(main.opponent_panel.visible and not main.shop.visible, "Tab opens equipment comparison")
-	check(main.opponent_panel.slot_buttons.enemy_hero[0].icon != null and "Swift Gloves" in main.opponent_panel.slot_buttons.enemy_hero[0].tooltip_text, "Opponent actual equipped icon/tooltip displayed")
+	check(main.opponent_panel.slot_buttons.enemy_hero[0].icon != null and "Giày Tốc Độ" in main.opponent_panel.slot_buttons.enemy_hero[0].tooltip_text, "Opponent actual equipped icon/tooltip displayed")
 	root.push_input(key, true)
 	check(not main.opponent_panel.visible, "Tab closes equipment comparison")
 	# Six physical lane recovery runs after a chase into another lane/jungle edge.
@@ -140,6 +141,8 @@ func _test_match() -> void:
 
 func _test_soak() -> void:
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
+	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	root.add_child(main)
 	var lane_damage: Dictionary = {"TOP": 0.0, "MID": 0.0, "BOT": 0.0}
 	var samples: Dictionary = {}

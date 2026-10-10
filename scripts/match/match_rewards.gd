@@ -15,6 +15,25 @@ func record_damage(victim: String, attacker: String, tick: int, heroes: Dictiona
 func forget(victim: String) -> void:
 	damage_history.erase(victim)
 
+func hero_kill_credit(victim: UnitRuntimeState, killer: String, killer_team: int, tick: int, heroes: Dictionary) -> String:
+	if heroes.has(killer) and heroes[killer].unit.team_id == killer_team and killer_team != victim.team_id:
+		return killer
+	var ids: Array[String] = []
+	for id in heroes:
+		var hero: HeroProgression = heroes[id]
+		if hero.unit.team_id == killer_team and hero.unit.team_id != victim.team_id: ids.append(id)
+	ids.sort()
+	var history: Dictionary = damage_history.get(victim.unit_id, {})
+	var window := ceili(settings.hero_credit_seconds * SimulationClock.TICKS_PER_SECOND)
+	var credited := ""
+	var newest := -1
+	for id in ids:
+		var hit_tick: int = history.get(id, -1)
+		if hit_tick >= 0 and tick - hit_tick <= window and hit_tick > newest:
+			credited = id
+			newest = hit_tick
+	return credited
+
 func calculate(victim: UnitRuntimeState, kind: String, killer: String, killer_team: int, victim_level: int, tick: int, heroes: Dictionary, siege: bool = false) -> Dictionary:
 	var result: Dictionary = {}
 	var team_ids: Array[String] = []
@@ -34,20 +53,14 @@ func calculate(victim: UnitRuntimeState, kind: String, killer: String, killer_te
 		if result.has(killer): result[killer].gold += gold
 		return result
 	var bounty := settings.hero_gold + settings.hero_gold_per_level * maxi(1, victim_level)
-	var credited := killer if result.has(killer) else ""
+	var credited := hero_kill_credit(victim, killer, killer_team, tick, heroes)
 	var recent: Array[String] = []
-	var newest := -1
 	var window := ceili(settings.hero_credit_seconds * SimulationClock.TICKS_PER_SECOND)
 	var history: Dictionary = damage_history.get(victim.unit_id, {})
 	for id in team_ids:
 		var hit_tick: int = history.get(id, -1)
 		if hit_tick < 0 or tick - hit_tick > window: continue
 		recent.append(id)
-		# Sorted IDs break simultaneous-impact ties deterministically.
-		if credited.is_empty() and hit_tick > newest: newest = hit_tick
-	if credited.is_empty():
-		for id in recent:
-			if history[id] == newest: credited = id; break
 	if credited.is_empty():
 		# An unassisted enemy tower/creep kill pays the entire allied roster.
 		_split(result, team_ids, "gold", bounty)

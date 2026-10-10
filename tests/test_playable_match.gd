@@ -41,17 +41,18 @@ func _test_engine_bridge() -> void:
 func _test_match() -> void:
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
 	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	root.add_child(main)
 	await process_frame
 	await frames(2)
 	main.set_physics_process(false)
 	main.clock.set_running(false)
-	check(main.entities.size() == 40, "Two heroes, twelve towers, two cores and first twenty-four-creep wave")
+	check(main.entities.size() == 40, "Two heroes, twelve towers, two cores and first twenty-four-creep wave (actual %d)" % main.entities.size())
 	check(main.player.runtime == main.combat.get_unit("player") and main.player.view.runtime == main.player.runtime, "Map/visual/combat share a single runtime state")
 	var lanes: Dictionary = {}
 	for info in main.entities.values():
 		if info.kind == "creep": lanes["%d_%s" % [info.actor.runtime.team_id, info.lane]] = true
-	check(lanes.size() == 6, "Creeps spawn for both teams in all three lanes")
+	check(lanes.size() == 6, "Creeps spawn for both teams in all three lanes (actual %s)" % [str(lanes.keys())])
 	var player: MapUnit = main.player
 	var enemy: MapUnit = main.enemy_hero
 	main.camera.set_process(false)
@@ -125,6 +126,7 @@ func _test_match() -> void:
 	for tick in range(15): main.clock.step()
 	check(enemy.runtime.current_hp < hp_before, "Player hero button actually damages enemy hero at impact")
 	# Isolate last-hit attribution from allied towers/creeps in this fixture.
+	creep.runtime.current_hp = 1
 	var timers: Dictionary = {}
 	main.combat.projectiles.clear()
 	for unit in main.combat.units:
@@ -222,6 +224,7 @@ func _test_match() -> void:
 	# A short autonomous native-physics run exercises movement, combat and waves together.
 	var live = load("res://scenes/match/moba_match.tscn").instantiate()
 	live.settings = live.settings.duplicate(true)
+	live.settings.show_draft_on_start = false
 	live.settings.wave_interval = 2
 	live.settings.creeps_per_lane = 1
 	live.settings.melee_creep.movement_speed = 5000

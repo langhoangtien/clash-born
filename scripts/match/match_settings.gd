@@ -1,6 +1,7 @@
 class_name MatchSettings
 extends Resource
 @export var wave_interval: float = 20.0
+@export var show_draft_on_start: bool = true
 @export var creeps_per_lane: int = 3
 @export var siege_wave_interval: int = 3
 @export var maximum_live_creeps: int = 108

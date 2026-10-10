@@ -1,6 +1,8 @@
 class_name HeroProgression
 extends RefCounted
 static var selected_profile: int = 0
+static var selected_passive: int = 0
+static var draft_confirmed: bool = false
 var level: int = 1
 var experience: int = 0
 var gold: int = 0
@@ -10,6 +12,9 @@ var base: UnitStats
 var unit: UnitRuntimeState
 var balance: BalanceSettings
 var settings: MatchSettings
+var passive_id: String = "base_power"
+var passive_level: int = 0
+var skill_points: int = 0
 
 func _init(state: UnitRuntimeState, hero_base: UnitStats, growth: HeroGrowth, rules: MatchSettings, formulas: BalanceSettings) -> void:
 	unit = state
@@ -37,20 +42,30 @@ func award(xp: int, coins: int = 0) -> int:
 		experience -= required_xp()
 		level += 1
 	if level == settings.maximum_level: experience = 0
-	if level != previous: recalculate()
+	if level != previous:
+		skill_points += level - previous
+		recalculate()
 	return level - previous
 
 func recalculate() -> void:
 	var hp_ratio: float = unit.current_hp / unit.stats.max_hp
 	var mana_ratio: float = unit.current_mana / unit.stats.max_mana if unit.stats.max_mana > 0 else 0
-	unit.stats = StatCalculator.calculate(profile.source_at_level(base, level), balance, equipment.items())
+	var source := profile.source_at_level(base, level)
+	unit.stats = StatCalculator.calculate(source, balance, equipment.items())
+	HeroPassiveCatalog.apply(unit.stats, source, passive_id, passive_level, unit.permanent_damage_bonus)
+	unit.passive_id = passive_id
+	unit.passive_level = passive_level
 	unit.current_hp = unit.stats.max_hp * clampf(hp_ratio, 0, 1) if unit.alive else 0
 	unit.current_mana = unit.stats.max_mana * clampf(mana_ratio, 0, 1)
 
 func purchase_error(item: EquipmentData) -> String:
 	if item == null or not item.is_valid(): return "Đồ không hợp lệ"
-	if gold < item.price: return "Không đủ vàng"
-	var free_slot := false
+	var cost := item.recipe_cost if not item.recipe_components.is_empty() else item.price
+	if gold < cost: return "Không đủ vàng"
+	for component in item.recipe_components:
+		var required := item.recipe_components.count(component)
+		if equipment.count_id(component) < required: return "Thiếu nguyên liệu: " + component
+	var free_slot := not item.recipe_components.is_empty()
 	for slot in range(EquipmentManager.SLOT_COUNT):
 		var current := equipment.get_item(slot)
 		if current == null: free_slot = true
@@ -59,9 +74,11 @@ func purchase_error(item: EquipmentData) -> String:
 
 func buy(item: EquipmentData) -> bool:
 	if not purchase_error(item).is_empty(): return false
+	var cost := item.recipe_cost if not item.recipe_components.is_empty() else item.price
+	if not item.recipe_components.is_empty() and not equipment.consume_ids(item.recipe_components): return false
 	for slot in range(EquipmentManager.SLOT_COUNT):
 		if equipment.get_item(slot) == null and equipment.equip(slot, item):
-			gold -= item.price
+			gold -= cost
 			recalculate()
 			return true
 	return false
@@ -73,3 +90,22 @@ func sell(slot: int) -> bool:
 	equipment.remove(slot)
 	recalculate()
 	return true
+
+func select_passive(index: int) -> void:
+	passive_id = HeroPassiveCatalog.id_at(index)
+	passive_level = 1
+	skill_points = maxi(0, level - 1)
+	unit.permanent_damage_bonus = 0
+	recalculate()
+
+func upgrade_passive() -> bool:
+	if skill_points <= 0 or passive_level >= 5: return false
+	skill_points -= 1
+	passive_level += 1
+	recalculate()
+	return true
+
+func record_kill(kind: String) -> void:
+	if passive_id != "soul_hunter": return
+	unit.permanent_damage_bonus = minf(100.0, unit.permanent_damage_bonus + (5.0 if kind == "hero" else (1.0 if kind == "creep" else 0.0)))
+	recalculate()

@@ -45,6 +45,7 @@ func _test_rewards() -> void:
 	rewards.record_damage(victim.unit_id, "0_1", 60, heroes)
 	payouts = rewards.calculate(victim, "hero", "tower", 0, 1, 100, heroes)
 	check(payouts["0_1"].gold == 133 and payouts["0_0"].gold == 46, "Tower credits most recent hostile hero; earlier hero gets assist")
+	check(rewards.hero_kill_credit(victim, "tower", 0, 100, heroes) == "0_1", "Tower kill credit is reusable by kill-stack passives")
 	payouts = rewards.calculate(victim, "hero", "0_0", 0, 1, 100, heroes)
 	check(payouts["0_0"].gold == 133, "Actual hero last hit overrides recent damage credit")
 	heroes["0_1"].unit.alive = false
@@ -65,6 +66,7 @@ func _test_rewards() -> void:
 	check(not rewards.damage_history.has(victim.unit_id), "Death/respawn clears prior-life attribution")
 	payouts = rewards.calculate(victim, "hero", "tower", 1, 1, 100, heroes)
 	check(payouts.is_empty(), "Friendly killer cannot generate enemy rewards")
+	check(rewards.hero_kill_credit(victim, "1_1", 1, 100, heroes).is_empty(), "Friendly hero cannot receive kill-stack credit")
 	heroes["0_0"].unit.position = Vector2(settings.xp_radius, 0)
 	heroes["0_1"].unit.alive = true
 	heroes["0_1"].unit.position = Vector2(settings.xp_radius + 1, 0)
@@ -88,7 +90,7 @@ func _test_durability() -> void:
 	check(settings.melee_creep.base_hp == 700 and settings.ranged_creep.base_hp == 450, "Both regular creep types more durable")
 	check(siege > melee * 2 and siege >= 300, "Real tower projectiles leave siege alive more than twice as long as melee")
 	check(settings.siege_creep.ranged_attacks and settings.siege_creep.projectile_speed == 650, "Catapult uses shared projectile attacks")
-	check(settings.tower.attack_range == 750 and settings.hero.attack_range == 550 and settings.melee_creep.attack_range == 110 and settings.ranged_creep.attack_range == 390 and settings.siege_creep.attack_range == 300, "Tower, hero and three creep profiles retain independent attack ranges")
+	check(settings.tower.attack_range == 600 and settings.hero.attack_range == 550 and settings.melee_creep.attack_range == 110 and settings.ranged_creep.attack_range == 390 and settings.siege_creep.attack_range == 300, "Tower, hero and three creep profiles retain independent attack ranges")
 	for source in [settings.tower, settings.hero, settings.melee_creep, settings.ranged_creep, settings.siege_creep]:
 		var engine := CombatEngine.new(BalanceSettings.new())
 		engine.external_control = true
@@ -106,6 +108,7 @@ func _test_durability() -> void:
 func _test_scene() -> void:
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
 	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	main.settings.maximum_live_creeps = 0
 	main.settings.fountain_radius = 0
 	root.add_child(main)

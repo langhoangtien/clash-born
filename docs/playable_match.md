@@ -16,7 +16,7 @@ top-left buttons, and both have a button returning to this match.
 | Space / move | Cancel automatic attack/approach |
 | Right click ground / Ra MID | Navigate to point / allied MID approach |
 | Tab / Trang bị hai đội | Inspect live enemy/player equipment icons and stats |
-| B / Shop–Hero | Buy/sell items, inspect level growth, choose hero for a new match |
+| B / Shop–Hero | Buy/craft/sell items, inspect full stats, upgrade passive |
 | P | Pause/resume movement, combat and timers |
 | F | Follow player camera |
 | Middle drag / wheel / click minimap | Pan / zoom / inspect map location |
@@ -115,3 +115,7 @@ Latest balance/navigation/icon changes: `match_balance.md`.
 Siege tuning, shared XP and level-scaled kill/assist/team gold: `docs/siege_rewards.md`.
 
 Player auto-attack can approach reachable targets around terrain; see `docs/death_lane_attacks.md`.
+
+A fresh match first pauses at hero/passive selection. Match heroes use BAT 2.0,
+320 opening move speed and a 500% AS cap; tower range is 600. Item recipes and
+passive ranks are documented in `docs/late_game_items_passives.md`.

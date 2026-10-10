@@ -241,8 +241,8 @@ Income runs on a configurable simulation-tick interval; pause stops it. Defaults
 is 100 + 50*(level-1); overflow can grant several levels. Death rewards and growth
 are configurable Resources. Bots receive XP/income and buy affordable gear using the match catalog every ten seconds.
 
-Match shop uses a tuned copy of the original 14-item catalog (Sandbox items remain intact). Buy validates item, funds, unique
-item rules and free slot before subtracting gold/equipping; sell refunds floor
+Match shop uses a separate 23-item component/recipe catalog (Sandbox items remain intact). Buy validates components, recipe funds, unique
+item rules and available/released slot before subtracting gold/equipping; sell refunds floor
 of price times 0.5. It is accessible anywhere, including while dead/paused, but
 blocked after victory. Opening it stops player movement/attack; combat continues
 unless explicitly paused. A hero dropdown starts a fresh match with the chosen
@@ -280,8 +280,8 @@ creeps 0.65 and catapults 1.0. Engine attacks apply this multiplier after mitiga
 component. Projectiles snapshot it at launch and still resolve at impact, including
 shots whose source died. Sandbox default rules and existing formulas remain intact.
 
-The match catalog copies the fourteen reference items, halves offensive modifiers
-and adjusts prices. Icon SVGs are shared by source/copy items. Hero opening damage
+The match catalog has useful components and substantially stronger late-game recipes.
+Icon SVGs are reused from the established item set. Hero opening damage
 and offensive level growth are reduced; opening gold is 250, passive income one
 gold each two seconds, creep last-hit gold 20 and level-scaled hero kill gold (125 + 8 × level). No forced
 match duration or artificial health timer is introduced.
@@ -322,3 +322,19 @@ can choose an occluded but A*-reachable target; attacks remain gated on terrain
 line of sight and edge range. NPC/tower acquisition remains unchanged. The TOP/BOT
 bug was reproduced before fixing, then verified with physical approach and real
 projectile damage. See `docs/death_lane_attacks.md` for defaults/files/tests.
+
+## Late-game items and initial skill progression
+
+EquipmentData now carries recipe component IDs/fee plus optional bash, reflect and
+retaliatory attack-slow modifiers. EquipmentManager validates and atomically
+consumes components; StatCalculator remains the only equipment stat aggregation
+path. CombatEngine resolves item/passive on-hit behavior after a successful hit,
+at projectile impact for ranged attacks. Reflected damage is tagged and cannot
+recurse. ATTACK_SLOW is an ordinary tick-expiring status.
+
+Match heroes have BAT 2.0 and a per-source five-times-base APS cap, use 320 opening
+movement, and towers use 600 edge range. A startup draft pauses simulation until
+one existing hero profile and one starting passive are selected. HeroProgression
+owns passive rank/points and permanent kill damage, recalculating through the same
+runtime state. Only the passive slot is currently exposed; two active skill slots
+remain future work. See `docs/late_game_items_passives.md`.

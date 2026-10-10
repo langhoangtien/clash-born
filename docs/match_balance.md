@@ -25,12 +25,10 @@ reference item prices/bonuses and damage formulas remain intact. The engine
 still resolves projectiles at impact; offensive stats and siege factor are
 snapshotted at launch, so source death does not bypass reduction.
 
-`MatchItemCatalog` halves physical/magic/pure damage, attack speed, crit chance,
-accuracy and armor-reduction modifiers; item prices are tuned separately.
-Examples: Heavy Sword +30 physical damage/1200 gold, Arcane Staff +30 magic/1400,
-Swift Gloves +15% attack speed/650, Critical Blade +12.5% crit/1800.
-All fourteen items have native SVG icons; UI tooltips describe current bonuses.
-Buying/selling still preserves HP/Mana fractions, effects and combat cooldowns.
+This older low-power item tuning has been replaced by components and strong recipe
+items. Current values, recipes, special effects and verification are in
+`docs/late_game_items_passives.md`. Buying/crafting/selling still preserves
+HP/Mana fractions, effects and combat cooldowns.
 
 ## Creep navigation and visuals
 
@@ -84,8 +82,8 @@ README/DESIGN/formula/progression/playable documentation.
 
 Balance remains experimental, with no forced game length. Bot purchasing uses a
 simple fixed build, not matchup reasoning. There is still no structure-body
-blocking, dynamic unit avoidance, tower-before-core invulnerability, skill UI,
-item recipes or multiplayer. Next useful validation is player testing siege
-with creep support, then adjusting these configurable values from match feedback.
+blocking, dynamic unit avoidance, tower-before-core invulnerability, two active
+skill slots or multiplayer. Next useful validation is player testing builds and
+passive combinations in a full match.
 
 Current siege/reward verification and modified files: `docs/siege_rewards.md`.

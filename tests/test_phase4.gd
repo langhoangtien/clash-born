@@ -209,7 +209,7 @@ func _test_ui() -> void:
 	panel.slot_selectors[0].item_selected.emit(1)
 	_near(main.combat.units[0].stats.physical_armor, initial_stats.physical_armor + 15, "UI equip updates stats immediately")
 	_check(panel.slot_selectors[0].selected == 1 and "Iron" in panel.slot_selectors[0].get_item_text(1), "UI selection reflects equipped item")
-	_check("+15.0 P armor" in panel.bonus_label.text, "UI shows aggregate equipment bonus")
+	_check("+15.0 giáp VL" in panel.bonus_label.text, "UI shows aggregate equipment bonus")
 	panel.slot_selectors[0].item_selected.emit(0)
 	_check(main.combat.units[0].stats == initial_stats, "UI removal restores entire stats dictionary")
 	panel.slot_selectors[0].item_selected.emit(3)

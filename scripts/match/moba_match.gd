@@ -30,6 +30,8 @@ var shop: PanelContainer
 var opponent_panel: PanelContainer
 var rewards: MatchRewards
 var death_gold_losses: Dictionary = {}
+var draft_mode: bool = false
+var bot_build_index: int = 0
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -49,6 +51,8 @@ func _ready() -> void:
 	var profile_index := clampi(HeroProgression.selected_profile, 0, settings.hero_profiles.size() - 1)
 	progression.player = HeroProgression.new(combat.get_unit("player"), settings.hero, settings.hero_profiles[profile_index], settings, combat.balance)
 	progression.enemy_hero = HeroProgression.new(combat.get_unit("enemy_hero"), settings.hero, settings.hero_profiles[0], settings, combat.balance)
+	progression.player.select_passive(HeroProgression.selected_passive)
+	progression.enemy_hero.select_passive(4)
 	player = _attach(combat.get_unit("player"), settings.hero, "hero", "MID")
 	enemy_hero = _attach(combat.get_unit("enemy_hero"), settings.hero, "hero", "MID")
 	player.view.selected = true
@@ -78,7 +82,18 @@ func _ready() -> void:
 	_build_ui()
 	clock.ticked.connect(_tick)
 	clock.set_running(true)
+	if settings.show_draft_on_start and not HeroProgression.draft_confirmed:
+		_start_draft()
+	elif HeroProgression.draft_confirmed:
+		HeroProgression.draft_confirmed = false
 	_refresh_hud()
+
+func _start_draft() -> void:
+	draft_mode = true
+	shop.show()
+	shop.set_draft_mode(true)
+	set_paused(true)
+	message.text = "CHỌN HERO + NỘI TẠI KHỞI ĐẦU"
 
 func _entry(id: String, team: int, source: UnitStats, point: Vector2) -> Dictionary:
 	return {"id": id, "team": team, "source": source, "position": point, "ai": false}
@@ -159,11 +174,10 @@ func _tick(_index: int) -> void:
 		for hero in progression.values(): hero.award(0, settings.passive_gold_amount)
 	if tick % 300 == 0:
 		var bot: HeroProgression = progression.enemy_hero
-		var order := ["swift_gloves", "heavy_sword", "iron_armor", "vitality_stone", "critical_blade", "mystic_cloak"]
-		var slot := bot.equipment.items().size()
-		if slot < order.size():
-			for item in MatchItemCatalog.items():
-				if item.id == order[slot]: bot.buy(item); break
+		var order := ["boots", "swift_gloves", "heavy_sword", "ogre_axe", "critical_blade", "heavy_sword", "skull_basher"]
+		if bot_build_index < order.size():
+			var item := MatchItemCatalog.by_id(order[bot_build_index])
+			if item != null and bot.buy(item): bot_build_index += 1
 	if tick >= next_wave_tick:
 		spawn_wave()
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
@@ -298,6 +312,11 @@ func _on_death(id: String, events: Array[Dictionary]) -> void:
 	var killer := ""
 	for event in events:
 		if event.kind == "damage" and event.target_unit_id == id and event.applied_damage > 0: killer = event.source_unit_id
+	var credited_killer := killer
+	if info.kind == "hero":
+		var killer_state := combat.get_unit(killer)
+		var killer_team: int = killer_state.team_id if killer_state != null else 1 - info.actor.runtime.team_id
+		credited_killer = rewards.hero_kill_credit(info.actor.runtime, killer, killer_team, combat.tick_count, progression)
 	_reward_death(info, killer)
 	rewards.forget(id)
 	if info.kind == "hero":
@@ -308,6 +327,7 @@ func _on_death(id: String, events: Array[Dictionary]) -> void:
 		info.actor.stop()
 		if id == "player": attack_mode = ""; locked_target = ""
 	elif info.kind == "creep" and killer == "player": creep_kills += 1
+	if progression.has(credited_killer): progression[credited_killer].record_kill(info.kind)
 
 func _reward_death(info: Dictionary, killer: String) -> void:
 	var victim: MapUnit = info.actor
@@ -341,7 +361,7 @@ func sell_item(slot: int) -> bool:
 	return success
 
 func toggle_shop() -> void:
-	if match_over: return
+	if match_over or draft_mode: return
 	_stop_player()
 	controls.release_all()
 	shop.visible = not shop.visible
@@ -349,6 +369,9 @@ func toggle_shop() -> void:
 	shop.refresh()
 
 func toggle_opponents() -> void:
+	if draft_mode:
+		message.text = "Hãy chọn hero và nội tại trước"
+		return
 	_stop_player()
 	controls.release_all()
 	shop.hide()
@@ -384,6 +407,7 @@ func _end_match(winner: int) -> void:
 	result_panel.show()
 
 func set_paused(value: bool) -> void:
+	if draft_mode and not value: return
 	paused = value
 	clock.set_running(not value and not match_over)
 	for info in entities.values(): info.actor.paused = value or info.kind in ["tower", "core"] or match_over
@@ -438,10 +462,15 @@ func _build_ui() -> void:
 	shop = PanelContainer.new()
 	shop.set_script(preload("res://scripts/match/match_shop.gd"))
 	shop.progression = progression.player
-	shop.position = Vector2(320, 185)
-	shop.size = Vector2(960, 515)
+	shop.position = Vector2(200, 95)
+	shop.size = Vector2(1200, 710)
 	shop.buy_requested.connect(buy_item)
 	shop.sell_requested.connect(sell_item)
+	shop.passive_upgrade_requested.connect(func():
+		if progression.player.upgrade_passive(): shop.feedback.text = "Đã nâng nội tại lên cấp %d" % progression.player.passive_level
+		else: shop.feedback.text = "Không có điểm hoặc nội tại đã tối đa"
+		shop.refresh()
+	)
 	shop.hero_requested.connect(func(index: int): HeroProgression.selected_profile = index; get_tree().reload_current_scene())
 	layer.add_child(shop)
 	opponent_panel = PanelContainer.new()
@@ -495,7 +524,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_J: request_attack("creep")
 			KEY_K: request_attack("hero")
 			KEY_SPACE: _stop_player()
-			KEY_P: set_paused(not paused)
+			KEY_P: set_paused(not paused) if not draft_mode else message.set_text("Hãy chọn hero và nội tại trước")
 			KEY_F: camera.follow_enabled = true
 			KEY_B: toggle_shop()
 			KEY_TAB: toggle_opponents()

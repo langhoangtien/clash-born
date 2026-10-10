@@ -135,7 +135,7 @@ func step() -> Array[Dictionary]:
 		if not source.can_act() or not source.casting.is_empty() or target == null or not target.alive or (source.ai_enabled and source.ai_mode == CombatAI.Mode.PASSIVE): continue
 		if tick_count + 0.000000001 < source.next_attack_tick or source.distance_to_unit(target) > source.attack_range() + 0.000001: continue
 		if tick_count - source.next_attack_tick >= 1.0: source.next_attack_tick = tick_count
-		source.next_attack_tick += SimulationClock.TICKS_PER_SECOND / source.stats.attack_speed
+		source.next_attack_tick += SimulationClock.TICKS_PER_SECOND / source.attack_speed()
 		var payload := {"type": "attack", "stats": source.stats.duplicate(true), "structure_multiplier": source.structure_damage_multiplier}
 		if source.stats.ranged_attacks:
 			_launch_projectile(source, target.unit_id, target.position, source.stats.projectile_speed, source.stats.projectile_hit_behavior, payload, events)
@@ -144,9 +144,23 @@ func step() -> Array[Dictionary]:
 	metrics.record_tick(units, tick_count)
 	for damage in pending:
 		var target := get_unit(damage.target_unit_id)
+		if target == null or not target.alive: continue
 		damage.applied_damage = minf(target.current_hp, damage.final_damage)
 		target.current_hp = maxf(0, target.current_hp - damage.final_damage)
 		events.append(damage)
+		var source := get_unit(damage.source_unit_id)
+		if damage.get("is_attack", false) and source != null and source.alive and target.stats.get("attack_slow", 0.0) > 0:
+			_apply_effect({"source": target.unit_id, "target": source.unit_id, "kind": StatusEffect.Kind.ATTACK_SLOW, "duration": target.stats.attack_slow_duration, "magnitude": target.stats.attack_slow, "id": "frost_retaliation_" + target.unit_id}, events)
+		if not damage.get("reflected", false) and source != null and source.alive and target.stats.get("damage_reflect", 0.0) > 0 and damage.applied_damage > 0:
+			var reflected := _event("damage", target.unit_id, source.unit_id)
+			reflected.damage_type = DamageCalculator.DamageType.PURE
+			reflected.critical = false
+			reflected.raw_damage = damage.applied_damage * target.stats.damage_reflect
+			reflected.final_damage = reflected.raw_damage
+			reflected.applied_damage = minf(source.current_hp, reflected.final_damage)
+			reflected.reflected = true
+			source.current_hp = maxf(0, source.current_hp - reflected.final_damage)
+			events.append(reflected)
 	var teams_alive := [false, false]
 	for unit in units:
 		if unit.alive and unit.current_hp <= 0:
@@ -304,6 +318,30 @@ func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Diction
 	if hit.missed:
 		events.append(_event("miss", source_id, target.unit_id))
 		return
+	var source := get_unit(source_id)
+	if source != null and source.passive_id == "fury":
+		source.fury_stacks = mini(10, source.fury_stacks + 1)
+		source.fury_expires_tick = tick_count + ceili(6.0 * SimulationClock.TICKS_PER_SECOND)
+	var bash_chance: float = stats.get("bash_chance", 0.0) + stats.get("passive_bash_chance", 0.0)
+	if not target.is_structure and bash_chance > 0 and rng.randf() < clampf(bash_chance, 0, 1):
+		var duration: float = maxf(stats.get("bash_duration", 0.0), stats.get("passive_bash_duration", 0.0))
+		_apply_effect({"source": source_id, "target": target.unit_id, "kind": StatusEffect.Kind.STUN, "duration": duration, "magnitude": 1.0, "id": "bash"}, events)
+		var bash := _event("damage", source_id, target.unit_id)
+		bash.damage_type = DamageCalculator.DamageType.PHYSICAL
+		bash.critical = false
+		bash.raw_damage = stats.get("bash_damage", 0.0) + stats.get("passive_bash_damage", 0.0)
+		bash.final_damage = DamageCalculator.calculate(bash.raw_damage, bash.damage_type, target.physical_armor(), target.stats.magic_armor, balance)
+		bash.is_attack = true
+		pending.append(bash)
+	var pure_on_hit: float = stats.physical_damage * stats.get("passive_pure_fraction", 0.0) + target.stats.max_hp * stats.get("passive_max_hp_fraction", 0.0)
+	if pure_on_hit > 0 and not target.is_structure:
+		var pure := _event("damage", source_id, target.unit_id)
+		pure.damage_type = DamageCalculator.DamageType.PURE
+		pure.critical = false
+		pure.raw_damage = pure_on_hit
+		pure.final_damage = pure_on_hit
+		pure.is_attack = true
+		pending.append(pure)
 	for damage_type in range(3):
 		var raw: float = stats[["physical_damage", "magic_damage", "pure_damage"][damage_type]]
 		if raw <= 0: continue
@@ -315,6 +353,7 @@ func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Diction
 		var magical := DamageCalculator.effective_armor(target.stats.magic_armor, stats.magic_armor_reduction)
 		damage.final_damage = DamageCalculator.calculate(damage.raw_damage, damage_type, physical, magical, balance)
 		if target.is_structure: damage.final_damage *= clampf(structure_multiplier, 0, 1)
+		damage.is_attack = true
 		pending.append(damage)
 
 func result() -> Dictionary:

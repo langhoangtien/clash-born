@@ -21,6 +21,11 @@ var casting: Dictionary = {}
 ## Map-only siege rules; defaults leave sandbox damage unchanged.
 var is_structure: bool = false
 var structure_damage_multiplier: float = 1.0
+var passive_id: String = ""
+var passive_level: int = 0
+var permanent_damage_bonus: float = 0.0
+var fury_stacks: int = 0
+var fury_expires_tick: int = 0
 
 func _init(id: String, team: int, spawn: Vector2, source: UnitStats, balance: BalanceSettings, equipment: Array[EquipmentData] = []) -> void:
 	unit_id = id
@@ -50,6 +55,11 @@ func movement_speed(balance: BalanceSettings) -> float:
 
 func physical_armor() -> float:
 	return stats.physical_armor - effects.armor_reduction()
+
+func attack_speed() -> float:
+	var fury_bonus := fury_stacks * 0.10 * passive_level if passive_id == "fury" and current_tick < fury_expires_tick else 0.0
+	var result: float = stats.attack_speed * (1.0 + fury_bonus) * (1.0 - effects.strongest_attack_slow())
+	return clampf(result, 0.1, stats.get("attack_speed_cap", 999.0))
 
 func attack_range() -> float:
 	return maxf(0, stats.attack_range + effects.range_bonus(StatusEffect.Kind.ATTACK_RANGE))

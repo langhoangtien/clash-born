@@ -11,6 +11,7 @@ func place(actor: MapUnit, point: Vector2) -> void:
 func _run() -> void:
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
 	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	main.settings.maximum_live_creeps = 0
 	root.add_child(main)
 	await process_frame

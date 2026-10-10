@@ -7,7 +7,7 @@
 | Melee creep | 700 | 4 | 110 | 35 |
 | Ranged creep | 450 | 0 | 390 | 45 |
 | Siege catapult | 1600 | 10 | 300 | 80 |
-| Tower | 5000 | 16 | 750 | 220 |
+| Tower | 5000 | 16 | 600 | 220 |
 | Default ranger | 1600 | 8 | 550 | 100 |
 
 Tower previously had 6000 HP/20 physical armor/235 damage. Hero attacks now apply

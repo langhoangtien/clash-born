@@ -217,3 +217,22 @@ Trừ một lần khi hero chết; không trừ XP/level/đồ, không cho vàng
 đếm tick. HUD hiển thị vàng mất; respawn giữ progression và hồi đầy max HP/Mana.
 Player có thể chọn mục tiêu bị che nếu có đường đi; target attack chỉ gán khi có
 line-of-sight, vẫn kiểm tra range và damage tại impact như trước.
+
+## Item late game, BAT và nội tại
+
+Match APS = clamp(BaseAPS × (1 + AGI×0.005 + các bonus AS), minimum,
+min(absolute_cap, BaseAPS×5)). Hero match dùng BaseAPS=0.5 (BAT 2.0), nên trần
+500% là 2.5 đòn/s. Slow tốc đánh nhân tiếp `(1 − strongest_attack_slow)`;
+Cuồng Tốc nhân `(1 + stacks × 0.10 × skill_level)`, rồi vẫn clamp ở cap.
+
+Bash roll một lần sau hit/miss/crit roll thành công. Bonus bash là physical và
+stun nhận status resistance. Giáp Băng áp ATTACK_SLOW lên nguồn gây basic-attack
+damage. Giáp Phản gây pure = applied incoming component × 0.15 và gắn cờ reflected,
+không tạo vòng phản mới. Pure Throw = source base physical damage × 20% × rank;
+Feast = target max HP × (1% + 0.5%×rank). Các on-hit này không tác động công trình.
+Projectile thực hiện toàn bộ roll/effect tại impact.
+
+Recipe yêu cầu đủ multiset component; giá trả lúc ghép là recipe_cost, component
+bị xóa và final item chiếm một slot. Giá total dùng cho bán lại. Crit I override
+hệ số crit thành 1.2; Crit II thành 2.5. Chi tiết item, passive và UI:
+`docs/late_game_items_passives.md`.

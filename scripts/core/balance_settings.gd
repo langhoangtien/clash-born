@@ -13,6 +13,7 @@ extends Resource
 @export var attack_speed_per_agility: float = 0.005
 @export var minimum_attack_speed: float = 0.3
 @export var maximum_attack_speed: float = 3.0
+@export var maximum_attack_speed_multiplier: float = 5.0
 @export var minimum_attack_interval: float = 0.1
 @export var evasion_cap: float = 0.75
 @export var multiplicative_evasion: bool = true

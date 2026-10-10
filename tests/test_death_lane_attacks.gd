@@ -14,6 +14,7 @@ func _run() -> void:
 func _test_lane_attacks() -> void:
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
 	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	main.settings.maximum_live_creeps = 0
 	root.add_child(main)
 	await process_frame
@@ -90,6 +91,7 @@ func _test_rules() -> void:
 func _test_death() -> void:
 	var main = load("res://scenes/match/moba_match.tscn").instantiate()
 	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
 	main.settings.maximum_live_creeps = 0
 	main.settings.passive_gold_amount = 0
 	root.add_child(main)

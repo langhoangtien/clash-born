@@ -37,6 +37,13 @@ func strongest_slow() -> float:
 			slow = maxf(slow, clampf(effect.magnitude, 0, 1))
 	return slow
 
+func strongest_attack_slow() -> float:
+	var slow := 0.0
+	for effect in active:
+		if effect.kind == StatusEffect.Kind.ATTACK_SLOW:
+			slow = maxf(slow, clampf(effect.magnitude, 0, 0.9))
+	return slow
+
 func armor_reduction() -> float:
 	var reduction := 0.0
 	for effect in active:
