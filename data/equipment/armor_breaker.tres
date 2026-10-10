@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/equipment/equipment_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "armor_breaker"
+display_name = "Armor Breaker"
+description = "Eligible physical attacks subtract 15 armor before penetration."
+price = 1200
+allow_multiple = true
+modifiers = {"armor_reduction": 15.0}

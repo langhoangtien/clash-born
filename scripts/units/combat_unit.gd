@@ -44,7 +44,7 @@ func _draw() -> void:
 	var hp_text := "HP %.1f / %.1f   MP %.1f / %.1f" % [runtime.current_hp, runtime.stats.max_hp, runtime.current_mana, runtime.stats.max_mana]
 	var width := font.get_string_size(hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(-width / 2, 104), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
-	var details := "STR %.1f · AGI %.1f · INT %.1f\nDMG P %.1f / M %.1f / Pure %.1f\nArmor P %.2f / M %.2f · APS %.2f\nEvade %.0f%% · Accuracy %.0f%% · Crit %.0f%%\nResist %.0f%% · Move %.0f" % [combat_data.strength, combat_data.agility, combat_data.intelligence, runtime.stats.physical_damage, runtime.stats.magic_damage, runtime.stats.pure_damage, runtime.physical_armor(), runtime.stats.magic_armor, runtime.stats.attack_speed, runtime.stats.evasion * 100, runtime.stats.accuracy * 100, runtime.stats.critical_chance * 100, runtime.stats.status_resistance * 100, runtime.movement_speed(preload("res://data/balance/default_balance.tres"))]
+	var details := "STR %.1f · AGI %.1f · INT %.1f\nDMG P %.1f / M %.1f / Pure %.1f\nArmor P %.2f / M %.2f · APS %.2f\nEvade %.0f%% · Accuracy %.0f%% · Crit %.0f%%\nResist %.0f%% · Move %.0f" % [runtime.stats.strength, runtime.stats.agility, runtime.stats.intelligence, runtime.stats.physical_damage, runtime.stats.magic_damage, runtime.stats.pure_damage, runtime.physical_armor(), runtime.stats.magic_armor, runtime.stats.attack_speed, runtime.stats.evasion * 100, runtime.stats.accuracy * 100, runtime.stats.critical_chance * 100, runtime.stats.status_resistance * 100, runtime.movement_speed(preload("res://data/balance/default_balance.tres"))]
 	var y := 135.0
 	for line in details.split("\n"):
 		width = font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x

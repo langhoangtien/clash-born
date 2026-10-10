@@ -14,10 +14,10 @@ var _commands: Array[Dictionary] = []
 func _init(settings: BalanceSettings) -> void:
 	balance = settings
 
-func reset(blue: UnitStats, red: UnitStats, blue_position: Vector2, red_position: Vector2, seed_value: int = 1) -> void:
+func reset(blue: UnitStats, red: UnitStats, blue_position: Vector2, red_position: Vector2, seed_value: int = 1, blue_items: Array[EquipmentData] = [], red_items: Array[EquipmentData] = []) -> void:
 	units = [
-		UnitRuntimeState.new("blue_01", 0, blue_position, blue, balance),
-		UnitRuntimeState.new("red_01", 1, red_position, red, balance),
+		UnitRuntimeState.new("blue_01", 0, blue_position, blue, balance, blue_items),
+		UnitRuntimeState.new("red_01", 1, red_position, red, balance, red_items),
 	]
 	tick_count = 0
 	finished = false

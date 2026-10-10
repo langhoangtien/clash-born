@@ -1,18 +1,20 @@
-# Công thức đang triển khai — Phase 3
+# Công thức đang triển khai — Phase 4
 
 Mọi hệ số nằm trong BalanceSettings Resource. UnitStats lưu nguồn stats;
 StatCalculator tạo dictionary final stats mới, không sửa hoặc cộng dồn nguồn.
-Equipment chưa triển khai; giảm giáp tạm thời được tổng hợp từ active effects.
+EquipmentManager.aggregate tổng hợp modifier từ các item, rồi StatCalculator
+tính lại từ source + attributes + equipment. Giảm giáp tạm thời được đọc từ
+active effects khi resolve damage; mọi nguồn đều không sửa base stats.
 
 | Chỉ số cuối | Công thức mặc định |
 | --- | --- |
-| Max HP | Base HP + STR × 20, tối thiểu 1 |
-| HP regen/giây | Base regen + STR × 0.05, tối thiểu 0 |
-| Max Mana | Base Mana + INT × 12, tối thiểu 0 |
-| Mana regen/giây | Base regen + INT × 0.04, tối thiểu 0 |
-| Physical armor | Base armor + AGI × 0.15 |
-| Magic armor | Base magic armor + INT × 0.15 |
-| Physical damage | Base physical damage + primary attribute × 0.7 |
+| Max HP | Base HP + STR × 20 + flat HP từ đồ, tối thiểu 1 |
+| HP regen/giây | Base regen + STR × 0.05 + regen từ đồ, tối thiểu 0 |
+| Max Mana | Base Mana + INT × 12 + flat Mana từ đồ, tối thiểu 0 |
+| Mana regen/giây | Base regen + INT × 0.04 + regen từ đồ, tối thiểu 0 |
+| Physical armor | Base armor + AGI × 0.15 + armor từ đồ |
+| Magic armor | Base magic armor + INT × 0.15 + magic armor từ đồ |
+| Physical damage | Base physical damage + primary attribute × 0.7 + damage từ đồ |
 
 Primary damage bật/tắt toàn cục hoặc từng unit; NONE không thêm damage.
 Ví dụ AGI 40, primary AGILITY: thêm 28 physical damage.
@@ -82,3 +84,37 @@ Hết hạn khôi phục đúng giáp tính từ nguồn, không sửa base stat
 Event effect_applied/effect_expired chứa nguồn, đích, ID, kind, tick;
 event áp dụng còn có duration_ticks và magnitude. Engine phát event theo thứ tự
 ổn định. Kết quả tái hiện yêu cầu cùng engine version, seed, data, command ticks.
+
+## Trang bị
+
+Mỗi unit có sáu slot. Reassign cùng món vào cùng slot không thêm bonus;
+thay món loại bỏ modifier cũ. Các món mặc định cho phép nhiều bản sao.
+Món allow_multiple = false chỉ được xuất hiện một lần trong loadout.
+
+Modifier flat cộng trước caps. STR/AGI/INT từ đồ được cộng vào thuộc tính
+trước khi chuyển đổi. Flat HP/Mana cộng sau attribute conversion. APS bonus
+từ đồ cộng với bonus nguồn/AGI trước khi nhân BaseAPS. Accuracy, critical chance
+và status resistance cộng theo điểm phần trăm, sau đó áp cap như Phase 3.
+Evasion mỗi món là một nguồn độc lập: hai Evasion Blade 25% tạo 43.75%;
+với base evasion 30% tạo 60.625%, không cộng thành 80%.
+
+| Món | Giá | Modifier |
+| --- | ---: | --- |
+| Iron Armor | 1000 | +15 physical armor |
+| Mystic Cloak | 1000 | +15 magic armor |
+| Vitality Stone | 1000 | +500 max HP |
+| Precision Blade | 1000 | +30 điểm phần trăm accuracy |
+| Critical Blade | 1000 | +25 điểm phần trăm critical chance |
+| Evasion Blade | 1000 | nguồn evasion độc lập 25% |
+| Armor Breaker | 1200 | +15 flat armor reduction trên đòn physical của người mặc |
+| Heavy Sword | 1000 | +60 physical attack damage |
+| Arcane Staff | 1000 | +60 magic attack damage |
+| Pure Blade | 1500 | +40 pure component trên basic attack |
+| Swift Gloves | 1000 | +30% attack speed bonus |
+| Resolve Amulet | 1000 | +25 điểm phần trăm status resistance |
+
+Armor Breaker chỉ thay effective armor cho đòn của người mặc, không sửa giáp
+nguồn của mục tiêu. Pure Blade là damage bổ sung, không chuyển từ physical;
+có thể miss, không tự crit. Thay loadout trong UI reset duel, HP/Mana đầy theo
+max mới, xóa effect/cooldown attack/commands và reset RNG. Gỡ đồ khôi phục đúng
+stats nguồn; Reset trận giữ loadout, Reset equipment xóa loadout unit được chọn.

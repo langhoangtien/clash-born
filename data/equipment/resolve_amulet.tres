@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/equipment/equipment_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "resolve_amulet"
+display_name = "Resolve Amulet"
+description = "Adds 25 percentage points of status resistance, subject to the balance cap."
+price = 1000
+allow_multiple = true
+modifiers = {"status_resistance": 0.25}

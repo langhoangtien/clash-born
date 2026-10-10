@@ -12,11 +12,11 @@ var next_attack_tick: float = 1.0
 var effects := StatusEffectManager.new()
 var current_tick: int = 0
 
-func _init(id: String, team: int, spawn: Vector2, source: UnitStats, balance: BalanceSettings) -> void:
+func _init(id: String, team: int, spawn: Vector2, source: UnitStats, balance: BalanceSettings, equipment: Array[EquipmentData] = []) -> void:
 	unit_id = id
 	team_id = team
 	position = spawn
-	stats = StatCalculator.calculate(source, balance)
+	stats = StatCalculator.calculate(source, balance, equipment)
 	current_hp = stats.max_hp
 	current_mana = stats.max_mana
 

@@ -9,6 +9,8 @@ var battle_label: Label
 var seed_field: SpinBox
 var effect_target: OptionButton
 var effect_buttons: Array[Button] = []
+var loadouts: Array[EquipmentManager] = [EquipmentManager.new(), EquipmentManager.new()]
+var equipment_panel: PanelContainer
 
 func _ready() -> void:
 	_build_ui()
@@ -38,17 +40,17 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", 28)
 	header.add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "PHASE 3 · Attack speed · Evasion / Accuracy / Critical · Stun / Slow / Armor reduction"
+	subtitle.text = "PHASE 4 · Six equipment slots · Resource-driven bonuses · Recalculate from source"
 	subtitle.modulate = Color(0.67, 0.74, 0.8)
 	header.add_child(subtitle)
 	battle_label = Label.new()
-	battle_label.position = Vector2(32, 180)
-	battle_label.size = Vector2(1536, 40)
+	battle_label.position = Vector2(32, 232)
+	battle_label.size = Vector2(1070, 40)
 	battle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	battle_label.add_theme_font_size_override("font_size", 24)
 	layer.add_child(battle_label)
 	var debug_panel := PanelContainer.new()
-	debug_panel.position = Vector2(32, 240)
+	debug_panel.position = Vector2(32, 152)
 	debug_panel.size = Vector2(1536, 58)
 	layer.add_child(debug_panel)
 	var debug_margin := MarginContainer.new()
@@ -77,6 +79,13 @@ func _build_ui() -> void:
 	seed_field.value = 1
 	seed_field.custom_minimum_size.x = 150
 	debug_row.add_child(seed_field)
+	equipment_panel = PanelContainer.new()
+	equipment_panel.set_script(preload("res://scripts/ui/equipment_panel.gd"))
+	equipment_panel.position = Vector2(1130, 232)
+	equipment_panel.size = Vector2(438, 480)
+	equipment_panel.loadouts = loadouts
+	equipment_panel.loadout_changed.connect(_reset)
+	layer.add_child(equipment_panel)
 	var bottom := PanelContainer.new()
 	bottom.position = Vector2(32, 732)
 	bottom.size = Vector2(1536, 140)
@@ -138,12 +147,14 @@ func _reset() -> void:
 func _reset_combat() -> void:
 	var blue = $Arena/BlueUnit
 	var red = $Arena/RedUnit
-	combat.reset(blue.combat_data, red.combat_data, blue.position, red.position, int(seed_field.value))
+	combat.reset(blue.combat_data, red.combat_data, blue.position, red.position, int(seed_field.value), loadouts[0].items(), loadouts[1].items())
 	blue.runtime = combat.units[0]
 	red.runtime = combat.units[1]
 	blue.damage_flash = 0.0
 	red.damage_flash = 0.0
 	battle_label.text = "Blue: physical attacker    vs    Red: mixed damage attacker"
+	equipment_panel.units = combat.units
+	equipment_panel.refresh()
 
 func _queue_effect(kind: StatusEffect.Kind, duration: float, magnitude: float) -> void:
 	if combat.finished:
@@ -171,6 +182,7 @@ func _on_tick(_tick_index: int) -> void:
 		clock.set_running(false)
 		var result := "Draw" if combat.winner_team < 0 else ("Blue wins" if combat.winner_team == 0 else "Red wins")
 		battle_label.text = "%s · %.3f s · Reset to start a new duel" % [result, combat.tick_count * SimulationClock.TICK_SECONDS]
+	equipment_panel.refresh_stats()
 
 func _refresh_ui() -> void:
 	run_button.text = "Pause" if clock.running else ("Resume" if clock.tick_count > 0 else "Start")
