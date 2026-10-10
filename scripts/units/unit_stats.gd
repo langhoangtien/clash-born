@@ -23,7 +23,13 @@ enum PrimaryAttribute { NONE, STRENGTH, AGILITY, INTELLIGENCE }
 @export var pure_damage: float = 0.0
 @export var physical_armor: float = 0.0
 @export var magic_armor: float = 0.0
-@export var attack_range: float = 700.0
+@export var attack_range: float = 150.0
+@export var cast_range: float = 700.0
+@export var collision_radius: float = 32.0
+@export var ranged_attacks: bool = false
+@export var projectile_speed: float = 900.0
+@export var projectile_hit_behavior: CombatProjectile.HitBehavior = CombatProjectile.HitBehavior.HOMING
+@export var projectile_dead_target_behavior: CombatProjectile.DeadTargetBehavior = CombatProjectile.DeadTargetBehavior.CANCEL
 ## Probabilities/bonuses use fractions: 0.30 means 30 percent.
 @export var base_attacks_per_second: float = 1.0
 @export var attack_speed_bonus: float = 0.0

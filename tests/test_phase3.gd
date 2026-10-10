@@ -39,6 +39,7 @@ func _run() -> void:
 
 func _test_stats_and_hits() -> void:
 	var source := UnitStats.new()
+	source.attack_range = 700
 	source.agility = 40
 	source.base_attacks_per_second = 1.5
 	source.attack_speed_bonus = 0.3
@@ -91,7 +92,9 @@ func _test_stats_and_hits() -> void:
 
 func _test_attacks() -> void:
 	var blue := UnitStats.new()
+	blue.attack_range = 700
 	var red := UnitStats.new()
+	red.attack_range = 700
 	blue.base_attacks_per_second = 1.7
 	var engine := _engine(blue, red)
 	var attack_ticks: Array[int] = []
@@ -156,7 +159,9 @@ func _test_attacks() -> void:
 
 func _test_effects() -> void:
 	var blue := UnitStats.new()
+	blue.attack_range = 700
 	var red := UnitStats.new()
+	red.attack_range = 700
 	red.physical_damage = 10
 	red.status_resistance = 0.25
 	var engine := _engine(blue, red)
@@ -232,7 +237,9 @@ func _test_effects() -> void:
 
 func _test_replay() -> void:
 	var blue := UnitStats.new()
+	blue.attack_range = 700
 	var red := UnitStats.new()
+	red.attack_range = 700
 	blue.physical_damage = 5
 	blue.evasion = 0.3
 	blue.critical_chance = 0.25

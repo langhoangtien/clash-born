@@ -10,7 +10,8 @@ const FIELDS: Array = [
 	["physical_damage", "Base physical damage", 0, 10000, false], ["magic_damage", "Base magic damage", 0, 10000, false], ["pure_damage", "Base pure damage", 0, 10000, false],
 	["physical_armor", "Base physical armor", -1000, 1000, false], ["magic_armor", "Base magic armor", -1000, 1000, false],
 	["base_attacks_per_second", "Base attacks / s", 0.01, 20, false], ["attack_speed_bonus", "Attack speed bonus %", -99, 1000, true],
-	["attack_range", "Attack range", 0, 1600, false], ["movement_speed", "Movement speed", 0, 1000, false],
+	["attack_range", "Attack range", 0, 1600, false], ["cast_range", "Cast range", 0, 1600, false],
+	["collision_radius", "Collision radius", 0, 100, false], ["projectile_speed", "Projectile speed", 1, 5000, false], ["movement_speed", "Movement speed", 0, 1000, false],
 	["evasion", "Base evasion %", 0, 100, true], ["accuracy", "Accuracy points %", 0, 200, true],
 	["critical_chance", "Critical chance %", 0, 100, true], ["critical_multiplier", "Crit multiplier (0=default)", 0, 10, false],
 	["status_resistance", "Status resistance %", 0, 100, true], ["armor_reduction", "Flat armor reduction", 0, 1000, false],
@@ -23,6 +24,9 @@ var unit_select: OptionButton
 var ai_select: OptionButton
 var primary_select: OptionButton
 var ability_toggle: CheckBox
+var ranged_toggle: CheckBox
+var projectile_behavior: OptionButton
+var dead_target_behavior: OptionButton
 var primary_toggle: CheckBox
 var fields: Dictionary = {}
 var final_label: Label
@@ -53,6 +57,20 @@ func _ready() -> void:
 	ability_toggle.text = "AI uses available abilities"
 	ability_toggle.toggled.connect(func(value: bool): sources[unit_select.selected].abilities_enabled = value; source_changed.emit())
 	content.add_child(ability_toggle)
+	ranged_toggle = CheckBox.new()
+	ranged_toggle.text = "Ranged basic attacks (projectiles)"
+	ranged_toggle.toggled.connect(func(value: bool): sources[unit_select.selected].ranged_attacks = value; source_changed.emit())
+	content.add_child(ranged_toggle)
+	projectile_behavior = OptionButton.new()
+	projectile_behavior.add_item("Projectile: Homing")
+	projectile_behavior.add_item("Projectile: Fixed launch target position")
+	projectile_behavior.item_selected.connect(func(index: int): sources[unit_select.selected].projectile_hit_behavior = index; source_changed.emit())
+	content.add_child(projectile_behavior)
+	dead_target_behavior = OptionButton.new()
+	dead_target_behavior.add_item("Dead target: Cancel projectile")
+	dead_target_behavior.add_item("Dead target: Continue to last position")
+	dead_target_behavior.item_selected.connect(func(index: int): sources[unit_select.selected].projectile_dead_target_behavior = index; source_changed.emit())
+	content.add_child(dead_target_behavior)
 	primary_select = OptionButton.new()
 	for name in ["Primary: None", "Primary: STR", "Primary: AGI", "Primary: INT"]: primary_select.add_item(name)
 	primary_select.item_selected.connect(func(index: int): sources[unit_select.selected].primary_attribute = index; source_changed.emit())
@@ -92,6 +110,9 @@ func bind_sources(new_sources: Array[UnitStats], new_units: Array[UnitRuntimeSta
 func refresh() -> void:
 	if sources.is_empty(): return
 	var source := sources[unit_select.selected]
+	ranged_toggle.set_pressed_no_signal(source.ranged_attacks)
+	projectile_behavior.select(source.projectile_hit_behavior)
+	dead_target_behavior.select(source.projectile_dead_target_behavior)
 	ai_select.select(source.ai_mode)
 	primary_select.select(source.primary_attribute)
 	ability_toggle.set_pressed_no_signal(source.abilities_enabled)
@@ -105,9 +126,10 @@ func refresh_stats() -> void:
 	var unit := units[unit_select.selected]
 	var stats := unit.stats
 	final_label.text = "FINAL / CURRENT\nHP %.1f / %.1f · Mana %.1f / %.1f\nSTR %.1f · AGI %.1f · INT %.1f\nDamage P %.1f / M %.1f / Pure %.1f\nArmor P %.2f / M %.2f · APS %.2f\nEvade %.1f%% · Accuracy %.1f%% · Crit %.1f%%\nResist %.1f%% · Move %.1f" % [unit.current_hp, stats.max_hp, unit.current_mana, stats.max_mana, stats.strength, stats.agility, stats.intelligence, stats.physical_damage, stats.magic_damage, stats.pure_damage, unit.physical_armor(), stats.magic_armor, stats.attack_speed, stats.evasion * 100, stats.accuracy * 100, stats.critical_chance * 100, stats.status_resistance * 100, unit.movement_speed(preload("res://data/balance/default_balance.tres"))]
+	final_label.text += "\nRange Attack %.0f / Cast %.0f (edge distance)" % [unit.attack_range(), unit.cast_range()]
 	var statuses: PackedStringArray = []
 	for effect in unit.effects.active:
-		statuses.append("%s %.2fs" % [["Stun", "Slow", "Armor reduction"][effect.kind], effect.remaining_seconds(unit.current_tick)])
+		statuses.append("%s %.2fs" % [["Stun", "Slow", "Armor reduction", "Attack range", "Cast range"][effect.kind], effect.remaining_seconds(unit.current_tick)])
 	final_label.text += "\nEffects: " + ("None" if statuses.is_empty() else ", ".join(statuses))
 	var skills: PackedStringArray = []
 	for ability in unit.abilities:

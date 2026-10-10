@@ -8,9 +8,10 @@ Thứ tự mỗi tick 1/30 giây:
 1. Hết hạn effect, rồi áp debug commands đã xếp từ UI.
 2. Hồi HP/Mana cho unit sống, chọn target từ trạng thái hiện tại.
 3. Tính steering từ snapshot vị trí; áp hai lượt separation và giới hạn arena.
-4. Xử lý cast bị interrupt, bắt đầu cast hợp lệ theo thứ tự ability data;
+4. Di chuyển projectile cũ và resolve impact; xử lý cast bị interrupt, bắt đầu cast hợp lệ theo thứ tự ability data;
    collect các cast hoàn thành rồi áp effects của chúng.
-5. Thu thập basic attacks: hit → crit → tính các component sau giáp.
+5. Basic melee resolve ngay; ranged launch projectile, chờ impact để roll hit/crit.
+   Thu thập damage từ melee và impact trước khi áp HP.
 6. Ghi survival/time-stunned tick; áp damage và xử lý deaths.
 7. Kiểm tra team elimination hoặc timeout; consume events vào metrics, trả events.
 
@@ -47,3 +48,7 @@ còn metrics thu thập toàn bộ trận. Reset xóa metrics/effect/cast/cooldo
 tạo runtime mới từ source + loadout và đặt lại RNG. Cùng phiên bản, source/
 equipment/abilities/balance, seed và command ticks cho cùng event/results
 bất kể speed 0.5x/1x/2x/4x. Không bảo đảm replay giữa các phiên bản Godot/RNG khác nhau.
+
+Projectile launches không đếm miss/crit; các metric này đếm tại impact.
+Team elimination chờ các projectile còn bay resolve; timeout vẫn kết thúc đúng hạn.
+Quy ước khoảng cách và projectile behavior nằm trong `DESIGN.md`.

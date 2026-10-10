@@ -34,6 +34,11 @@ func _ready() -> void:
 	$Arena.position = Vector2(24, 230)
 	$Arena.scale = Vector2(0.64, 0.64)
 	$Arena.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+	var projectile_view := Node2D.new()
+	projectile_view.z_index = 100
+	projectile_view.set_script(preload("res://scripts/ui/projectile_view.gd"))
+	projectile_view.combat = combat
+	$Arena.add_child(projectile_view)
 	_build_ui()
 	_reset_combat()
 	clock.ticked.connect(_on_tick)
@@ -69,7 +74,7 @@ func _build_ui() -> void:
 	add_child(layer)
 	var header := _panel(layer, Vector2(24, 12), Vector2(1552, 72))
 	var title := Label.new()
-	title.text = "CLASHBORN  /  PHASE 5 COMBAT SANDBOX"
+	title.text = "CLASHBORN  /  RANGE & PROJECTILE SANDBOX"
 	title.add_theme_font_size_override("font_size", 26)
 	header.add_child(title)
 	var subtitle := Label.new()
@@ -290,8 +295,9 @@ func _log_event(event: Dictionary) -> void:
 		"damage": text += " %s damage %.2f" % [["physical", "magic", "pure"][event.damage_type], event.applied_damage]
 		"cast": text += " casts %s (mana %.0f)" % [event.ability_name, event.mana_cost]
 		"cast_interrupted": text += " cast interrupted"
-		"effect_applied": text += " %s %.2fs" % [["stun", "slow", "armor reduction"][event.effect_kind], event.duration_ticks * SimulationClock.TICK_SECONDS]
-		"effect_expired": text = "%s recovered from %s" % [event.target_unit_id, ["stun", "slow", "armor reduction"][event.effect_kind]]
+		"effect_applied": text += " %s %.2fs" % [["stun", "slow", "armor reduction", "attack range", "cast range"][event.effect_kind], event.duration_ticks * SimulationClock.TICK_SECONDS]
+		"effect_expired": text = "%s recovered from %s" % [event.target_unit_id, ["stun", "slow", "armor reduction", "attack range", "cast range"][event.effect_kind]]
+		"projectile_launched", "projectile_impact", "projectile_evaded", "projectile_canceled": text += " " + event.kind + " #" + str(event.get("projectile_id", ""))
 		"death": text = "%s died" % event.target_unit_id
 		"finished": text = "Battle finished · %s" % event.reason
 	log_lines.append("%07.3f  %s" % [event.tick * SimulationClock.TICK_SECONDS, text])

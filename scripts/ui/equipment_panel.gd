@@ -17,6 +17,8 @@ const CATALOG: Array[EquipmentData] = [
 	preload("res://data/equipment/pure_blade.tres"),
 	preload("res://data/equipment/swift_gloves.tres"),
 	preload("res://data/equipment/resolve_amulet.tres"),
+	preload("res://data/equipment/range_lens.tres"),
+	preload("res://data/equipment/cast_focus.tres"),
 ]
 
 var loadouts: Array[EquipmentManager] = []

@@ -60,6 +60,7 @@ func _test_ai() -> void:
 	actor.movement_speed = 300
 	actor.physical_damage = 10
 	var passive := UnitStats.new()
+	passive.attack_range = 700
 	passive.ai_mode = CombatAI.Mode.PASSIVE
 	var high_damage: UnitStats = passive.duplicate(true)
 	high_damage.physical_damage = 200
@@ -82,7 +83,7 @@ func _test_ai() -> void:
 	for tick in range(30): engine.step()
 	_check(engine.units[0].position.x > 110, "Movement resumes after stun")
 	for tick in range(100): engine.step()
-	_near(engine.units[0].position.distance_to(engine.units[1].position), 100, "Melee stops at attack range")
+	_near(engine.units[0].position.distance_to(engine.units[1].position), 164, "Melee stops at attack range")
 	engine.units[1].alive = false
 	engine.units[1].current_hp = 0
 	engine.step()
@@ -92,7 +93,7 @@ func _test_ai() -> void:
 	entries = [_entry("blue", 0, ranged, Vector2(100, 450)), _entry("red", 1, passive, Vector2(1000, 450))]
 	engine.reset_scenario(entries)
 	for tick in range(100): engine.step()
-	_near(engine.units[0].position.distance_to(engine.units[1].position), 450, "Ranged unit maintains attack distance without kiting")
+	_near(engine.units[0].position.distance_to(engine.units[1].position), 514, "Ranged unit maintains attack distance without kiting")
 	entries = [_entry("blue", 0, actor, Vector2(500, 450)), _entry("red", 1, actor, Vector2(500, 450))]
 	engine.reset_scenario(entries)
 	engine.step()
@@ -113,9 +114,11 @@ func _test_ai() -> void:
 
 func _test_abilities() -> void:
 	var caster := UnitStats.new()
+	caster.attack_range = 700
 	caster.base_mana = 200
 	caster.abilities = [load("res://data/abilities/stun_strike.tres")]
 	var target := UnitStats.new()
+	target.attack_range = 700
 	target.ai_mode = CombatAI.Mode.PASSIVE
 	target.status_resistance = 0.25
 	var engine := CombatEngine.new(balance)
@@ -172,11 +175,13 @@ func _test_abilities() -> void:
 
 func _test_metrics() -> void:
 	var attacker := UnitStats.new()
+	attacker.attack_range = 700
 	attacker.physical_damage = 100
 	attacker.magic_damage = 20
 	attacker.pure_damage = 10
 	attacker.critical_chance = 1
 	var target := UnitStats.new()
+	target.attack_range = 700
 	target.base_hp = 50
 	var engine := CombatEngine.new(balance)
 	engine.reset(attacker, target, Vector2.ZERO, Vector2(100, 0))

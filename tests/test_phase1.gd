@@ -62,7 +62,7 @@ func _run() -> void:
 	var main = scene.instantiate()
 	root.add_child(main)
 	await process_frame
-	_check(main.get_node("Arena").get_child_count() == 2, "Arena contains exactly two units")
+	_check(main.views.size() == 2 and main.combat.units.size() == 2, "Arena contains exactly two combat units, plus projectile presentation")
 	var blue = main.get_node("Arena/BlueUnit")
 	var red = main.get_node("Arena/RedUnit")
 	_check(blue.visible and red.visible and blue.position != red.position, "Two visible units at distinct positions")

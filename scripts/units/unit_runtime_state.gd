@@ -47,3 +47,19 @@ func movement_speed(balance: BalanceSettings) -> float:
 
 func physical_armor() -> float:
 	return stats.physical_armor - effects.armor_reduction()
+
+func attack_range() -> float:
+	return maxf(0, stats.attack_range + effects.range_bonus(StatusEffect.Kind.ATTACK_RANGE))
+
+func cast_range(ability: AbilityData = null) -> float:
+	var base: float = stats.cast_range
+	if ability != null and ability.cast_range > 0:
+		base = ability.cast_range + stats.cast_range_bonus
+	return maxf(0, base + effects.range_bonus(StatusEffect.Kind.CAST_RANGE))
+
+## Edge-to-edge distance. Ground points have radius zero.
+func distance_to_unit(target: UnitRuntimeState) -> float:
+	return maxf(0, position.distance_to(target.position) - stats.collision_radius - target.stats.collision_radius)
+
+func distance_to_point(point: Vector2) -> float:
+	return maxf(0, position.distance_to(point) - stats.collision_radius)

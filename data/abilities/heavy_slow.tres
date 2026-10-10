@@ -15,6 +15,5 @@ id = "heavy_slow"
 display_name = "Heavy Slow"
 mana_cost = 50.0
 cooldown = 10.0
-cast_range = 450.0
 cast_time = 0.0
 effects = [SubResource("Effect")]

@@ -15,6 +15,5 @@ id = "armor_shatter"
 display_name = "Armor Shatter"
 mana_cost = 60.0
 cooldown = 12.0
-cast_range = 320.0
 cast_time = 0.0
 effects = [SubResource("Effect")]

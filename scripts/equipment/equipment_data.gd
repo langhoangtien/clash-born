@@ -1,7 +1,7 @@
 class_name EquipmentData
 extends Resource
 
-const SUPPORTED_MODIFIERS: Array[String] = ["strength", "agility", "intelligence", "max_hp", "max_mana", "hp_regen", "mana_regen", "physical_damage", "magic_damage", "pure_damage", "physical_armor", "magic_armor", "attack_speed_bonus", "attack_range", "movement_speed", "evasion", "accuracy", "critical_chance", "critical_multiplier", "status_resistance", "armor_reduction", "magic_armor_reduction", "physical_armor_penetration"]
+const SUPPORTED_MODIFIERS: Array[String] = ["strength", "agility", "intelligence", "max_hp", "max_mana", "hp_regen", "mana_regen", "physical_damage", "magic_damage", "pure_damage", "physical_armor", "magic_armor", "attack_speed_bonus", "attack_range", "cast_range", "movement_speed", "evasion", "accuracy", "critical_chance", "critical_multiplier", "status_resistance", "armor_reduction", "magic_armor_reduction", "physical_armor_penetration"]
 const PERCENT_MODIFIERS: Array[String] = ["attack_speed_bonus", "evasion", "accuracy", "critical_chance", "status_resistance", "physical_armor_penetration"]
 
 @export var id: String = ""

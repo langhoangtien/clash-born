@@ -44,10 +44,13 @@ func _test_catalog() -> void:
 		"pure_blade": ["pure_damage", 40.0, 1500],
 		"swift_gloves": ["attack_speed_bonus", 0.3, 1000],
 		"resolve_amulet": ["status_resistance", 0.25, 1000],
+		"range_lens": ["attack_range", 100.0, 1000],
+		"cast_focus": ["cast_range", 150.0, 1000],
 	}
-	_check(catalog.size() == 12, "All twelve initial items exist")
+	_check(catalog.size() == 14, "Twelve initial items and two range items exist")
 	var seen: Array[String] = []
 	var source := UnitStats.new()
+	source.attack_range = 700
 	var baseline := StatCalculator.calculate(source, balance)
 	for item in catalog:
 		_check(item.is_valid() and item.id not in seen and not item.description.is_empty(), "Valid unique editable Resource %s" % item.id)
@@ -65,6 +68,7 @@ func _test_catalog() -> void:
 
 func _test_loadouts() -> void:
 	var source := UnitStats.new()
+	source.attack_range = 700
 	source.strength = 10
 	source.agility = 7
 	source.physical_armor = -5.5
@@ -130,7 +134,9 @@ func _combat(blue: UnitStats, red: UnitStats, blue_items: Array[EquipmentData] =
 
 func _test_combat() -> void:
 	var blue := UnitStats.new()
+	blue.attack_range = 700
 	var red := UnitStats.new()
+	red.attack_range = 700
 	blue.physical_damage = 100
 	var iron_items: Array[EquipmentData] = [_item("iron_armor")]
 	var cloak_items: Array[EquipmentData] = [_item("mystic_cloak")]
@@ -199,7 +205,7 @@ func _test_ui() -> void:
 	await process_frame
 	var panel = main.equipment_panel
 	var initial_stats: Dictionary = main.combat.units[0].stats.duplicate()
-	_check(panel.slot_selectors.size() == 6 and panel.slot_selectors[0].item_count == 13, "UI has six slots and twelve items plus Empty")
+	_check(panel.slot_selectors.size() == 6 and panel.slot_selectors[0].item_count == catalog.size() + 1, "UI has six slots and catalog items plus Empty")
 	panel.slot_selectors[0].item_selected.emit(1)
 	_near(main.combat.units[0].stats.physical_armor, initial_stats.physical_armor + 15, "UI equip updates stats immediately")
 	_check(panel.slot_selectors[0].selected == 1 and "Iron" in panel.slot_selectors[0].get_item_text(1), "UI selection reflects equipped item")

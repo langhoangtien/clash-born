@@ -15,6 +15,5 @@ id = "stun_strike"
 display_name = "Stun Strike"
 mana_cost = 80.0
 cooldown = 15.0
-cast_range = 550.0
 cast_time = 0.0
 effects = [SubResource("Effect")]

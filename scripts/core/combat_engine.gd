@@ -11,6 +11,9 @@ var finish_reason: String = ""
 var rng := RandomNumberGenerator.new()
 var random_seed: int = 1
 var metrics := CombatMetrics.new()
+var projectiles: Array[CombatProjectile] = []
+var _next_projectile_id: int = 0
+var _cast_requests: Array[Dictionary] = []
 var _commands: Array[Dictionary] = []
 
 func _init(settings: BalanceSettings) -> void:
@@ -46,6 +49,9 @@ func reset_scenario(entries: Array[Dictionary], seed_value: int = 1) -> bool:
 	random_seed = seed_value
 	rng.seed = seed_value
 	_commands.clear()
+	_cast_requests.clear()
+	projectiles.clear()
+	_next_projectile_id = 0
 	metrics.initialize(units)
 	return true
 
@@ -83,7 +89,7 @@ func step() -> Array[Dictionary]:
 	if finished or units.is_empty(): return events
 	tick_count += 1
 	# Stable order: expire -> debug commands -> regen -> targets/movement ->
-	# casting/effects -> collect attacks -> metrics stun tick -> damage -> deaths.
+	# in-flight impacts -> casting/effects -> collect attacks -> stun tick -> damage -> deaths.
 	for unit in units:
 		unit.current_tick = tick_count
 		for effect in unit.effects.expire(tick_count):
@@ -107,35 +113,20 @@ func step() -> Array[Dictionary]:
 					break
 		unit.target_id = target.unit_id if target != null else ""
 	CombatAI.move_units(units, balance)
-	_resolve_abilities(events)
 	var pending: Array[Dictionary] = []
+	_advance_projectiles(events, pending)
+	_resolve_abilities(events)
 	for source in units:
 		var target := get_unit(source.target_id)
 		if not source.can_act() or not source.casting.is_empty() or target == null or not target.alive or (source.ai_enabled and source.ai_mode == CombatAI.Mode.PASSIVE): continue
-		if tick_count + 0.000000001 < source.next_attack_tick or source.position.distance_to(target.position) > source.stats.attack_range + 0.000001: continue
+		if tick_count + 0.000000001 < source.next_attack_tick or source.distance_to_unit(target) > source.attack_range() + 0.000001: continue
 		if tick_count - source.next_attack_tick >= 1.0: source.next_attack_tick = tick_count
 		source.next_attack_tick += SimulationClock.TICKS_PER_SECOND / source.stats.attack_speed
-		var hit := HitCalculator.resolve(source.stats, target.stats, rng, balance)
-		var attack := _event("attack", source.unit_id, target.unit_id)
-		attack.can_miss = source.stats.attacks_can_miss
-		attack.can_crit = source.stats.attacks_can_crit
-		attack.missed = hit.missed
-		attack.critical = hit.critical
-		events.append(attack)
-		if hit.missed:
-			events.append(_event("miss", source.unit_id, target.unit_id))
-			continue
-		for damage_type in range(3):
-			var raw: float = source.stats[["physical_damage", "magic_damage", "pure_damage"][damage_type]]
-			if raw <= 0: continue
-			var damage := _event("damage", source.unit_id, target.unit_id)
-			damage.damage_type = damage_type
-			damage.critical = hit.critical and (source.stats.pure_attacks_can_crit or damage_type != DamageCalculator.DamageType.PURE)
-			damage.raw_damage = raw * source.stats.critical_multiplier if damage.critical else raw
-			var physical := DamageCalculator.effective_armor(target.physical_armor(), source.stats.armor_reduction, source.stats.physical_armor_penetration)
-			var magical := DamageCalculator.effective_armor(target.stats.magic_armor, source.stats.magic_armor_reduction)
-			damage.final_damage = DamageCalculator.calculate(damage.raw_damage, damage_type, physical, magical, balance)
-			pending.append(damage)
+		var payload := {"type": "attack", "stats": source.stats.duplicate(true)}
+		if source.stats.ranged_attacks:
+			_launch_projectile(source, target.unit_id, target.position, source.stats.projectile_speed, source.stats.projectile_hit_behavior, payload, events)
+		else:
+			_resolve_attack(source.unit_id, target, payload.stats, events, pending)
 	metrics.record_tick(units, tick_count)
 	for damage in pending:
 		var target := get_unit(damage.target_unit_id)
@@ -149,7 +140,7 @@ func step() -> Array[Dictionary]:
 			unit.casting.clear()
 			events.append(_event("death", "", unit.unit_id))
 		if unit.alive: teams_alive[unit.team_id] = true
-	if not teams_alive[0] or not teams_alive[1]:
+	if (not teams_alive[0] or not teams_alive[1]) and projectiles.is_empty():
 		finished = true
 		winner_team = 0 if teams_alive[0] else (1 if teams_alive[1] else -1)
 		finish_reason = "elimination"
@@ -164,6 +155,11 @@ func step() -> Array[Dictionary]:
 	metrics.consume(events)
 	return events
 
+## Commands are consumed next tick; same validation as AI. Ground/directional
+## points are captured when casting starts and never follow the target.
+func queue_cast(source_id: String, ability_index: int, target_id: String, point: Vector2) -> void:
+	_cast_requests.append({"source": source_id, "index": ability_index, "target": target_id, "point": point})
+
 func _resolve_abilities(events: Array[Dictionary]) -> void:
 	var completed: Array[Dictionary] = []
 	for source in units:
@@ -171,34 +167,140 @@ func _resolve_abilities(events: Array[Dictionary]) -> void:
 		if not source.casting.is_empty() and not source.can_cast():
 			events.append(_event("cast_interrupted", source.unit_id, source.casting.target))
 			source.casting.clear()
-		if not source.ai_enabled or source.ai_mode == CombatAI.Mode.PASSIVE or not source.can_cast(): continue
+		if not source.can_cast(): continue
 		if source.casting.is_empty():
+			var requests: Array[Dictionary] = []
+			for request in _cast_requests:
+				if request.source == source.unit_id: requests.append(request)
 			var target := get_unit(source.target_id)
-			if target == null or not target.alive: continue
-			for index in range(source.abilities.size()):
-				var ability := source.abilities[index]
+			if requests.is_empty() and source.ai_enabled and source.ai_mode != CombatAI.Mode.PASSIVE and target != null:
+				for index in range(source.abilities.size()):
+					requests.append({"index": index, "target": target.unit_id, "point": target.position})
+			for request in requests:
+				if request.index < 0 or request.index >= source.abilities.size(): continue
+				var ability := source.abilities[request.index]
 				if ability == null or ability.id.is_empty() or tick_count < source.ability_ready_ticks.get(ability.id, 0) or source.current_mana < ability.mana_cost: continue
-				if source.position.distance_to(target.position) > ability.cast_range: continue
+				if not _valid_cast(source, ability, request.target, request.point): continue
 				source.current_mana -= maxf(0, ability.mana_cost)
 				source.ability_ready_ticks[ability.id] = tick_count + maxi(1, ceili(ability.cooldown * SimulationClock.TICKS_PER_SECOND))
-				source.casting = {"index": index, "target": target.unit_id, "complete_tick": tick_count + maxi(0, ceili(ability.cast_time * SimulationClock.TICKS_PER_SECOND))}
-				var cast := _event("cast", source.unit_id, target.unit_id)
+				source.casting = {"index": request.index, "target": request.target, "point": request.point, "complete_tick": tick_count + maxi(0, ceili(ability.cast_time * SimulationClock.TICKS_PER_SECOND))}
+				var cast := _event("cast", source.unit_id, request.target)
 				cast.ability_id = ability.id
 				cast.ability_name = ability.display_name
 				cast.mana_cost = ability.mana_cost
 				events.append(cast)
 				break
 		if not source.casting.is_empty() and source.casting.complete_tick <= tick_count:
-			completed.append({"source": source, "target": source.casting.target, "ability": source.abilities[source.casting.index]})
+			completed.append({"source": source, "target": source.casting.target, "point": source.casting.point, "ability": source.abilities[source.casting.index]})
 			source.casting.clear()
+	_cast_requests.clear()
 	for cast in completed:
-		var target := get_unit(cast.target)
-		if target == null or not target.alive or cast.source.position.distance_to(target.position) > cast.ability.cast_range:
+		if not _valid_cast(cast.source, cast.ability, cast.target, cast.point):
 			events.append(_event("cast_interrupted", cast.source.unit_id, cast.target))
 			continue
-		for index in range(cast.ability.effects.size()):
-			var effect: AbilityEffectData = cast.ability.effects[index]
-			_apply_effect({"source": cast.source.unit_id, "target": target.unit_id, "kind": effect.kind, "duration": effect.duration, "magnitude": effect.magnitude, "id": "%s_%d" % [cast.ability.id, index]}, events)
+		var target := get_unit(cast.target)
+		var point: Vector2 = target.position if cast.ability.target_type == AbilityData.TargetType.ENEMY else cast.point
+		var payload := {"type": "ability", "ability": cast.ability.duplicate(true), "team": cast.source.team_id, "origin": cast.source.position, "point": point}
+		if cast.ability.uses_projectile:
+			var behavior: int = cast.ability.projectile_hit_behavior if cast.ability.target_type == AbilityData.TargetType.ENEMY else CombatProjectile.HitBehavior.FIXED_POSITION
+			_launch_projectile(cast.source, cast.target if cast.ability.target_type == AbilityData.TargetType.ENEMY else "", point, cast.ability.projectile_speed, behavior, payload, events)
+		else:
+			_resolve_ability(cast.source.unit_id, cast.target, point, payload, events)
+
+func _valid_cast(source: UnitRuntimeState, ability: AbilityData, target_id: String, point: Vector2) -> bool:
+	if ability.target_type == AbilityData.TargetType.ENEMY:
+		var target := get_unit(target_id)
+		return target != null and target.alive and target.team_id != source.team_id and source.distance_to_unit(target) <= source.cast_range(ability) + 0.000001
+	return point.is_finite() and source.distance_to_point(point) <= source.cast_range(ability) + 0.000001
+
+func _resolve_ability(source_id: String, target_id: String, point: Vector2, payload: Dictionary, events: Array[Dictionary]) -> void:
+	var ability: AbilityData = payload.ability
+	var targets: Array[UnitRuntimeState] = []
+	if ability.target_type == AbilityData.TargetType.ENEMY:
+		var target := get_unit(target_id)
+		if target != null and target.alive: targets.append(target)
+	else:
+		for target in units:
+			if not target.alive or target.team_id == payload.team: continue
+			var nearest: Vector2 = point
+			if ability.target_type == AbilityData.TargetType.DIRECTIONAL:
+				var line: Vector2 = point - payload.origin
+				var fraction: float = clampf((target.position - payload.origin).dot(line) / line.length_squared(), 0, 1) if line.length_squared() > 0 else 0
+				nearest = payload.origin + line * fraction
+			if target.position.distance_to(nearest) <= maxf(0, ability.effect_radius) + target.stats.collision_radius + 0.000001: targets.append(target)
+	for target in targets:
+		for index in range(ability.effects.size()):
+			var effect := ability.effects[index]
+			if effect == null: continue
+			_apply_effect({"source": source_id, "target": target.unit_id, "kind": effect.kind, "duration": effect.duration, "magnitude": effect.magnitude, "id": "%s_%d" % [ability.id, index]}, events)
+
+func _launch_projectile(source: UnitRuntimeState, target_id: String, point: Vector2, speed: float, behavior: int, payload: Dictionary, events: Array[Dictionary]) -> void:
+	var projectile := CombatProjectile.new()
+	_next_projectile_id += 1
+	projectile.id = _next_projectile_id
+	projectile.source_id = source.unit_id
+	projectile.target_id = target_id
+	projectile.destination = point
+	projectile.position = source.position + (point - source.position).normalized() * source.stats.collision_radius
+	projectile.speed = maxf(1, speed)
+	projectile.hit_behavior = behavior
+	projectile.dead_target_behavior = payload.stats.projectile_dead_target_behavior if payload.type == "attack" else payload.ability.projectile_dead_target_behavior
+	projectile.launch_tick = tick_count
+	projectile.expires_tick = tick_count + maxi(1, ceili(balance.projectile_lifetime_seconds * SimulationClock.TICKS_PER_SECOND))
+	projectile.payload = payload
+	projectiles.append(projectile)
+	var event := _event("projectile_launched", source.unit_id, target_id)
+	event.projectile_id = projectile.id
+	events.append(event)
+
+func _advance_projectiles(events: Array[Dictionary], pending: Array[Dictionary]) -> void:
+	var remaining: Array[CombatProjectile] = []
+	for projectile in projectiles:
+		var target := get_unit(projectile.target_id)
+		var canceled := tick_count >= projectile.expires_tick or (projectile.dead_target_behavior == CombatProjectile.DeadTargetBehavior.CANCEL and not projectile.target_id.is_empty() and (target == null or not target.alive))
+		if canceled:
+			var event := _event("projectile_canceled", projectile.source_id, projectile.target_id)
+			event.projectile_id = projectile.id
+			events.append(event)
+			continue
+		if not projectile.advance(target):
+			remaining.append(projectile)
+			continue
+		var event := _event("projectile_impact", projectile.source_id, projectile.target_id)
+		event.projectile_id = projectile.id
+		events.append(event)
+		if target != null and projectile.hit_behavior == CombatProjectile.HitBehavior.FIXED_POSITION and target.position.distance_to(projectile.destination) > target.stats.collision_radius + 0.000001:
+			events.append(_event("projectile_evaded", projectile.source_id, projectile.target_id))
+			continue
+		if projectile.payload.type == "attack":
+			_resolve_attack(projectile.source_id, target, projectile.payload.stats, events, pending)
+		else:
+			_resolve_ability(projectile.source_id, projectile.target_id, projectile.destination, projectile.payload, events)
+	projectiles = remaining
+
+func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Dictionary, events: Array[Dictionary], pending: Array[Dictionary]) -> void:
+	if target == null or not target.alive: return
+	var hit := HitCalculator.resolve(stats, target.stats, rng, balance)
+	var attack := _event("attack", source_id, target.unit_id)
+	attack.can_miss = stats.attacks_can_miss
+	attack.can_crit = stats.attacks_can_crit
+	attack.missed = hit.missed
+	attack.critical = hit.critical
+	events.append(attack)
+	if hit.missed:
+		events.append(_event("miss", source_id, target.unit_id))
+		return
+	for damage_type in range(3):
+		var raw: float = stats[["physical_damage", "magic_damage", "pure_damage"][damage_type]]
+		if raw <= 0: continue
+		var damage := _event("damage", source_id, target.unit_id)
+		damage.damage_type = damage_type
+		damage.critical = hit.critical and (stats.pure_attacks_can_crit or damage_type != DamageCalculator.DamageType.PURE)
+		damage.raw_damage = raw * stats.critical_multiplier if damage.critical else raw
+		var physical := DamageCalculator.effective_armor(target.physical_armor(), stats.armor_reduction, stats.physical_armor_penetration)
+		var magical := DamageCalculator.effective_armor(target.stats.magic_armor, stats.magic_armor_reduction)
+		damage.final_damage = DamageCalculator.calculate(damage.raw_damage, damage_type, physical, magical, balance)
+		pending.append(damage)
 
 func result() -> Dictionary:
 	return {"winner_team": winner_team, "duration": tick_count * SimulationClock.TICK_SECONDS, "reason": finish_reason, "finished": finished, "units": metrics.by_unit.duplicate(true)}

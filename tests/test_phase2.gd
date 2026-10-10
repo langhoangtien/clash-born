@@ -48,6 +48,7 @@ func _test_formulas() -> void:
 
 func _test_attributes() -> void:
 	var source := UnitStats.new()
+	source.attack_range = 700
 	source.base_hp = 100
 	source.base_mana = 20
 	source.strength = 10
@@ -85,7 +86,9 @@ func _test_attributes() -> void:
 
 func _test_combat() -> void:
 	var blue := UnitStats.new()
+	blue.attack_range = 700
 	var red := UnitStats.new()
+	red.attack_range = 700
 	blue.physical_damage = 100
 	blue.magic_damage = 200
 	blue.pure_damage = 50

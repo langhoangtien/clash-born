@@ -119,3 +119,30 @@ nguồn của mục tiêu. Pure Blade là damage bổ sung, không chuyển từ
 có thể miss, không tự crit. Thay loadout trong UI reset battle, HP/Mana đầy theo
 max mới, xóa effect/cooldown attack/commands và reset RNG. Gỡ đồ khôi phục đúng
 stats nguồn; Reset trận giữ loadout, Reset equipment xóa loadout unit được chọn.
+
+## Range và projectile
+
+Khoảng cách attack/targeted cast = max(0, khoảng cách tâm - bán kính nguồn -
+bán kính đích). Cast vào điểm ground/directional chỉ trừ bán kính nguồn.
+Bán kính collision mặc định 32, chỉnh riêng từng unit. Biên range inclusive.
+
+AttackRange = max(0, base attack range + equipment attack bonus + active attack bonus).
+CastRange = max(0, base cast range + equipment cast bonus + active cast bonus).
+Ability cast_range > 0 thay base cast range, vẫn nhận bonus equipment/effect;
+cast_range = 0 kế thừa unit. Hai loại range hoàn toàn độc lập.
+Melee mặc định 150, ranged 550, cast 700; radius effect 250; projectile 900 units/s.
+
+Melee resolve ngay. Ranged chỉ phóng khi trong attack range và resolve hit/crit/
+damage tại impact, không trừ HP lúc phóng. Offense snapshot lúc launch; armor,
+evasion, armor-reduction của đích được đọc tại impact. Công thức mitigation,
+crit và overkill không đổi. Attack cooldown bắt đầu tại launch.
+
+Homing stationary: travel_ticks = max(1, ceil(edge_distance / speed × 30)).
+Projectile mới bắt đầu di chuyển ở tick sau launch. Fixed-position bay đến tâm
+đích lúc launch và chỉ hit nếu đích còn chạm điểm đó; có thể né bằng di chuyển.
+Target chết: CANCEL hoặc CONTINUE_TO_POSITION theo cấu hình; không gây damage
+lên unit chết. Người bắn chết không hủy shot đã launch. Lifetime mặc định 30 s.
+
+Ground effect dùng disk tại điểm đích; directional dùng capsule đoạn nguồn–đích;
+effect-radius cộng bán kính collision đích khi kiểm tra intersection. Projectile
+ability chỉ áp effect khi tới endpoint. Chi tiết timing và quy ước: `DESIGN.md`.

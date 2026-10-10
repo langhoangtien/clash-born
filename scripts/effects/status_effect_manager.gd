@@ -3,6 +3,12 @@ extends RefCounted
 
 var active: Array[StatusEffect] = []
 
+func range_bonus(kind: StatusEffect.Kind) -> float:
+	var total := 0.0
+	for effect in active:
+		if effect.kind == kind: total += effect.magnitude
+	return total
+
 func expire(tick: int) -> Array[StatusEffect]:
 	var expired: Array[StatusEffect] = []
 	for index in range(active.size() - 1, -1, -1):

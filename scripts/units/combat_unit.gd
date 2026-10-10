@@ -16,7 +16,7 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and visual_data != null:
 		var local_point: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
-		if local_point.length() <= visual_data.radius:
+		if runtime != null and local_point.length() <= runtime.stats.collision_radius:
 			unit_selected.emit(visual_data.unit_id)
 			get_viewport().set_input_as_handled()
 
@@ -35,9 +35,12 @@ func _center_text(text: String, y: float, size_value: int, color: Color = Color.
 
 func _draw() -> void:
 	if visual_data == null or runtime == null: return
-	var radius := visual_data.radius
+	var radius: float = runtime.stats.collision_radius
 	if selected:
-		draw_arc(Vector2.ZERO, runtime.stats.attack_range, 0, TAU, 96, Color(1, 1, 1, 0.2), 2, true)
+		draw_arc(Vector2.ZERO, runtime.attack_range() + runtime.stats.collision_radius, 0, TAU, 96, Color(1, 1, 1, 0.2), 2, true)
+		draw_arc(Vector2.ZERO, runtime.cast_range() + radius, 0, TAU, 96, Color(0.35, 0.65, 1, 0.45), 2, true)
+		for ability in runtime.abilities:
+			if ability.cast_range > 0: draw_arc(Vector2.ZERO, runtime.cast_range(ability) + radius, 0, TAU, 96, Color(0.35, 0.65, 1, 0.25), 1, true)
 		draw_arc(Vector2.ZERO, radius + 6, 0, TAU, 48, Color(1, 0.86, 0.4), 3, true)
 	var color := visual_data.team_color if runtime.alive else Color(0.3, 0.32, 0.34)
 	if damage_flash > 0 and runtime.alive: color = color.lightened(0.3)
@@ -50,7 +53,7 @@ func _draw() -> void:
 	if selected: _center_text("%.0f / %.0f" % [runtime.current_hp, runtime.stats.max_hp], 82, 20)
 	var statuses: PackedStringArray = []
 	for effect in runtime.effects.active:
-		var tag: String = ["S", "L", "A"][effect.kind]
+		var tag: String = ["S", "L", "A", "AR", "CR"][effect.kind]
 		if tag not in statuses: statuses.append(tag)
 	if not runtime.casting.is_empty(): statuses.append("C")
 	if not statuses.is_empty() and runtime.alive: _center_text(" ".join(statuses), 8, 18, Color(0.07, 0.08, 0.1))

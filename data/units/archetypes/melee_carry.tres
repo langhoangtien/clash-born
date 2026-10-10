@@ -17,5 +17,5 @@ magic_damage = 0.0
 physical_armor = 3.0
 magic_armor = 2.0
 base_attacks_per_second = 1.4
-attack_range = 95.0
+attack_range = 150.0
 abilities = [ExtResource("2")]

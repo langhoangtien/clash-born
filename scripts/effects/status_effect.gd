@@ -1,7 +1,7 @@
 class_name StatusEffect
 extends RefCounted
 
-enum Kind { STUN, SLOW, ARMOR_REDUCTION }
+enum Kind { STUN, SLOW, ARMOR_REDUCTION, ATTACK_RANGE, CAST_RANGE }
 
 var instance_id: String
 var source_unit_id: String
