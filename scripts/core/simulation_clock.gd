@@ -20,7 +20,7 @@ func advance(frame_seconds: float) -> void:
 	if not running or frame_seconds <= 0.0:
 		return
 	_accumulator += frame_seconds * speed
-	while _accumulator + 0.000000001 >= TICK_SECONDS:
+	while running and _accumulator + 0.000000001 >= TICK_SECONDS:
 		_accumulator = maxf(0.0, _accumulator - TICK_SECONDS)
 		_tick()
 

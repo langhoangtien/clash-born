@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/units/unit_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+strength = 10.0
+agility = 15.0
+intelligence = 20.0
+primary_attribute = 0
+base_hp = 650.0
+base_mana = 100.0
+physical_damage = 30.0
+magic_damage = 48.0
+pure_damage = 6.0
+physical_armor = 3.0
+magic_armor = 10.0
