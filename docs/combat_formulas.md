@@ -157,3 +157,19 @@ Trụ/nhà chính là unit đứng yên với UnitStats riêng. Attack Range v�
 cách mép collision. Trụ ưu tiên creep rồi hero trong tầm và có line-of-sight.
 Hero hồi sinh được phục hồi HP/Mana, xóa effect/cast/target và đặt cooldown mới.
 Thông số thử nghiệm nằm trong `data/match/default_match.tres`.
+
+
+## Level và đồ trong trận
+
+HeroSource(level) = bản sao source gốc với base overrides của hero +
+(level - 1) × growth theo từng trường UnitStats. FinalStats = StatCalculator
+của HeroSource và sáu ô trang bị, giữ toàn bộ công thức hiện có. Xạ thủ tăng
+HP/công vật lý/tốc đánh/tốc chạy; Đỡ đòn tăng HP/giáp/công vật lý/tốc chạy;
+Pháp sư tăng HP/công phép/mana/tốc chạy. Công phép vẫn là thành phần damage
+của attack hiện có; chưa có nút skill mới.
+
+XP cần lên cấp = 100 + 50 × (level - 1), tối đa level 15. XP dư giữ lại, cap
+xóa XP dư. Mua/bán/level giữ tỷ lệ HP/Mana hiện tại, không hồi đầy, không reset
+cooldown/effects/combat tick. Respawn giữ level/gear rồi hồi đầy max mới.
+Gold bán = floor(price × sell_refund), mặc định refund 0.5. XP gần địch chết
+và vàng last hit/passive được scene cấp theo settings, không sửa combat damage.

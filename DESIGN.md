@@ -216,8 +216,35 @@ HP, kill score, wave count, floating damage, respawn and victory UI show match s
 Touch direction tracking is independent per finger; desktop keyboard remains
 supported. Camera arrow pan is disabled only in this mode so arrows control hero.
 
-No hero skill/equipment/shop UI, creep rewards/economy, jungle objectives, dynamic
+The initial playable iteration omitted hero equipment/shop UI and rewards;
+those are now implemented in the progression extension below. Hero skills, jungle objectives, dynamic
 unit avoidance, structure body blocking, invulnerability progression, team 5v5 or
 networking are introduced. Tower aggro does not include hero-on-hero retaliation.
 Prototype balance is configurable and not tuned as a finished MOBA.
 See `docs/playable_match.md` for controls, changed files and executed verification.
+
+
+## Hero progression and match shop
+
+HeroGrowth Resources supply three selectable prototype profiles (ranger/tank/mage),
+base overrides and numeric UnitStats growth per level. HeroProgression maintains
+level, local XP, gold and the existing six-slot EquipmentManager for each hero.
+It builds a fresh source at each level, then calls the existing StatCalculator
+with equipment. No combat formula or hit/projectile system is duplicated.
+Recalculation preserves HP/Mana fractions, death state, position, target, effects
+and cooldowns. Level/equipment persist through respawn; new matches reset them.
+
+Nearby living opposing heroes receive XP on creep/hero/tower death, regardless
+of last hitter; only a hero landing the final damaging hit receives kill gold.
+Income runs once per simulation second; pause stops it. Defaults are starting
+1000 gold, 3 gold/second, XP radius 1000, maximum level 15. XP for the next level
+is 100 + 50*(level-1); overflow can grant several levels. Death rewards and growth
+are configurable Resources. Bots receive XP/income but do not shop yet.
+
+Match shop uses the original 14-item catalog. Buy validates item, funds, unique
+item rules and free slot before subtracting gold/equipping; sell refunds floor
+of price times 0.5. It is accessible anywhere, including while dead/paused, but
+blocked after victory. Opening it stops player movement/attack; combat continues
+unless explicitly paused. A hero dropdown starts a fresh match with the chosen
+profile. Sandbox equipment selectors retain their separate reference-price behavior.
+See `docs/progression_shop.md` for controls, files and executed tests.

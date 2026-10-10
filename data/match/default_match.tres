@@ -1,6 +1,10 @@
-[gd_resource type="Resource" script_class="MatchSettings" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="MatchSettings" load_steps=12 format=3]
 [ext_resource type="Script" path="res://scripts/match/match_settings.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/units/unit_stats.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="3"]
+[ext_resource type="Resource" path="res://data/match/ranger_growth.tres" id="4"]
+[ext_resource type="Resource" path="res://data/match/tank_growth.tres" id="5"]
+[ext_resource type="Resource" path="res://data/match/mage_growth.tres" id="6"]
 [sub_resource type="Resource" id="hero"]
 script = ExtResource("2")
 display_name = "Hero"
@@ -57,6 +61,7 @@ ranged_attacks = true
 [resource]
 script = ExtResource("1")
 hero = SubResource("hero")
+hero_profiles = Array[ExtResource("3")]([ExtResource("4"), ExtResource("5"), ExtResource("6")])
 melee_creep = SubResource("melee")
 ranged_creep = SubResource("ranged")
 tower = SubResource("tower")

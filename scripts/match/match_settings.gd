@@ -7,6 +7,20 @@ extends Resource
 @export var aggro_range: float = 750.0
 @export var hero_acquisition_range: float = 1400.0
 @export var hero: UnitStats
+@export var hero_profiles: Array[HeroGrowth] = []
+@export var starting_gold: int = 1000
+@export var passive_gold_per_second: int = 3
+@export var maximum_level: int = 15
+@export var first_level_xp: int = 100
+@export var level_xp_increment: int = 50
+@export var xp_radius: float = 1000.0
+@export var creep_xp: int = 45
+@export var creep_gold: int = 40
+@export var hero_xp: int = 200
+@export var hero_gold: int = 250
+@export var tower_xp: int = 150
+@export var tower_gold: int = 250
+@export var sell_refund: float = 0.5
 @export var melee_creep: UnitStats
 @export var ranged_creep: UnitStats
 @export var tower: UnitStats

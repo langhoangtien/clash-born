@@ -33,13 +33,15 @@ Phá nhà chính Red để thắng; nhà chính Blue bị phá thì thua. Có n�
 - **K / ĐÁNH HERO**: chỉ chọn hero địch. Click địch để khóa mục tiêu cụ thể.
 - Sau lệnh đánh, hero tự đi vào tầm và tiếp tục đánh. Di chuyển hoặc **Space** hủy.
 - Chuột phải đi đến điểm; **Ra MID** tự tìm đường ra lane giữa.
+- **B / Shop–Hero**: mua/bán đồ, xem tăng chỉ số mỗi cấp; chọn hero rồi bắt đầu trận mới.
 - **P** tạm dừng; **F** theo hero; chuột giữa pan, wheel zoom, click minimap xem vùng.
 - Bốn nút hỗ trợ touch/drag và nhiều ngón; chưa có bản xuất Android/iOS được kiểm thử.
 
 Stats/tốc độ lính, interval/cap wave, respawn và tầm tìm mục tiêu chỉnh tại
 `data/match/default_match.tres`; map vẫn dùng `data/maps/moba_foundation.tres`.
-Đây là trận local 1v1 với đồ họa hình học; chưa có chọn hero, skill buttons,
-shop/economy, jungle objectives, multiplayer hoặc 5v5. Chưa có tránh va chạm
+Đây là trận local 1v1 với đồ họa hình học; có chọn Xạ thủ/Đỡ đòn/Pháp sư,
+level/XP, vàng và shop. Chưa có skill buttons, jungle objectives, multiplayer hoặc 5v5.
+Chưa có tránh va chạm
 động giữa unit hay khóa nhà chính bằng trụ. Chi tiết: `docs/playable_match.md`.
 
 ## Map Prototype (Phase 6)
@@ -120,10 +122,12 @@ foreach ($phase in 1..6) {
 }
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_playable_match.gd
+& $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_progression_shop.gd
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase5.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase6.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_playable_match.gd -- --capture
+& $godotExe --path 'D:\Clashborn' --script res://tests/test_progression_shop.gd -- --capture
 ```
 
 Test trả exit code 0 khi pass, 1 khi fail. Các lệnh cuối chạy renderer thật và lưu ảnh trong `.local/`, gồm
@@ -150,6 +154,10 @@ pass, gồm hai team qua đủ ba lane, collision vật lý, camera, desktop inp
 overlays và chuyển qua lại hai mode. Các suite Phase 1–5 và range/projectile vẫn
 pass. Cả scene map lẫn sandbox chạy trực tiếp 180 frame, exit code 0; log không
 có lỗi runtime/resource leak. Ảnh overview/navigation đã được kiểm tra trực quan.
+
+Level/shop đã pass **43 kiểm tra headless / 44 kiểm tra renderer**, gồm khác biệt
+hero, XP/cap/overflow, mua bán/giá/slot, giữ máu/cooldown, reward và UI. Xem
+`docs/progression_shop.md`.
 
 Trận MOBA đã pass **66 kiểm tra headless / 67 kiểm tra renderer** bằng Godot
 4.7.2: wave, chọn mục tiêu, damage tại impact, trụ ưu tiên lính, hồi sinh,
@@ -190,7 +198,7 @@ Thứ tự tick và định nghĩa metrics: `docs/sandbox_metrics.md`.
 Công thức đã triển khai: `docs/combat_formulas.md`.
 Theo yêu cầu mới, Phase 6 là **MOBA Map Foundation**; nhãn Balance Laboratory
 trong master prompt cũ không còn dùng cho Phase 6. Không triển khai batch/CSV,
-networking, shop economy, jungle combat hay skill tree. Phần
+networking, jungle combat hay skill tree. Phần
 lifesteal/spell vamp/central healing trong prompt Phase 4.5 vẫn là phạm vi riêng.
 Theo yêu cầu tiếp theo, đã thêm trận playable có creep/trụ/hero controls ở mode riêng.
 Không mở rộng sang các tính năng MOBA đầy đủ khác.

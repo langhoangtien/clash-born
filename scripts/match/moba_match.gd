@@ -25,6 +25,8 @@ var scores: Array[int] = [0, 0]
 var creep_kills: int = 0
 var paused: bool = false
 var match_over: bool = false
+var progression: Dictionary = {}
+var shop: PanelContainer
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -39,9 +41,14 @@ func _ready() -> void:
 		_entry("player", 0, settings.hero, layout.spawn_points(0)[0]),
 		_entry("enemy_hero", 1, settings.hero, layout.spawn_points(1)[0]),
 	], 777)
+	if settings.hero_profiles.is_empty(): settings.hero_profiles.append(HeroGrowth.new())
+	var profile_index := clampi(HeroProgression.selected_profile, 0, settings.hero_profiles.size() - 1)
+	progression.player = HeroProgression.new(combat.get_unit("player"), settings.hero, settings.hero_profiles[profile_index], settings, combat.balance)
+	progression.enemy_hero = HeroProgression.new(combat.get_unit("enemy_hero"), settings.hero, settings.hero_profiles[0], settings, combat.balance)
 	player = _attach(combat.get_unit("player"), settings.hero, "hero", "MID")
 	enemy_hero = _attach(combat.get_unit("enemy_hero"), settings.hero, "hero", "MID")
 	player.view.selected = true
+	player.view.visual_data.display_name = "BẠN · " + progression.player.profile.display_name
 	camera.follow_target = player
 	camera.follow_enabled = true
 	camera.position = player.position
@@ -106,7 +113,7 @@ func spawn_wave() -> void:
 func _physics_process(delta: float) -> void:
 	if player == null: return
 	var keyboard := Vector2(float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)) - float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)), float(Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)) - float(Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)))
-	var movement: Vector2 = (keyboard + controls.direction).limit_length(1) if not paused and not match_over else Vector2.ZERO
+	var movement: Vector2 = (keyboard + controls.direction).limit_length(1) if not paused and not match_over and not shop.visible else Vector2.ZERO
 	player.manual_direction = movement
 	if not movement.is_zero_approx():
 		attack_mode = ""
@@ -118,6 +125,8 @@ func _physics_process(delta: float) -> void:
 func _tick(_index: int) -> void:
 	if match_over: return
 	var tick := combat.tick_count + 1
+	if tick % SimulationClock.TICKS_PER_SECOND == 0:
+		for hero in progression.values(): hero.award(0, settings.passive_gold_per_second)
 	if tick >= next_wave_tick:
 		spawn_wave()
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
@@ -204,7 +213,7 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 	else: actor.stop()
 
 func request_attack(category: String) -> void:
-	if match_over or paused or not player.runtime.alive: return
+	if match_over or paused or shop.visible or not player.runtime.alive: return
 	attack_mode = category
 	locked_target = ""
 	camera.follow_enabled = true
@@ -221,12 +230,49 @@ func _on_death(id: String, events: Array[Dictionary]) -> void:
 	var killer := ""
 	for event in events:
 		if event.kind == "damage" and event.target_unit_id == id and event.applied_damage > 0: killer = event.source_unit_id
+	_reward_death(info, killer)
 	if info.kind == "hero":
 		scores[1 - info.actor.runtime.team_id] += 1
 		respawns[id] = combat.tick_count + ceili(settings.respawn_seconds * SimulationClock.TICKS_PER_SECOND)
 		info.actor.stop()
 		if id == "player": attack_mode = ""; locked_target = ""
 	elif info.kind == "creep" and killer == "player": creep_kills += 1
+
+func _reward_death(info: Dictionary, killer: String) -> void:
+	var victim: MapUnit = info.actor
+	var xp: int = {"creep": settings.creep_xp, "hero": settings.hero_xp, "tower": settings.tower_xp}.get(info.kind, 0)
+	var coins: int = {"creep": settings.creep_gold, "hero": settings.hero_gold, "tower": settings.tower_gold}.get(info.kind, 0)
+	for hero_id in progression:
+		var hero: HeroProgression = progression[hero_id]
+		if hero.unit.team_id == victim.runtime.team_id: continue
+		var nearby := hero.unit.alive and hero.unit.position.distance_to(victim.position) <= settings.xp_radius
+		var levels := hero.award(xp if nearby else 0, coins if killer == hero_id else 0)
+		if levels > 0 and hero_id == "player": message.text = "LÊN CẤP %d! · %s" % [hero.level, hero.profile.display_name]
+
+func buy_item(item: EquipmentData) -> bool:
+	if match_over: return false
+	var hero: HeroProgression = progression.player
+	var reason := hero.purchase_error(item)
+	var success := hero.buy(item) if reason.is_empty() else false
+	shop.feedback.text = "Đã mua " + item.display_name if success else reason
+	shop.refresh()
+	_refresh_hud()
+	return success
+
+func sell_item(slot: int) -> bool:
+	if match_over: return false
+	var success: bool = progression.player.sell(slot)
+	shop.feedback.text = "Đã bán trang bị" if success else "Ô trang bị trống"
+	shop.refresh()
+	_refresh_hud()
+	return success
+
+func toggle_shop() -> void:
+	if match_over: return
+	_stop_player()
+	controls.release_all()
+	shop.visible = not shop.visible
+	shop.refresh()
 
 func _revive(id: String) -> void:
 	var info: Dictionary = entities[id]
@@ -287,6 +333,7 @@ func _build_ui() -> void:
 	_button(row, "Chơi lại", func(): get_tree().reload_current_scene())
 	_button(row, "Map Prototype", func(): get_tree().change_scene_to_file("res://scenes/map/map_prototype.tscn"))
 	_button(row, "Combat Sandbox", func(): get_tree().change_scene_to_file("res://scenes/main.tscn"))
+	_button(row, "Shop / Hero [B]", toggle_shop)
 	controls = Control.new()
 	controls.set_script(preload("res://scripts/match/battle_controls.gd"))
 	controls.position = Vector2(0, 720)
@@ -302,6 +349,15 @@ func _build_ui() -> void:
 	minimap.entities = entities
 	minimap.map_clicked.connect(func(point: Vector2): camera.follow_enabled = false; camera.position = point; camera.clamp_to_map())
 	layer.add_child(minimap)
+	shop = PanelContainer.new()
+	shop.set_script(preload("res://scripts/match/match_shop.gd"))
+	shop.progression = progression.player
+	shop.position = Vector2(320, 185)
+	shop.size = Vector2(960, 515)
+	shop.buy_requested.connect(buy_item)
+	shop.sell_requested.connect(sell_item)
+	shop.hero_requested.connect(func(index: int): HeroProgression.selected_profile = index; get_tree().reload_current_scene())
+	layer.add_child(shop)
 	result_panel = PanelContainer.new()
 	result_panel.position = Vector2(530, 330)
 	result_panel.size = Vector2(540, 220)
@@ -333,6 +389,9 @@ func _refresh_hud() -> void:
 	var state := player.runtime
 	var respawn: float = maxf(0, respawns.get("player", combat.tick_count) - combat.tick_count) * SimulationClock.TICK_SECONDS
 	hud.text = "CLASHBORN · %02d:%02d · BLUE %d : %d RED\nHP %.0f / %.0f · Lính hạ: %d · Đợt lính: %d" % [combat.tick_count / 1800, (combat.tick_count / 30) % 60, scores[0], scores[1], state.current_hp, state.stats.max_hp, creep_kills, wave_number]
+	var hero: HeroProgression = progression.player
+	hud.text += "\n%s · LV %d · XP %d/%d · Vàng %d [B]" % [hero.profile.display_name, hero.level, hero.experience, hero.required_xp(), hero.gold]
+	if shop.visible: shop.refresh()
 	if not state.alive: message.text = "Hồi sinh sau %.1f giây" % respawn
 	elif paused: message.text = "TẠM DỪNG · nhấn P để tiếp tục"
 
@@ -344,6 +403,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_SPACE: _stop_player()
 			KEY_P: set_paused(not paused)
 			KEY_F: camera.follow_enabled = true
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT and player.runtime.alive and not paused and not match_over:
+			KEY_B: toggle_shop()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT and player.runtime.alive and not paused and not match_over and not shop.visible:
 		_stop_player()
 		player.go_to(get_global_transform_with_canvas().affine_inverse() * event.position)

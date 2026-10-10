@@ -15,6 +15,7 @@ top-left buttons, and both have a button returning to this match.
 | Click enemy | Lock that specific target |
 | Space / move | Cancel automatic attack/approach |
 | Right click ground / Ra MID | Navigate to point / allied MID approach |
+| B / Shop–Hero | Buy/sell items, inspect level growth, choose hero for a new match |
 | P | Pause/resume movement, combat and timers |
 | F | Follow player camera |
 | Middle drag / wheel / click minimap | Pan / zoom / inspect map location |
@@ -98,7 +99,8 @@ Godot 4.7.2 stable, Windows, Compatibility renderer, NVIDIA RTX 3060:
 ## Remaining limitations
 
 This is a local 1v1 prototype with basic geometry. It has no 5v5 roster,
-multiplayer, selectable heroes, skill buttons, shop/economy or jungle objectives.
+multiplayer, skill buttons or jungle objectives. Hero selection, progression and
+shop economy are now available; see `progression_shop.md`.
 Units do not avoid/block each other; buildings do not physically obstruct units.
 Tower priority has no special retaliation rule for attacking an allied hero.
 There is no tower-before-core invulnerability rule. Historical per-creep metrics

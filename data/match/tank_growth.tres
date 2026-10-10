@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="HeroGrowth" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="1"]
+[resource]
+script = ExtResource("1")
+display_name = "Đỡ đòn"
+ranged_attacks = false
+base_overrides = {"base_hp": 2400.0, "physical_damage": 145.0, "physical_armor": 12.0, "attack_range": 150.0}
+per_level = {"base_hp": 200.0, "physical_damage": 7.0, "physical_armor": 0.8, "movement_speed": 1.0}
