@@ -21,6 +21,9 @@ extends Resource
 @export var tower_xp: int = 150
 @export var tower_gold: int = 250
 @export var sell_refund: float = 0.5
+@export var fountain_radius: float = 300.0
+@export var fountain_hp_fraction_per_second: float = 0.20
+@export var fountain_mana_fraction_per_second: float = 0.25
 @export var melee_creep: UnitStats
 @export var ranged_creep: UnitStats
 @export var tower: UnitStats

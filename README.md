@@ -27,6 +27,8 @@ chọn mục tiêu và chiến đấu. Creep hai đội xuất hiện ngay rồi
 TOP/MID/BOT, mỗi lane hai lính cận chiến và một lính đánh xa. Trụ và nhà chính
 bắn mục tiêu trong tầm, ưu tiên creep. Hero chết hồi sinh sau 8 giây tại base.
 Phá nhà chính Red để thắng; nhà chính Blue bị phá thì thua. Có nút Chơi lại.
+Về vòng tròn **FOUNTAIN** tại điểm spawn của đội mình để hồi nhanh:
+thêm 20% máu tối đa và 25% mana tối đa mỗi giây; rời vòng tròn ngừng hồi thêm.
 
 - **WASD / mũi tên / bốn nút góc trái**: di chuyển, terrain chặn đường.
 - **J / ĐÁNH LÍNH–TRỤ**: tự chọn creep địch; nếu không có thì chọn trụ/nhà chính.
@@ -123,11 +125,13 @@ foreach ($phase in 1..6) {
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_playable_match.gd
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_progression_shop.gd
+& $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_fountain.gd
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase5.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase6.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_playable_match.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_progression_shop.gd -- --capture
+& $godotExe --path 'D:\Clashborn' --script res://tests/test_fountain.gd -- --capture
 ```
 
 Test trả exit code 0 khi pass, 1 khi fail. Các lệnh cuối chạy renderer thật và lưu ảnh trong `.local/`, gồm

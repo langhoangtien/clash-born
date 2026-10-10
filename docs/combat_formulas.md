@@ -173,3 +173,12 @@ xóa XP dư. Mua/bán/level giữ tỷ lệ HP/Mana hiện tại, không hồi �
 cooldown/effects/combat tick. Respawn giữ level/gear rồi hồi đầy max mới.
 Gold bán = floor(price × sell_refund), mặc định refund 0.5. XP gần địch chết
 và vàng last hit/passive được scene cấp theo settings, không sửa combat damage.
+
+## Fountain
+
+Trong bán kính 300 quanh spawn đầu tiên của đội mình, hero còn sống hồi thêm
+20% max HP và 25% max Mana mỗi giây mô phỏng, chia thành 30 tick, giới hạn max.
+Regen thường vẫn cộng riêng. Dùng khoảng cách tâm hero–tâm fountain, biên inclusive.
+Radius/tỷ lệ chỉnh trong MatchSettings; max dùng stats hiện tại sau level/đồ.
+Metrics cộng đúng HP thực hồi, không tính phần vượt max. Pause ngừng hồi;
+rời vùng, hero chết hoặc vào fountain địch không nhận hồi thêm.

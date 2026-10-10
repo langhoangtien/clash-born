@@ -248,3 +248,24 @@ blocked after victory. Opening it stops player movement/attack; combat continues
 unless explicitly paused. A hero dropdown starts a fresh match with the chosen
 profile. Sandbox equipment selectors retain their separate reference-price behavior.
 See `docs/progression_shop.md` for controls, files and executed tests.
+
+## Fountain restoration
+
+Each team's first authored spawn is its fountain center, visibly marked with a
+300-unit circle. Only living heroes whose centers lie within their own team's
+circle (inclusive boundary) gain extra HP/Mana. Before each combat step the map
+adds max HP × 0.20 / 30 and max Mana × 0.25 / 30, capped at current maxima;
+normal engine regeneration remains additive. Healing metrics receive only the
+actual extra HP recovered. Rates/radius live in MatchSettings, so growth and
+equipment maxima automatically affect restoration without changing base stats.
+Leaving the circle stops extra healing on the next tick; dead heroes are not
+revived and enemies receive no benefit. The simulation clock freezes healing
+on pause and produces identical per-simulation-second healing at 0.5/1/2/4x.
+No fountain damage, recall, invulnerability or creep healing is added.
+
+Godot executed 18 fountain checks headless and 19 with real renderer/capture,
+zero failures, covering both teams, rates, cap, metrics, range, death, pause,
+level/gear maxima, configurable rates, four speeds and visual status. All prior
+Phase 1–6, range/projectile, playable-match and progression/shop tests passed
+again. Fountain visuals are in `scripts/match/fountain_view.gd`; integration and
+settings are in the existing match scripts; tests in `tests/test_fountain.gd`.

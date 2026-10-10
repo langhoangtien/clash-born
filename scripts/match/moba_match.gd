@@ -60,6 +60,12 @@ func _ready() -> void:
 		var cell: Vector2 = layout.tower_cells[index]
 		var team := 0 if cell.y > cell.x else 1
 		_spawn("tower_%02d" % index, team, settings.tower, layout.cell_center(Vector2i(cell)), "tower")
+	var fountain_view := Node2D.new()
+	fountain_view.set_script(preload("res://scripts/match/fountain_view.gd"))
+	fountain_view.layout = layout
+	fountain_view.settings = settings
+	add_child(fountain_view)
+	move_child(fountain_view, 2) # Above terrain, below unit views.
 	var projectile_view := Node2D.new()
 	projectile_view.set_script(preload("res://scripts/ui/projectile_view.gd"))
 	projectile_view.combat = combat
@@ -148,6 +154,7 @@ func _tick(_index: int) -> void:
 			var categories: Array = ["hero", "creep", "tower", "core"] if info.kind == "hero" else ["creep", "hero", "tower", "core"]
 			var target := _choose_target(info, categories, settings.aggro_range)
 			_drive_target(info, target, tick)
+	_heal_fountains()
 	var events := combat.step()
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
@@ -164,6 +171,18 @@ func _tick(_index: int) -> void:
 		if not cores[team].runtime.alive:
 			_end_match(1 - team)
 			break
+
+func in_fountain(unit: UnitRuntimeState) -> bool:
+	return unit.alive and unit.position.distance_to(layout.spawn_points(unit.team_id)[0]) <= settings.fountain_radius
+
+func _heal_fountains() -> void:
+	for hero in progression.values():
+		var unit: UnitRuntimeState = hero.unit
+		if not in_fountain(unit): continue
+		var before := unit.current_hp
+		unit.current_hp = minf(unit.stats.max_hp, unit.current_hp + unit.stats.max_hp * settings.fountain_hp_fraction_per_second * SimulationClock.TICK_SECONDS)
+		unit.current_mana = minf(unit.stats.max_mana, unit.current_mana + unit.stats.max_mana * settings.fountain_mana_fraction_per_second * SimulationClock.TICK_SECONDS)
+		combat.metrics.by_unit[unit.unit_id].healing_received += unit.current_hp - before
 
 func _actors() -> Array[MapUnit]:
 	var result: Array[MapUnit] = []
@@ -391,6 +410,7 @@ func _refresh_hud() -> void:
 	hud.text = "CLASHBORN · %02d:%02d · BLUE %d : %d RED\nHP %.0f / %.0f · Lính hạ: %d · Đợt lính: %d" % [combat.tick_count / 1800, (combat.tick_count / 30) % 60, scores[0], scores[1], state.current_hp, state.stats.max_hp, creep_kills, wave_number]
 	var hero: HeroProgression = progression.player
 	hud.text += "\n%s · LV %d · XP %d/%d · Vàng %d [B]" % [hero.profile.display_name, hero.level, hero.experience, hero.required_xp(), hero.gold]
+	if in_fountain(state): hud.text += " · FOUNTAIN +HP/MANA"
 	if shop.visible: shop.refresh()
 	if not state.alive: message.text = "Hồi sinh sau %.1f giây" % respawn
 	elif paused: message.text = "TẠM DỪNG · nhấn P để tiếp tục"
