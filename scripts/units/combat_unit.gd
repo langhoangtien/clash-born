@@ -7,6 +7,8 @@ var runtime: UnitRuntimeState
 var selected: bool = false
 var damage_flash: float = 0.0
 var hit_notice: String = ""
+var show_range_indicators: bool = true
+var show_resource_bars: bool = true
 
 func _process(delta: float) -> void:
 	damage_flash = maxf(0, damage_flash - delta)
@@ -36,7 +38,7 @@ func _center_text(text: String, y: float, size_value: int, color: Color = Color.
 func _draw() -> void:
 	if visual_data == null or runtime == null: return
 	var radius: float = runtime.stats.collision_radius
-	if selected:
+	if selected and show_range_indicators:
 		draw_arc(Vector2.ZERO, runtime.attack_range() + runtime.stats.collision_radius, 0, TAU, 96, Color(1, 1, 1, 0.2), 2, true)
 		draw_arc(Vector2.ZERO, runtime.cast_range() + radius, 0, TAU, 96, Color(0.35, 0.65, 1, 0.45), 2, true)
 		for ability in runtime.abilities:
@@ -48,9 +50,10 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, radius, color)
 	draw_circle(Vector2.ZERO, 5, Color(1, 1, 1, 0.7))
 	_center_text(visual_data.display_name, -radius - 12, 20)
-	_draw_bar(44, runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
-	_draw_bar(56, runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0, Color(0.25, 0.55, 0.95))
-	if selected: _center_text("%.0f / %.0f" % [runtime.current_hp, runtime.stats.max_hp], 82, 20)
+	if show_resource_bars:
+		_draw_bar(44, runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
+		_draw_bar(56, runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0, Color(0.25, 0.55, 0.95))
+		if selected: _center_text("%.0f / %.0f" % [runtime.current_hp, runtime.stats.max_hp], 82, 20)
 	var statuses: PackedStringArray = []
 	for effect in runtime.effects.active:
 		var tag: String = ["S", "L", "A", "AR", "CR"][effect.kind]

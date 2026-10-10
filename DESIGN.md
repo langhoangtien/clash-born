@@ -1,4 +1,4 @@
-# Clashborn — Range & Projectile System
+# Clashborn — Combat Sandbox and Phase 6 Map Foundation
 
 Extend the existing 30 Hz engine, AI, ability resources, equipment aggregation,
 status effects and combat events. No rendering code decides hits or movement.
@@ -109,4 +109,74 @@ existing phase suites as regression checks; `-- --capture` checks real rendering
 Current HP/Mana regeneration, combat formulas and status rules are preserved.
 This checkout does not yet contain Phase 4.5 lifesteal/spell vamp/central healing;
 the separate attached Phase 4.5 prompt is outside this range/projectile change.
-No multiplayer, fog of war, pathfinding, new heroes, MOBA map or Phase 6 features.
+The range/projectile subsystem adds no multiplayer, fog of war or new heroes.
+
+## Phase 6 — MOBA Map Foundation
+
+The user's Phase 6 is **MOBA Map Foundation**, replacing the older master prompt's
+Phase 6 Balance Laboratory label. No laboratory, creep/tower combat or later phases
+are implemented. `scenes/main.tscn` remains the Combat Sandbox default entry point;
+its Map Prototype button opens `scenes/map/map_prototype.tscn`, with a return button.
+
+### Data and terrain
+
+`data/maps/moba_foundation.tres` is a MapLayout Resource: 40 × 40 authored cells,
+128 units per tile, yielding a 5120 × 5120 world. It stores explicit terrain rows,
+symbol definitions (color/walkability), three waypoint arrays, five spawn cells
+per team, two base rectangles and twelve empty tower placement markers.
+Dimensions/tile size and all authoring data are editable without gameplay code.
+Rows must match dimensions; validation reports malformed data.
+
+Blue base is bottom-left, Red base top-right. TOP wraps the top-left corner;
+MID crosses diagonally; BOT wraps the bottom-right corner. The river runs from
+top-left to bottom-right through the center, separating the team halves.
+Jungle passages connect lanes; rock clusters and the outer wall block traversal.
+All map visuals are colored cells, rectangles, lines and circles.
+
+Each lane has its own waypoint data. Blue visits it in stored order; Red visits
+the same lane in reverse. MapLayout converts cells to world positions. Spawns,
+waypoints and markers therefore scale with tile size. This prototype creates two
+navigation probes, with existing Physical Tank/Ranged Carry stats and combat-unit
+views; there are no new hero definitions or combat participants on the map.
+
+### Navigation and collision
+
+MapNavigation uses Godot's [AStarGrid2D](https://docs.godotengine.org/en/stable/classes/class_astargrid2d.html),
+configured once per agent radius. Blocked terrain and insufficient center clearance
+become solid cells. Diagonals require both adjacent cells to be clear, preventing
+corner cutting. Lane traversal concatenates A* legs through every lane waypoint.
+Right-click requests a path to the exact world position; blocked/unreachable
+destinations are rejected. There is no per-frame path rebuild or dynamic avoidance.
+
+MapUnit is a CharacterBody2D with a circular shape matching UnitRuntimeState's
+collision radius. It moves continuously through world-space path points using
+the existing runtime movement-speed/can-move methods. Terrain physics rectangles
+are generated from the same MapLayout rows (horizontal blocked runs are merged),
+plus four exterior boundary walls. Collision prevents crossing obstacles even
+under manual WASD control or high velocity. Camera/rendering never changes paths.
+The existing CombatAI arena steering and combat formulas are unchanged.
+
+This map uses Godot physics ticks for navigation probes; it does not run a second
+CombatEngine, simulate damage, regenerate resources or claim authoritative
+multiplayer determinism. Future combat integration should connect map navigation
+to the existing engine deliberately; this phase only establishes the map foundation.
+
+### Camera and debug controls
+
+Map camera supports middle-drag/arrow-key pan, wheel zoom (0.15–1.6), selected-unit
+follow and viewport-aware clamping. Manual pan disables follow. F toggles follow;
+O/Overview fits the map. When a zoomed-out viewport is larger than the map on an
+axis, that axis stays centered and background margins remain visible. Fit view
+may go below the manual minimum for differently sized maps/windows. Camera state
+is independent of combat and probe navigation.
+
+Optional overlays: tile grid, walkable/blocked cells, lane waypoints with both
+team order indices, active navigation paths, unit collision circles, base spawn
+points and empty tower markers. Only spawn/tower markers are enabled initially.
+Controls also select a probe, send it along TOP/MID/BOT, stop, reset and pause movement.
+
+Tests cover layout/routes, both team routes through physical collision, base/jungle
+reachability, non-cell-center movement, high-speed wall collision, pause, differing
+map sizes, larger agents, camera follow/pan/zoom/clamp, actual desktop input events,
+all seven overlays and scene transitions. See `docs/phase6_map.md` for execution
+results, modified-file inventory and known limitations.

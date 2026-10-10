@@ -81,6 +81,13 @@ func _build_ui() -> void:
 	subtitle.text = "Configure 1–5 units per team · Click to inspect · Changes reset battle · S: stun / L: slow / A: armor reduction / C: casting"
 	subtitle.add_theme_font_size_override("font_size", 14)
 	header.add_child(subtitle)
+	var map_button := Button.new()
+	map_button.name = "MapPrototypeButton"
+	map_button.text = "Map Prototype"
+	map_button.position = Vector2(1400, 28)
+	map_button.size = Vector2(175, 38)
+	map_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/map/map_prototype.tscn"))
+	layer.add_child(map_button)
 	var team_content := _panel(layer, Vector2(24, 94), Vector2(1552, 98))
 	for team in range(2):
 		var row := HBoxContainer.new()

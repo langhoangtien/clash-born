@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="MapLayout" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/map/map_layout.gd" id="1"]
+[resource]
+script = ExtResource("1")
+dimensions = Vector2i(40, 40)
+tile_size = 128.0
+cells = PackedStringArray(
+"########################################",
+"#WW....................................#",
+"#WWWJJJJJJJJJJJJJJJJJJJJJJJJJJJJRRRRRR.#",
+"#.WWWJJJJJJJJJJJJJJJJJJJJJJJJJJJRRRRRR.#",
+"#.JWWWLLLLLLLLLLLLLLLLLLLLLLLLLLRRRRRR.#",
+"#.JJWWWLLLLLLLLLLLLLLLLLLLLLLLLLRRRRRR.#",
+"#.JJLWWWLLLLLLLLLLLLLLLLLLLLLLLLRRRRRR.#",
+"#.JJLLWWWJJJJJJ.JJJJJJJJJ.JJJJLLRRRRRR.#",
+"#.JJLLLWWW###JJ.JJ#####JJ.JJJLLLLLLLJJ.#",
+"#.JJLLLJWWW##JJ.JJ#####JJ.JJLLLLLLLLJJ.#",
+"#.JJLLLJJWWW#JJ.JJ#####JJ.JLLLLLJLLLJJ.#",
+"#.JJLLLJJ#WWWJJ.JJ####JJJ.LLLLLJJLLLJJ.#",
+"#.JJLLLJJ##WWWJ.JJ####JJJLLLLLJJJLLLJJ.#",
+"#.JJLLLJJJJJWWW.JJJJJJJJLLLLLJJJJLLLJJ.#",
+"#.JJLLL......WWW.......LLLLLJJJJJLLLJJ.#",
+"#.JJLLLJJJJJJJWWWJJJJJLLLLL......LLLJJ.#",
+"#.JJLLLJJJJJJJJWWWJJJLLLLL.JJJJJJLLLJJ.#",
+"#.JJLLL.JJJJJJJJWWWJLLLLLJJ.###JJLLLJJ.#",
+"#.JJLLLJ.JJJJJJJJWWWLLLLJJJJ.##JJLLLJJ.#",
+"#.JJLLLJJ.##JJJJJJWWWLLJJJJJ#.#JJLLLJJ.#",
+"#.JJLLLJJ#.#JJJJJLLWWWJJJJJJ##.JJLLLJJ.#",
+"#.JJLLLJJ##.JJJJLLLLWWWJJJJJJJJ.JLLLJJ.#",
+"#.JJLLLJJ###.JJLLLLLJWWWJJJJJJJJ.LLLJJ.#",
+"#.JJLLLJJJJJJ.LLLLLJJJWWWJJJJJJJJLLLJJ.#",
+"#.JJLLL......LLLLLJJJJJWWWJJJJJJJLLLJJ.#",
+"#.JJLLLJJJJJLLLLL.......WWW......LLLJJ.#",
+"#.JJLLLJJJJLLLLLJJJJJJJJ.WWWJJJJJLLLJJ.#",
+"#.JJLLLJJJLLLLLJJJ####JJ.JWWW##JJLLLJJ.#",
+"#.JJLLLJJLLLLL.JJJ####JJ.JJWWW#JJLLLJJ.#",
+"#.JJLLLJLLLLLJ.JJ#####JJ.JJ#WWWJJLLLJJ.#",
+"#.JJLLLLLLLLJJ.JJ#####JJ.JJ##WWWJLLLJJ.#",
+"#.JJLLLLLLLJJJ.JJ#####JJ.JJ###WWWLLLJJ.#",
+"#.BBBBBBLLJJJJ.JJJJJJJJJ.JJJJJJWWWLLJJ.#",
+"#.BBBBBBLLLLLLLLLLLLLLLLLLLLLLLLWWWLJJ.#",
+"#.BBBBBBLLLLLLLLLLLLLLLLLLLLLLLLLWWWJJ.#",
+"#.BBBBBBLLLLLLLLLLLLLLLLLLLLLLLLLLWWWJ.#",
+"#.BBBBBBJJJJJJJJJJJJJJJJJJJJJJJJJJJWWW.#",
+"#.BBBBBBJJJJJJJJJJJJJJJJJJJJJJJJJJJJWWW#",
+"#....................................WW#",
+"########################################")
+terrain_definitions = {
+".": {"name": "Ground / passage", "walkable": true, "color": Color(0.29, 0.40, 0.29, 1)},
+"J": {"name": "Jungle", "walkable": true, "color": Color(0.16, 0.28, 0.19, 1)},
+"L": {"name": "Lane", "walkable": true, "color": Color(0.65, 0.63, 0.49, 1)},
+"W": {"name": "River", "walkable": true, "color": Color(0.20, 0.42, 0.58, 1)},
+"#": {"name": "Wall", "walkable": false, "color": Color(0.20, 0.23, 0.24, 1)},
+"B": {"name": "Blue base", "walkable": true, "color": Color(0.20, 0.37, 0.59, 1)},
+"R": {"name": "Red base", "walkable": true, "color": Color(0.57, 0.27, 0.28, 1)}
+}
+lane_waypoints = {"TOP": PackedVector2Array(5, 34, 5, 5, 34, 5),
+"MID": PackedVector2Array(5, 34, 15, 24, 24, 15, 34, 5),
+"BOT": PackedVector2Array(5, 34, 34, 34, 34, 5)}
+blue_spawns = PackedVector2Array(5, 34, 4, 34, 5, 35, 4, 35, 6, 35)
+red_spawns = PackedVector2Array(34, 5, 35, 5, 34, 4, 35, 4, 33, 4)
+base_areas = Array[Rect2i]([Rect2i(2, 32, 6, 6), Rect2i(32, 2, 6, 6)])
+tower_cells = PackedVector2Array(5, 27, 5, 19, 12, 5, 20, 5, 12, 27, 17, 22, 27, 34, 19, 34, 34, 12, 34, 20, 27, 12, 22, 17)

@@ -1,6 +1,6 @@
-# Clashborn — Range & Projectile Sandbox
+# Clashborn — Phase 6: MOBA Map Foundation
 
-Combat sandbox MOBA 2D, hoàn thành đến **Phase 5 — Combat Sandbox**.
+Combat sandbox MOBA 2D và **Phase 6 — MOBA Map Foundation** dưới dạng scene riêng.
 Godot **4.7.2 stable**, GDScript, Compatibility renderer; không cần thư viện ngoài.
 Đã có STR/AGI/INT, HP/Mana, ba loại damage, giáp âm/dương, attack speed,
 evasion/accuracy/crit, status effects và 14 món trang bị với sáu slot mỗi unit.
@@ -18,6 +18,29 @@ Mở `project.godot` bằng Godot rồi nhấn **F5**, hoặc chạy PowerShell:
 
 Máy khác cần thay đường dẫn executable. Godot portable nằm ngoài repository;
 [bản phát hành chính thức](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable).
+
+## Map Prototype (Phase 6)
+
+Từ Combat Sandbox, nhấn **Map Prototype**. Hoặc chạy scene trực tiếp:
+
+```powershell
+& 'C:\Users\Admin\.codex\tools\godot-4.7.2\Godot_v4.7.2-stable_win64.exe' --path 'D:\Clashborn' res://scenes/map/map_prototype.tscn
+```
+
+Map 40×40 ô, mỗi ô 128 world units: base Blue góc dưới-trái, Red góc trên-phải,
+TOP/MID/BOT, jungle passages, sông trung tâm và terrain bị chặn. Hai probe dùng
+stats/view unit hiện có để thử navigation; map không chạy combat engine riêng.
+
+- Click chọn probe / dropdown; chuột phải để tìm đường đến vị trí world chính xác.
+- WASD di chuyển trực tiếp; collision chặn terrain. TOP/MID/BOT chạy theo lane.
+- Chuột giữa kéo hoặc phím mũi tên pan; wheel zoom; F follow; O xem toàn map.
+- Bảy overlay bật/tắt riêng: grid, walkability, lane waypoints, navigation paths,
+  collision circles, base spawns và tower markers. Reset/Stop/Pause thử navigation.
+- **Combat Sandbox** trở lại mode cũ. F5 mặc định vẫn mở sandbox.
+
+Dữ liệu chỉnh ở `data/maps/moba_foundation.tres`; nav dùng AStarGrid2D, movement
+liên tục bằng CharacterBody2D. Cấu trúc/tệp thay đổi/giới hạn: `docs/phase6_map.md`.
+Không có creep, tower combat, jungle objective, networking hay Phase 7.
 
 ## Thử một trận
 
@@ -68,16 +91,17 @@ Import khi dùng checkout mới, rồi chạy toàn bộ script native Godot:
 ```powershell
 $godotExe = 'C:\Users\Admin\.codex\tools\godot-4.7.2\Godot_v4.7.2-stable_win64_console.exe'
 & $godotExe --headless --path 'D:\Clashborn' --editor --import
-foreach ($phase in 1..5) {
+foreach ($phase in 1..6) {
     & $godotExe --headless --path 'D:\Clashborn' --script "res://tests/test_phase$phase.gd"
     if ($LASTEXITCODE -ne 0) { throw "Phase $phase failed" }
 }
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase5.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd -- --capture
+& $godotExe --path 'D:\Clashborn' --script res://tests/test_phase6.gd -- --capture
 ```
 
-Test trả exit code 0 khi pass, 1 khi fail. Hai lệnh cuối chạy renderer thật và lưu ảnh trong `.local/`, gồm
+Test trả exit code 0 khi pass, 1 khi fail. Các lệnh cuối chạy renderer thật và lưu ảnh trong `.local/`, gồm
 `phase5-preview.png`, `phase5-results.png`, `range-projectile-preview.png`, rồi tự thoát.
 Phase 5 kiểm tra targeting/movement/retarget/separation, ability cost/cooldown/cast
 và interruption, metrics, giới hạn team, editor/selection/equipment/reset và 5v5
@@ -96,6 +120,12 @@ bao gồm damage tại impact, hình học effect, pause, source/target death v�
 Toàn bộ suite cũng chạy với renderer: Phase 1–5 đạt **26 / 114 / 172 / 650 / 175**,
 không có failure, lỗi runtime hay resource leak trong log.
 
+Phase 6 đã chạy bằng Godot 4.7.2: **690 kiểm tra headless / 692 kiểm tra renderer**
+pass, gồm hai team qua đủ ba lane, collision vật lý, camera, desktop input,
+overlays và chuyển qua lại hai mode. Các suite Phase 1–5 và range/projectile vẫn
+pass. Cả scene map lẫn sandbox chạy trực tiếp 180 frame, exit code 0; log không
+có lỗi runtime/resource leak. Ảnh overview/navigation đã được kiểm tra trực quan.
+
 ## Cấu trúc và mở rộng
 
 - `scripts/core/`: clock, engine, công thức stats/hit/damage, balance Resource.
@@ -108,6 +138,8 @@ không có failure, lỗi runtime hay resource leak trong log.
 - `scripts/ui/`: controller, editor stats và panel trang bị.
 - `data/units/archetypes/`: năm archetype; `data/abilities/`: ba kỹ năng.
 - `data/equipment/`: 14 món; `data/balance/default_balance.tres`: hằng số thử nghiệm.
+- `scripts/map/`: dữ liệu map, AStarGrid2D, terrain collision, probes, camera và controls.
+- `data/maps/`: map authoring Resource; `scenes/map/`: Map Prototype.
 - `scenes/`: main, arena và unit; `tests/`: kiểm tra native từng phase.
 
 Thêm archetype: tạo UnitStats `.tres`, cấu hình stats/AI/abilities rồi thêm preload
@@ -124,8 +156,8 @@ render delta hay global randomness. API `reset_scenario` nhận danh sách unit;
 
 Thứ tự tick và định nghĩa metrics: `docs/sandbox_metrics.md`.
 Công thức đã triển khai: `docs/combat_formulas.md`.
-Chưa triển khai batch simulations, preset experiment suite hay CSV export của
-**Phase 6 — Balance Laboratory**. Chưa có networking, shop economy, map MOBA,
-tower/minion/jungle hay skill tree. Dừng sau hệ thống range/projectile. File đính kèm Phase 4.5 là phạm vi riêng;
-lifesteal/spell vamp/central healing chưa tồn tại trong checkout này và chưa được
-thêm trong lần sửa range. Bước tiếp theo phù hợp là Phase 4.5 nếu được yêu cầu.
+Theo yêu cầu mới, Phase 6 là **MOBA Map Foundation**; nhãn Balance Laboratory
+trong master prompt cũ không còn dùng cho Phase 6. Không triển khai batch/CSV,
+networking, shop economy, tower/minion/jungle combat hay skill tree. Phần
+lifesteal/spell vamp/central healing trong prompt Phase 4.5 vẫn là phạm vi riêng.
+Dừng sau Phase 6; chưa bắt đầu Phase 7.
