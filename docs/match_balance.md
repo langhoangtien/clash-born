@@ -4,16 +4,16 @@
 
 | Setting | Previous | Current |
 | --- | --- | --- |
-| Tower HP | 1900 | 6000 |
-| Tower physical damage | 185 | 235 |
-| Tower physical/magic armor | 12 / 0 | 20 / 12 |
+| Tower HP | 1900 | 5000 |
+| Tower physical damage | 185 | 220 |
+| Tower physical/magic armor | 12 / 0 | 16 / 12 |
 | Core HP | 3000 | 10000 |
 | Core damage, physical/magic armor | 100, 8 / 0 | 150, 25 / 15 |
-| Hero damage to structures after mitigation | 100% | 40% |
+| Hero damage to structures after mitigation | 100% | 50% |
 | Creep damage to structures after mitigation | 100% | 65% |
 | Opening gold | 1000 | 250 |
 | Passive income | 3/second | 1 every 2 seconds |
-| Creep / hero kill gold | 40 / 250 | 20 / 150 |
+| Creep / hero kill gold | 40 / 250 | 20 / 125 + 8 × victim level |
 | Ranger opening damage / per-level damage | 155 / 12 | 100 / 7 |
 | Ranger attack-speed bonus per level | 3.5 percentage points | 2.5 percentage points |
 | Tank opening / per-level physical damage | 145 / 7 | 95 / 5 |
@@ -41,7 +41,8 @@ No teleport, obstacle disabling or second navigation engine is introduced.
 Creeps target enemy creeps/towers from the same lane, avoiding accidental
 cross-lane pulls. Heroes and cores remain valid targets in range.
 
-Waves already contained two melee and one ranged creep per team/lane. These now
+Waves contain two melee and one ranged creep per team/lane plus a catapult on
+waves 1/4/7/...; see `docs/siege_rewards.md` for updated stats/rewards. Regular creeps
 have distinct silhouettes: melee circle/sword mark; ranged diamond/bow mark.
 Melee resolves instant attacks; ranged creeps use moving projectiles.
 
@@ -54,7 +55,7 @@ Opening either cancels player movement/attack; the match continues unless paused
 Bot checks an affordable purchase every ten simulation seconds, using the same
 catalog/prices/gold and six-slot inventory; it does not get free equipment.
 
-## Executed verification
+## Previous balance revision verification
 
 Godot 4.7.2: new balance/navigation suite **55 headless checks including a
 three-minute native-physics match / 52 renderer checks**, zero failures.
@@ -86,3 +87,5 @@ simple fixed build, not matchup reasoning. There is still no structure-body
 blocking, dynamic unit avoidance, tower-before-core invulnerability, skill UI,
 item recipes or multiplayer. Next useful validation is player testing siege
 with creep support, then adjusting these configurable values from match feedback.
+
+Current siege/reward verification and modified files: `docs/siege_rewards.md`.

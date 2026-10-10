@@ -105,8 +105,9 @@ func _test_scene() -> void:
 	gold_before = hero.gold
 	var xp_before := hero.experience
 	main._reward_death(info, "tower_00")
-	check(hero.level > 2 and hero.gold == gold_before, "Nearby allied tower kill gives XP but no last-hit gold")
+	check(hero.level == 2 and hero.experience == main.settings.hero_xp + main.settings.hero_xp_per_level and hero.gold == gold_before + main.settings.hero_gold + main.settings.hero_gold_per_level, "Unassisted allied tower kill grants team bounty and nearby XP")
 	main.enemy_hero.position = main.player.position + Vector2(3000, 0)
+	main.enemy_hero.runtime.position = main.enemy_hero.position
 	xp_before = hero.experience
 	var level_before := hero.level
 	main._reward_death(info, "tower_00")

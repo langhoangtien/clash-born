@@ -29,7 +29,8 @@ Native touchscreen input is covered by synthetic events; an actual mobile build
 has not been exported or tested.
 
 Creeps spawn immediately, then every 20 simulation seconds: two melee and one
-ranged unit for each of TOP/MID/BOT, for both teams. At most 108 live creeps can
+ranged unit for each of TOP/MID/BOT, for both teams. Waves 1/4/7/... also add
+one siege catapult to every team/lane. At most 108 live creeps can
 exist; a wave is skipped if the full wave would exceed the cap. Twelve towers and
 two cores attack within range/terrain line-of-sight, preferring creeps over heroes.
 Hero death awards the opposing team a kill; heroes respawn at their bases after
@@ -40,7 +41,7 @@ restart. Hero deaths and creep losses alone do not end the match.
 ## Configuration and integration
 
 `data/match/default_match.tres` uses the small `MatchSettings` Resource for wave
-size/interval/cap, respawn delay, acquisition distances and five UnitStats profiles.
+size/interval/cap, respawn delay, acquisition distances and six UnitStats profiles.
 `data/maps/moba_foundation.tres` still supplies terrain, lanes, spawns and tower
 markers. Core positions and tower team assignment currently follow the default
 40x40 map's authored orientation; a different map should update those placements
@@ -110,3 +111,5 @@ Balance is experimental. The next useful step is hero skill controls and a simpl
 cooldown UI, followed by tuning tower/creep aggro and damage.
 
 Latest balance/navigation/icon changes: `match_balance.md`.
+
+Siege tuning, shared XP and level-scaled kill/assist/team gold: `docs/siege_rewards.md`.

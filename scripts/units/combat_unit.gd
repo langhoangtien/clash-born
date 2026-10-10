@@ -11,6 +11,7 @@ var show_range_indicators: bool = true
 var show_resource_bars: bool = true
 var structure_visual: bool = false
 var compact_visual: bool = false
+var siege_visual: bool = false
 
 func _process(delta: float) -> void:
 	damage_flash = maxf(0, damage_flash - delta)
@@ -50,10 +51,15 @@ func _draw() -> void:
 	if damage_flash > 0 and runtime.alive: color = color.lightened(0.3)
 	draw_circle(Vector2(0, 5), radius + 3, Color(0, 0, 0, 0.3))
 	if structure_visual: draw_rect(Rect2(Vector2.ONE * -radius, Vector2.ONE * radius * 2), color)
+	elif siege_visual:
+		draw_rect(Rect2(Vector2(-radius, -radius * 0.6), Vector2(radius * 2, radius * 1.2)), color)
+		for x in [-0.65, 0.65]: draw_circle(Vector2(radius * x, radius * 0.65), radius * 0.3, Color(0.15, 0.12, 0.1))
+		draw_line(Vector2(-radius * 0.5, radius * 0.2), Vector2(radius * 0.5, -radius * 0.8), Color.WHITE, 4, true)
+		draw_circle(Vector2(radius * 0.5, -radius * 0.8), radius * 0.25, Color(0.65, 0.65, 0.65))
 	elif compact_visual and runtime.stats.ranged_attacks:
 		draw_colored_polygon(PackedVector2Array([Vector2(0, -radius), Vector2(radius, 0), Vector2(0, radius), Vector2(-radius, 0)]), color)
 	else: draw_circle(Vector2.ZERO, radius, color)
-	if compact_visual:
+	if compact_visual and not siege_visual:
 		if runtime.stats.ranged_attacks:
 			draw_arc(Vector2.ZERO, radius * 0.65, -PI / 2, PI / 2, 12, Color.WHITE, 2, true)
 		else:

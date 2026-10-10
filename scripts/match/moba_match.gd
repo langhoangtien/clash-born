@@ -28,6 +28,7 @@ var match_over: bool = false
 var progression: Dictionary = {}
 var shop: PanelContainer
 var opponent_panel: PanelContainer
+var rewards: MatchRewards
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -38,6 +39,7 @@ func _ready() -> void:
 	camera = $Camera
 	camera.map_size = layout.world_size()
 	combat.external_control = true
+	rewards = MatchRewards.new(settings)
 	combat.reset_scenario([
 		_entry("player", 0, settings.hero, layout.spawn_points(0)[0]),
 		_entry("enemy_hero", 1, settings.hero, layout.spawn_points(1)[0]),
@@ -84,9 +86,10 @@ func _navigation(radius: float) -> MapNavigation:
 	if not navigation_cache.has(radius): navigation_cache[radius] = MapNavigation.new(layout, radius)
 	return navigation_cache[radius]
 
-func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: String) -> MapUnit:
+func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: String, siege: bool = false) -> MapUnit:
 	state.is_structure = kind in ["tower", "core"]
 	state.structure_damage_multiplier = settings.hero_structure_damage_multiplier if kind == "hero" else (settings.creep_structure_damage_multiplier if kind == "creep" else 1.0)
+	if siege: state.structure_damage_multiplier = settings.siege_structure_damage_multiplier
 	if kind == "tower": lane = _nearest_lane(state.position)
 	var actor := MapUnit.new()
 	actor.configure(source, state.team_id, state.position, layout, _navigation(state.stats.collision_radius), state)
@@ -94,13 +97,14 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	actor.view.visual_data.display_name = "BẠN" if state.unit_id == "player" else ("BOT ĐỎ" if kind == "hero" else {"creep": "LÍNH", "tower": "TRỤ", "core": "NHÀ CHÍNH"}[kind])
 	actor.view.show_resource_bars = true
 	actor.view.compact_visual = kind == "creep"
+	actor.view.siege_visual = siege
 	actor.view.structure_visual = kind in ["tower", "core"]
 	actor.paused = kind in ["tower", "core"]
 	actor.view.unit_selected.connect(_clicked_entity)
 	add_child(actor)
 	var route := PackedVector2Array()
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = actor.navigation.lane_path(actor.position, lane, state.team_id)
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0}
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege}
 	return actor
 
 func _nearest_lane(point: Vector2) -> String:
@@ -113,22 +117,26 @@ func _nearest_lane(point: Vector2) -> String:
 			if distance < closest: closest = distance; result = lane
 	return result
 
-func _spawn(id: String, team: int, source: UnitStats, point: Vector2, kind: String, lane: String = "") -> MapUnit:
+func _spawn(id: String, team: int, source: UnitStats, point: Vector2, kind: String, lane: String = "", siege: bool = false) -> MapUnit:
 	var state := combat.add_unit(_entry(id, team, source, point))
-	return _attach(state, source, kind, lane)
+	return _attach(state, source, kind, lane, siege)
 
 func spawn_wave() -> void:
 	var live := 0
 	for info in entities.values():
 		if info.kind == "creep" and info.actor.runtime.alive: live += 1
-	if live + settings.creeps_per_lane * 6 > settings.maximum_live_creeps: return
+	var has_siege := settings.siege_creep != null and settings.siege_wave_interval > 0 and wave_number % settings.siege_wave_interval == 0
+	var per_lane := settings.creeps_per_lane + (1 if has_siege else 0)
+	if live + per_lane * 6 > settings.maximum_live_creeps: return
 	wave_number += 1
 	for team in range(2):
 		for lane in ["TOP", "MID", "BOT"]:
-			for slot in range(settings.creeps_per_lane):
+			for slot in range(per_lane):
+				var siege := has_siege and slot == settings.creeps_per_lane
 				var source := settings.ranged_creep if slot == settings.creeps_per_lane - 1 else settings.melee_creep
+				if siege: source = settings.siege_creep
 				var point := layout.spawn_points(team)[0] + Vector2((slot - 1) * 45, 35 if lane == "TOP" else (-35 if lane == "BOT" else 0))
-				_spawn("creep_%d_%d_%s_%d" % [wave_number, team, lane, slot], team, source, point, "creep", lane)
+				_spawn("creep_%d_%d_%s_%d" % [wave_number, team, lane, slot], team, source, point, "creep", lane, siege)
 
 func _physics_process(delta: float) -> void:
 	if player == null: return
@@ -181,6 +189,7 @@ func _tick(_index: int) -> void:
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical)
+			if event.applied_damage > 0: rewards.record_damage(event.target_unit_id, event.source_unit_id, combat.tick_count, progression)
 		elif event.kind == "death": _on_death(event.target_unit_id, events)
 	for id in entities.keys():
 		if entities[id].kind == "creep" and not entities[id].actor.runtime.alive:
@@ -284,6 +293,7 @@ func _on_death(id: String, events: Array[Dictionary]) -> void:
 	for event in events:
 		if event.kind == "damage" and event.target_unit_id == id and event.applied_damage > 0: killer = event.source_unit_id
 	_reward_death(info, killer)
+	rewards.forget(id)
 	if info.kind == "hero":
 		scores[1 - info.actor.runtime.team_id] += 1
 		respawns[id] = combat.tick_count + ceili(settings.respawn_seconds * SimulationClock.TICKS_PER_SECOND)
@@ -293,13 +303,15 @@ func _on_death(id: String, events: Array[Dictionary]) -> void:
 
 func _reward_death(info: Dictionary, killer: String) -> void:
 	var victim: MapUnit = info.actor
-	var xp: int = {"creep": settings.creep_xp, "hero": settings.hero_xp, "tower": settings.tower_xp}.get(info.kind, 0)
-	var coins: int = {"creep": settings.creep_gold, "hero": settings.hero_gold, "tower": settings.tower_gold}.get(info.kind, 0)
-	for hero_id in progression:
+	var killer_state := combat.get_unit(killer)
+	# Projectiles can outlive a removed creep. This two-team match can still
+	# identify the hostile team without retaining freed scene nodes.
+	var killer_team: int = killer_state.team_id if killer_state != null else 1 - victim.runtime.team_id
+	var level: int = progression[victim.runtime.unit_id].level if progression.has(victim.runtime.unit_id) else 1
+	var payouts := rewards.calculate(victim.runtime, info.kind, killer, killer_team, level, combat.tick_count, progression, info.get("siege", false))
+	for hero_id in payouts:
 		var hero: HeroProgression = progression[hero_id]
-		if hero.unit.team_id == victim.runtime.team_id: continue
-		var nearby := hero.unit.alive and hero.unit.position.distance_to(victim.position) <= settings.xp_radius
-		var levels := hero.award(xp if nearby else 0, coins if killer == hero_id else 0)
+		var levels := hero.award(payouts[hero_id].xp, payouts[hero_id].gold)
 		if levels > 0 and hero_id == "player": message.text = "LÊN CẤP %d! · %s" % [hero.level, hero.profile.display_name]
 
 func buy_item(item: EquipmentData) -> bool:
@@ -336,6 +348,7 @@ func toggle_opponents() -> void:
 	opponent_panel.refresh()
 
 func _revive(id: String) -> void:
+	rewards.forget(id)
 	var info: Dictionary = entities[id]
 	var actor: MapUnit = info.actor
 	actor.position = layout.spawn_points(actor.runtime.team_id)[0]

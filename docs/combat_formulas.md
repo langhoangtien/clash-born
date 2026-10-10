@@ -187,8 +187,23 @@ rời vùng, hero chết hoặc vào fountain địch không nhận hồi thêm.
 ## Damage lên công trình trong trận
 
 Công thức hit/crit/giáp giữ nguyên. FinalDamageToStructure = mitigated damage ×
-source.structure_damage_multiplier: hero 0.40, creep 0.65, mặc định Sandbox 1.0.
+source.structure_damage_multiplier: hero 0.50, creep thường 0.65, xe 1.0, mặc định Sandbox 1.0.
 Áp dụng physical/magical/pure khi target.is_structure; target thường không đổi.
 Projectile snapshot multiplier lúc launch, áp damage tại impact, kể cả nguồn chết.
 Bonus tấn công trong shop trận là bản sao giảm 50% từ reference items; giá riêng
 trong MatchItemCatalog. Không thay đồ/công thức của Combat Sandbox.
+
+## XP và vàng trong trận (cập nhật)
+
+XP chia cho N hero đối phương còn sống trong radius tâm 1000: mỗi hero nhận
+floor(pool/N), phần dư 1 XP phân theo ID đã sort. Creep thường pool=45, xe=90,
+trụ=150, hero=100+40×level nạn nhân. Không last hit vẫn nhận phần XP này;
+ngoài range hoặc chết nhận 0. N=0 không phát XP. Level cap bỏ phần XP được chia.
+
+Creep last-hit gold=20, xe=45, trụ=250. Hero kill gold=125+8×level nạn nhân.
+Hero last hit nhận kill bounty; trụ/creep kết liễu ghi công hero đối phương gây
+positive applied damage gần nhất trong 30s. Không có hero đủ điều kiện thì bounty
+chia cho toàn roster đội hạ địch. Assist pool=40+6×level, chia cho người hỗ trợ
+đứng gần còn sống hoặc đã gây damage trong 30s, trừ người được ghi công.
+Kill gold không phụ thuộc radius XP. Đây là cơ chế rút gọn lấy cảm hứng từ Dota,
+không phải toàn bộ công thức Dota 2. Chi tiết: `docs/siege_rewards.md`.

@@ -61,7 +61,7 @@ func _test_match() -> void:
 	main.set_physics_process(false)
 	main.clock.set_running(false)
 	for info in main.entities.values(): info.actor.paused = true
-	check(main.settings.tower.base_hp == 6000 and main.settings.tower.physical_damage == 235, "Towers have increased health and damage")
+	check(main.settings.tower.base_hp == 5000 and main.settings.tower.physical_damage == 220, "Towers use the revised siege tuning")
 	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage == 100, "Core durability and opening hero damage tuned")
 	check(main.progression.player.gold == 250, "Opening budget cannot buy a full damage item")
 	var original = preload("res://scripts/ui/equipment_panel.gd").CATALOG
@@ -70,7 +70,8 @@ func _test_match() -> void:
 		check(catalog[index].icon != null and catalog[index].icon.get_width() > 0, "Equipment icon loads: " + catalog[index].id)
 	check(original[7].modifiers.physical_damage == 60 and catalog[7].modifiers.physical_damage == 30, "Match damage items halved; Sandbox source intact")
 	check(catalog[4].price == 1800 and catalog[10].modifiers.attack_speed_bonus == 0.15, "High offense prices/attack-speed bonuses tuned")
-	for tick in range(59): main.clock.step()
+	var opening_tick: int = main.combat.tick_count
+	for tick in range(59 - opening_tick): main.clock.step()
 	check(main.progression.player.gold == 250, "No passive gold before two seconds")
 	main.clock.step()
 	check(main.progression.player.gold == 251, "Passive income is one gold per two seconds")
@@ -107,16 +108,17 @@ func _test_match() -> void:
 		var actor: MapUnit = info.actor
 		check(actor.position.distance_to(main.layout.spawn_points(1 - actor.runtime.team_id)[0]) < 12, "Recovered creep reaches opposing base on " + info.lane)
 		check(actor.navigation.point_is_clear(actor.position), "Recovered creep respects collision on " + info.lane)
-	# Two types already share one combat engine, now visually distinguishable.
+	# Three types share one combat engine, now visually distinguishable.
 	main.settings.maximum_live_creeps = 108
 	main.spawn_wave()
 	var melee := 0
 	var ranged := 0
 	for id in main.entities:
 		if id.begins_with("creep_"):
+			if main.entities[id].get("siege", false): continue
 			if main.entities[id].actor.runtime.stats.ranged_attacks: ranged += 1
 			else: melee += 1
-	check(melee == 12 and ranged == 6, "Every default wave has two melee and one ranged per team/lane")
+	check(melee == 12 and ranged == 6, "Regular wave units remain two melee and one ranged per team/lane")
 	var top: Dictionary = main.entities.resume_0_TOP
 	var wrong_lane: Dictionary = main.entities.resume_1_BOT
 	wrong_lane.actor.position = top.actor.position + Vector2(20, 0)

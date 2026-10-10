@@ -46,7 +46,7 @@ func _test_match() -> void:
 	await frames(2)
 	main.set_physics_process(false)
 	main.clock.set_running(false)
-	check(main.entities.size() == 34, "Two heroes, twelve towers, two cores and first eighteen-creep wave")
+	check(main.entities.size() == 40, "Two heroes, twelve towers, two cores and first twenty-four-creep wave")
 	check(main.player.runtime == main.combat.get_unit("player") and main.player.view.runtime == main.player.runtime, "Map/visual/combat share a single runtime state")
 	var lanes: Dictionary = {}
 	for info in main.entities.values():
@@ -124,9 +124,21 @@ func _test_match() -> void:
 	check(enemy.runtime.current_hp == hp_before and not main.combat.projectiles.is_empty(), "Player launches projectile without immediate damage")
 	for tick in range(15): main.clock.step()
 	check(enemy.runtime.current_hp < hp_before, "Player hero button actually damages enemy hero at impact")
+	# Isolate last-hit attribution from allied towers/creeps in this fixture.
+	var timers: Dictionary = {}
+	main.combat.projectiles.clear()
+	for unit in main.combat.units:
+		if unit != player.runtime:
+			timers[unit.unit_id] = unit.next_attack_tick
+			unit.next_attack_tick = 99999
 	main.request_attack("creep")
-	for tick in range(80): main.clock.step()
+	main.locked_target = "test_creep"
+	for tick in range(300):
+		main.clock.step()
+		if not main.entities.has("test_creep"): break
 	check(not main.entities.has("test_creep") and main.creep_kills > 0, "Player kills creep and dead creep is cleaned up")
+	for unit in main.combat.units:
+		if timers.has(unit.unit_id): unit.next_attack_tick = timers[unit.unit_id]
 	# Tower picks a creep before a hero and deals damage through the same engine.
 	var tower: MapUnit = main.entities.tower_11.actor
 	player.position = tower.position + Vector2(-180, 180)

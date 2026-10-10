@@ -40,7 +40,7 @@ thêm 20% máu tối đa và 25% mana tối đa mỗi giây; rời vòng tròn n
 - **P** tạm dừng; **F** theo hero; chuột giữa pan, wheel zoom, click minimap xem vùng.
 - Bốn nút hỗ trợ touch/drag và nhiều ngón; chưa có bản xuất Android/iOS được kiểm thử.
 
-Trụ 6000 HP, sát thương 235; hero gây 40% damage lên công trình sau giáp.
+Trụ 5000 HP, sát thương 220; hero gây 50% damage lên công trình sau giáp.
 Khởi đầu 250 vàng, tự tăng 1 vàng mỗi 2 giây. Shop có icon, giá/bonus riêng cho trận;
 đồ tấn công đã giảm bonus và bot cũng mua đồ bằng vàng kiếm được. Creep cận chiến
 hình tròn/dấu kiếm; creep đánh xa hình thoi/dấu cung. Chi tiết cân bằng: `docs/match_balance.md`.
@@ -214,3 +214,7 @@ networking, jungle combat hay skill tree. Phần
 lifesteal/spell vamp/central healing trong prompt Phase 4.5 vẫn là phạm vi riêng.
 Theo yêu cầu tiếp theo, đã thêm trận playable có creep/trụ/hero controls ở mode riêng.
 Không mở rộng sang các tính năng MOBA đầy đủ khác.
+
+Xe bắn đá xuất hiện đợt 1/4/7/...; lính gần 700 HP, xa 450 HP, xe 1600 HP.
+XP chia cho hero gần; vàng hạ hero theo cấp, có hỗ trợ và ghi công khi trụ kết liễu.
+Công thức, cấu hình và giới hạn: `docs/siege_rewards.md`.

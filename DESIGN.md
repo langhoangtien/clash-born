@@ -273,17 +273,17 @@ settings are in the existing match scripts; tests in `tests/test_fountain.gd`.
 
 ## Match balance and lane recovery
 
-Match towers now have 6000 HP, 20 physical/12 magic armor and 235 physical damage;
+Match towers now have 5000 HP, 16 physical/12 magic armor and 220 physical damage;
 cores have 10000 HP, 25/15 armor and 150 damage. Runtime structures are flagged
-explicitly. Source siege multipliers default to one; only map heroes use 0.40 and
-creeps 0.65. Engine attacks apply this multiplier after mitigation for every
+explicitly. Source siege multipliers default to one; only map heroes use 0.50, regular
+creeps 0.65 and catapults 1.0. Engine attacks apply this multiplier after mitigation for every
 component. Projectiles snapshot it at launch and still resolve at impact, including
 shots whose source died. Sandbox default rules and existing formulas remain intact.
 
 The match catalog copies the fourteen reference items, halves offensive modifiers
 and adjusts prices. Icon SVGs are shared by source/copy items. Hero opening damage
 and offensive level growth are reduced; opening gold is 250, passive income one
-gold each two seconds, creep last-hit gold 20 and hero kill gold 150. No forced
+gold each two seconds, creep last-hit gold 20 and level-scaled hero kill gold (125 + 8 × level). No forced
 match duration or artificial health timer is introduced.
 
 Creeps now resume an interrupted route through A* to the nearest forward lane
@@ -297,3 +297,18 @@ and six equipped icons per hero. Tooltips show actual item names/bonuses. It use
 live HeroProgression inventories, including the bot's budgeted purchases. Opening
 it stops player commands without pausing combat. Details/testing/limits are in
 `docs/match_balance.md`.
+
+## Siege waves and reward attribution
+
+The first and every third subsequent wave add one catapult per team/lane; stats,
+interval, cap and siege factor are MatchSettings/UnitStats data. The cart uses
+existing continuous MapUnit navigation and CombatEngine projectiles. Regular
+creep HP is increased; cart shape is rendering only. Attack ranges remain per-unit
+collision-edge distances, independent of cast range.
+
+MatchRewards is a small simulation-tick payout calculator. The scene records
+positive applied hero damage at impact, credits recent hero damage on structure/
+creep kills, shares uncredited kill gold over the roster, and divides nearby XP.
+Payouts apply through HeroProgression; damage math, Sandbox and replay are intact.
+The roster-based calculator supports multiple heroes in tests; the scene stays
+1v1. Formulas, deterministic integer rounding and limitations: `docs/siege_rewards.md`.

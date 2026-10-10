@@ -27,9 +27,12 @@ the existing mixed physical/magical damage system; there are still no skill butt
 - Starting gold 250; income 1 per two simulation seconds, frozen by pause.
 - Maximum level 15; next-level XP = 100 + 50 × (level − 1). Overflow is retained
   and can grant multiple levels; capped heroes stop accumulating XP.
-- Living opposing heroes within 1000 world units of a death receive XP, even
-  when an allied tower/creep lands the last hit. Only hero last hits get kill gold.
-- Creep: 45 XP / 20 gold; hero: 200 XP / 150 gold; tower: 150 XP / 250 gold.
+- Living opposing heroes within 1000 world units split death XP, even when an
+  allied tower/creep lands the last hit. Regular creep 45 total XP / 20 last-hit
+  gold; catapult 90 total XP / 45 last-hit gold; tower 150 total XP / 250 gold.
+- Hero bounty scales with victim level. Tower/creep kills credit recent hero
+  damage or share team gold; nearby/recent contributors can receive assists.
+  Exact formulas and eligibility: `docs/siege_rewards.md`.
 - Bots receive XP/gold and check for an affordable item every ten simulation seconds, using the same prices and six-slot inventory.
 
 Settings are in `data/match/default_match.tres` / MatchSettings. Each hero profile
