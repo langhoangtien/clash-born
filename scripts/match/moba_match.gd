@@ -27,6 +27,7 @@ var paused: bool = false
 var match_over: bool = false
 var progression: Dictionary = {}
 var shop: PanelContainer
+var opponent_panel: PanelContainer
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -84,6 +85,9 @@ func _navigation(radius: float) -> MapNavigation:
 	return navigation_cache[radius]
 
 func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: String) -> MapUnit:
+	state.is_structure = kind in ["tower", "core"]
+	state.structure_damage_multiplier = settings.hero_structure_damage_multiplier if kind == "hero" else (settings.creep_structure_damage_multiplier if kind == "creep" else 1.0)
+	if kind == "tower": lane = _nearest_lane(state.position)
 	var actor := MapUnit.new()
 	actor.configure(source, state.team_id, state.position, layout, _navigation(state.stats.collision_radius), state)
 	actor.view.visual_data.unit_id = state.unit_id
@@ -98,6 +102,16 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = actor.navigation.lane_path(actor.position, lane, state.team_id)
 	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0}
 	return actor
+
+func _nearest_lane(point: Vector2) -> String:
+	var closest := INF
+	var result := "MID"
+	for lane in ["TOP", "MID", "BOT"]:
+		var route := layout.route(lane, 0)
+		for index in range(1, route.size()):
+			var distance := point.distance_to(Geometry2D.get_closest_point_to_segment(point, route[index - 1], route[index]))
+			if distance < closest: closest = distance; result = lane
+	return result
 
 func _spawn(id: String, team: int, source: UnitStats, point: Vector2, kind: String, lane: String = "") -> MapUnit:
 	var state := combat.add_unit(_entry(id, team, source, point))
@@ -119,7 +133,7 @@ func spawn_wave() -> void:
 func _physics_process(delta: float) -> void:
 	if player == null: return
 	var keyboard := Vector2(float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)) - float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)), float(Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)) - float(Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)))
-	var movement: Vector2 = (keyboard + controls.direction).limit_length(1) if not paused and not match_over and not shop.visible else Vector2.ZERO
+	var movement: Vector2 = (keyboard + controls.direction).limit_length(1) if not paused and not match_over and not shop.visible and not opponent_panel.visible else Vector2.ZERO
 	player.manual_direction = movement
 	if not movement.is_zero_approx():
 		attack_mode = ""
@@ -131,8 +145,16 @@ func _physics_process(delta: float) -> void:
 func _tick(_index: int) -> void:
 	if match_over: return
 	var tick := combat.tick_count + 1
-	if tick % SimulationClock.TICKS_PER_SECOND == 0:
-		for hero in progression.values(): hero.award(0, settings.passive_gold_per_second)
+	var income_interval := maxi(1, ceili(settings.passive_gold_interval_seconds * SimulationClock.TICKS_PER_SECOND))
+	if tick % income_interval == 0:
+		for hero in progression.values(): hero.award(0, settings.passive_gold_amount)
+	if tick % 300 == 0:
+		var bot: HeroProgression = progression.enemy_hero
+		var order := ["swift_gloves", "heavy_sword", "iron_armor", "vitality_stone", "critical_blade", "mystic_cloak"]
+		var slot := bot.equipment.items().size()
+		if slot < order.size():
+			for item in MatchItemCatalog.items():
+				if item.id == order[slot]: bot.buy(item); break
 	if tick >= next_wave_tick:
 		spawn_wave()
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
@@ -201,6 +223,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float) -> MapUn
 	for candidate in entities.values():
 		var target: MapUnit = candidate.actor
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
+		if info.kind == "creep" and candidate.kind in ["creep", "tower"] and candidate.lane != info.lane: continue
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
 		if distance > radius or priority > best_priority or (priority == best_priority and distance >= best_distance): continue
@@ -227,12 +250,23 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 		elif tick % 10 == 1 or actor.path.is_empty(): actor.go_to(target.position)
 	elif info.actor != player:
 		var route: PackedVector2Array = info.route
-		while info.route_index < route.size() and actor.position.distance_to(route[info.route_index]) < 5: info.route_index += 1
-		if info.route_index < route.size(): actor.set_path(PackedVector2Array([route[info.route_index]]))
+		# After chasing, resume at the nearest forward point through A*, never
+		# shortcut directly across jungle terrain to a stale lane point.
+		if info.get("chasing", false):
+			var closest := INF
+			for index in range(info.route_index, route.size()):
+				var distance := actor.position.distance_to(route[index])
+				if distance < closest: closest = distance; info.route_index = index
+		info.chasing = false
+		while info.route_index < route.size() and actor.position.distance_to(route[info.route_index]) < 8: info.route_index += 1
+		if info.route_index < route.size():
+			var waypoint := route[info.route_index]
+			if actor.path.is_empty() or actor.path[-1].distance_to(waypoint) > 0.1: actor.go_to(waypoint)
 	else: actor.stop()
+	if target != null: info.chasing = true
 
 func request_attack(category: String) -> void:
-	if match_over or paused or shop.visible or not player.runtime.alive: return
+	if match_over or paused or shop.visible or opponent_panel.visible or not player.runtime.alive: return
 	attack_mode = category
 	locked_target = ""
 	camera.follow_enabled = true
@@ -291,7 +325,15 @@ func toggle_shop() -> void:
 	_stop_player()
 	controls.release_all()
 	shop.visible = not shop.visible
+	opponent_panel.hide()
 	shop.refresh()
+
+func toggle_opponents() -> void:
+	_stop_player()
+	controls.release_all()
+	shop.hide()
+	opponent_panel.visible = not opponent_panel.visible
+	opponent_panel.refresh()
 
 func _revive(id: String) -> void:
 	var info: Dictionary = entities[id]
@@ -353,6 +395,9 @@ func _build_ui() -> void:
 	_button(row, "Map Prototype", func(): get_tree().change_scene_to_file("res://scenes/map/map_prototype.tscn"))
 	_button(row, "Combat Sandbox", func(): get_tree().change_scene_to_file("res://scenes/main.tscn"))
 	_button(row, "Shop / Hero [B]", toggle_shop)
+	row = HBoxContainer.new()
+	content.add_child(row)
+	_button(row, "Trang bị hai đội [Tab]", toggle_opponents)
 	controls = Control.new()
 	controls.set_script(preload("res://scripts/match/battle_controls.gd"))
 	controls.position = Vector2(0, 720)
@@ -377,6 +422,12 @@ func _build_ui() -> void:
 	shop.sell_requested.connect(sell_item)
 	shop.hero_requested.connect(func(index: int): HeroProgression.selected_profile = index; get_tree().reload_current_scene())
 	layer.add_child(shop)
+	opponent_panel = PanelContainer.new()
+	opponent_panel.set_script(preload("res://scripts/match/opponent_panel.gd"))
+	opponent_panel.position = Vector2(300, 250)
+	opponent_panel.size = Vector2(1000, 360)
+	opponent_panel.heroes = progression
+	layer.add_child(opponent_panel)
 	result_panel = PanelContainer.new()
 	result_panel.position = Vector2(530, 330)
 	result_panel.size = Vector2(540, 220)
@@ -412,6 +463,7 @@ func _refresh_hud() -> void:
 	hud.text += "\n%s · LV %d · XP %d/%d · Vàng %d [B]" % [hero.profile.display_name, hero.level, hero.experience, hero.required_xp(), hero.gold]
 	if in_fountain(state): hud.text += " · FOUNTAIN +HP/MANA"
 	if shop.visible: shop.refresh()
+	if opponent_panel.visible: opponent_panel.refresh()
 	if not state.alive: message.text = "Hồi sinh sau %.1f giây" % respawn
 	elif paused: message.text = "TẠM DỪNG · nhấn P để tiếp tục"
 
@@ -424,6 +476,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_P: set_paused(not paused)
 			KEY_F: camera.follow_enabled = true
 			KEY_B: toggle_shop()
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT and player.runtime.alive and not paused and not match_over and not shop.visible:
+			KEY_TAB: toggle_opponents()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT and player.runtime.alive and not paused and not match_over and not shop.visible and not opponent_panel.visible:
 		_stop_player()
 		player.go_to(get_global_transform_with_canvas().affine_inverse() * event.position)

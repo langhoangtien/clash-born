@@ -2,7 +2,7 @@ extends PanelContainer
 signal buy_requested(item: EquipmentData)
 signal sell_requested(slot: int)
 signal hero_requested(index: int)
-const CATALOG = preload("res://scripts/ui/equipment_panel.gd").CATALOG
+var CATALOG: Array[EquipmentData] = MatchItemCatalog.items()
 var progression: HeroProgression
 var header: Label
 var stats_label: Label
@@ -49,6 +49,8 @@ func _ready() -> void:
 	for item in CATALOG:
 		var button := Button.new()
 		button.text = "%s · %d vàng\n%s" % [item.display_name, item.price, item.bonus_summary()]
+		button.icon = item.icon
+		button.add_theme_constant_override("icon_max_width", 42)
 		button.tooltip_text = item.description
 		button.focus_mode = Control.FOCUS_NONE
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -95,4 +97,6 @@ func refresh() -> void:
 	for slot in range(EquipmentManager.SLOT_COUNT):
 		var item := progression.equipment.get_item(slot)
 		slot_buttons[slot].disabled = item == null
+		slot_buttons[slot].icon = item.icon if item != null else null
+		slot_buttons[slot].add_theme_constant_override("icon_max_width", 28)
 		slot_buttons[slot].text = "%d · Trống" % [slot + 1] if item == null else "%d · %s · bán %d" % [slot + 1, item.display_name, floori(item.price * progression.settings.sell_refund)]

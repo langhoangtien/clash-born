@@ -236,12 +236,12 @@ and cooldowns. Level/equipment persist through respawn; new matches reset them.
 
 Nearby living opposing heroes receive XP on creep/hero/tower death, regardless
 of last hitter; only a hero landing the final damaging hit receives kill gold.
-Income runs once per simulation second; pause stops it. Defaults are starting
-1000 gold, 3 gold/second, XP radius 1000, maximum level 15. XP for the next level
+Income runs on a configurable simulation-tick interval; pause stops it. Defaults are starting
+250 gold, 1 gold per two seconds, XP radius 1000, maximum level 15. XP for the next level
 is 100 + 50*(level-1); overflow can grant several levels. Death rewards and growth
-are configurable Resources. Bots receive XP/income but do not shop yet.
+are configurable Resources. Bots receive XP/income and buy affordable gear using the match catalog every ten seconds.
 
-Match shop uses the original 14-item catalog. Buy validates item, funds, unique
+Match shop uses a tuned copy of the original 14-item catalog (Sandbox items remain intact). Buy validates item, funds, unique
 item rules and free slot before subtracting gold/equipping; sell refunds floor
 of price times 0.5. It is accessible anywhere, including while dead/paused, but
 blocked after victory. Opening it stops player movement/attack; combat continues
@@ -269,3 +269,31 @@ level/gear maxima, configurable rates, four speeds and visual status. All prior
 Phase 1–6, range/projectile, playable-match and progression/shop tests passed
 again. Fountain visuals are in `scripts/match/fountain_view.gd`; integration and
 settings are in the existing match scripts; tests in `tests/test_fountain.gd`.
+
+
+## Match balance and lane recovery
+
+Match towers now have 6000 HP, 20 physical/12 magic armor and 235 physical damage;
+cores have 10000 HP, 25/15 armor and 150 damage. Runtime structures are flagged
+explicitly. Source siege multipliers default to one; only map heroes use 0.40 and
+creeps 0.65. Engine attacks apply this multiplier after mitigation for every
+component. Projectiles snapshot it at launch and still resolve at impact, including
+shots whose source died. Sandbox default rules and existing formulas remain intact.
+
+The match catalog copies the fourteen reference items, halves offensive modifiers
+and adjusts prices. Icon SVGs are shared by source/copy items. Hero opening damage
+and offensive level growth are reduced; opening gold is 250, passive income one
+gold each two seconds, creep last-hit gold 20 and hero kill gold 150. No forced
+match duration or artificial health timer is introduced.
+
+Creeps now resume an interrupted route through A* to the nearest forward lane
+point, rather than a direct segment to an old point across blocked jungle. They
+acquire creep/tower targets belonging to their own lane. All three distinct routes
+remain authored data; no teleport or terrain bypass is used. Melee creeps have a
+round body/sword mark; ranged creeps have a diamond/bow mark and actual projectiles.
+
+Tab or the equipment button opens a read-only two-team panel with levels, stats
+and six equipped icons per hero. Tooltips show actual item names/bonuses. It uses
+live HeroProgression inventories, including the bot's budgeted purchases. Opening
+it stops player commands without pausing combat. Details/testing/limits are in
+`docs/match_balance.md`.

@@ -18,6 +18,9 @@ var target_id: String = ""
 var abilities: Array[AbilityData] = []
 var ability_ready_ticks: Dictionary = {}
 var casting: Dictionary = {}
+## Map-only siege rules; defaults leave sandbox damage unchanged.
+var is_structure: bool = false
+var structure_damage_multiplier: float = 1.0
 
 func _init(id: String, team: int, spawn: Vector2, source: UnitStats, balance: BalanceSettings, equipment: Array[EquipmentData] = []) -> void:
 	unit_id = id

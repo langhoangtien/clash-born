@@ -4,5 +4,5 @@
 script = ExtResource("1")
 display_name = "Pháp sư"
 ranged_attacks = true
-base_overrides = {"base_hp": 1400.0, "base_mana": 500.0, "physical_damage": 60.0, "magic_damage": 95.0}
-per_level = {"base_hp": 100.0, "magic_damage": 16.0, "base_mana": 30.0, "movement_speed": 1.0}
+base_overrides = {"base_hp": 1400.0, "base_mana": 500.0, "physical_damage": 40.0, "magic_damage": 60.0}
+per_level = {"base_hp": 100.0, "magic_damage": 10.0, "base_mana": 30.0, "movement_speed": 1.0}

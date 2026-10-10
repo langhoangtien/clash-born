@@ -6,6 +6,7 @@ const PERCENT_MODIFIERS: Array[String] = ["attack_speed_bonus", "evasion", "accu
 
 @export var id: String = ""
 @export var display_name: String = ""
+@export var icon: Texture2D
 @export_multiline var description: String = ""
 @export var price: int = 1000
 @export var allow_multiple: bool = true
@@ -24,5 +25,9 @@ func bonus_summary() -> String:
 	for key in modifiers:
 		var name: String = {"physical_armor": "P armor", "magic_armor": "M armor", "max_hp": "HP", "accuracy": "accuracy", "critical_chance": "crit", "evasion": "evade", "armor_reduction": "armor reduction", "physical_damage": "P damage", "magic_damage": "M damage", "pure_damage": "pure damage", "attack_speed_bonus": "attack speed", "status_resistance": "resistance"}.get(key, key.replace("_", " "))
 		var value: float = modifiers[key]
-		parts.append("%+.0f%% %s" % [value * 100, name] if key in PERCENT_MODIFIERS else "%+.1f %s" % [value, name])
+		if key in PERCENT_MODIFIERS:
+			var percent := value * 100
+			var format_text := "%+.0f%% %s" if is_equal_approx(percent, roundf(percent)) else "%+.1f%% %s"
+			parts.append(format_text % [percent, name])
+		else: parts.append("%+.1f %s" % [value, name])
 	return ", ".join(parts)

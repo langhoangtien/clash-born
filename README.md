@@ -35,9 +35,15 @@ thêm 20% máu tối đa và 25% mana tối đa mỗi giây; rời vòng tròn n
 - **K / ĐÁNH HERO**: chỉ chọn hero địch. Click địch để khóa mục tiêu cụ thể.
 - Sau lệnh đánh, hero tự đi vào tầm và tiếp tục đánh. Di chuyển hoặc **Space** hủy.
 - Chuột phải đi đến điểm; **Ra MID** tự tìm đường ra lane giữa.
+- **Tab / Trang bị hai đội**: xem level, chỉ số và 6 ô đồ của bạn/đối thủ.
 - **B / Shop–Hero**: mua/bán đồ, xem tăng chỉ số mỗi cấp; chọn hero rồi bắt đầu trận mới.
 - **P** tạm dừng; **F** theo hero; chuột giữa pan, wheel zoom, click minimap xem vùng.
 - Bốn nút hỗ trợ touch/drag và nhiều ngón; chưa có bản xuất Android/iOS được kiểm thử.
+
+Trụ 6000 HP, sát thương 235; hero gây 40% damage lên công trình sau giáp.
+Khởi đầu 250 vàng, tự tăng 1 vàng mỗi 2 giây. Shop có icon, giá/bonus riêng cho trận;
+đồ tấn công đã giảm bonus và bot cũng mua đồ bằng vàng kiếm được. Creep cận chiến
+hình tròn/dấu kiếm; creep đánh xa hình thoi/dấu cung. Chi tiết cân bằng: `docs/match_balance.md`.
 
 Stats/tốc độ lính, interval/cap wave, respawn và tầm tìm mục tiêu chỉnh tại
 `data/match/default_match.tres`; map vẫn dùng `data/maps/moba_foundation.tres`.
@@ -126,12 +132,14 @@ foreach ($phase in 1..6) {
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_playable_match.gd
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_progression_shop.gd
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_fountain.gd
+& $godotExe --headless --fixed-fps 60 --path 'D:\Clashborn' --script res://tests/test_match_balance.gd -- --soak
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase5.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase6.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_playable_match.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_progression_shop.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_fountain.gd -- --capture
+& $godotExe --fixed-fps 60 --path 'D:\Clashborn' --script res://tests/test_match_balance.gd -- --capture
 ```
 
 Test trả exit code 0 khi pass, 1 khi fail. Các lệnh cuối chạy renderer thật và lưu ảnh trong `.local/`, gồm

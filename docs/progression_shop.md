@@ -1,6 +1,6 @@
 # Hero level and shop
 
-Press **B** or **Shop / Hero** in the match. Buy from the original 14-item catalog,
+Press **B** or **Shop / Hero** in the match. Buy from a match-tuned copy of the original 14-item catalog with icons,
 inspect six slots, click an equipped item to sell. Purchase auto-equips into the
 first free slot. Insufficient gold, duplicate exclusive items and a full inventory
 are rejected without charging. Selling refunds 50% (rounded down). No recipes.
@@ -12,9 +12,9 @@ Default hero remains ranger, preserving the existing playable controls.
 
 | Hero | Base HP | Per-level growth |
 | --- | --- | --- |
-| Xạ thủ | 1600 | HP +120, physical damage +12, attack speed bonus +3.5 percentage points, move speed +2 |
-| Đỡ đòn | 2400 | HP +200, physical damage +7, armor +0.8, move speed +1; melee |
-| Pháp sư | 1400 | HP +100, magic damage +16, mana +30, move speed +1 |
+| Xạ thủ | 1600 | HP +120, physical damage +7, attack speed bonus +2.5 percentage points, move speed +2 |
+| Đỡ đòn | 2400 | HP +200, physical damage +5, armor +0.8, move speed +1; melee |
+| Pháp sư | 1400 | HP +100, magic damage +10, mana +30, move speed +1 |
 
 Growth and equipment are recalculated through existing StatCalculator. Buying,
 selling or leveling preserves current HP/Mana percentage, effects, attack/cast
@@ -24,18 +24,18 @@ the existing mixed physical/magical damage system; there are still no skill butt
 
 ## Economy defaults
 
-- Starting gold 1000; income 3 per simulation second, frozen by pause.
+- Starting gold 250; income 1 per two simulation seconds, frozen by pause.
 - Maximum level 15; next-level XP = 100 + 50 × (level − 1). Overflow is retained
   and can grant multiple levels; capped heroes stop accumulating XP.
 - Living opposing heroes within 1000 world units of a death receive XP, even
   when an allied tower/creep lands the last hit. Only hero last hits get kill gold.
-- Creep: 45 XP / 40 gold; hero: 200 XP / 250 gold; tower: 150 XP / 250 gold.
-- Bots receive XP and gold but do not purchase equipment automatically yet.
+- Creep: 45 XP / 20 gold; hero: 200 XP / 150 gold; tower: 150 XP / 250 gold.
+- Bots receive XP/gold and check for an affordable item every ten simulation seconds, using the same prices and six-slot inventory.
 
 Settings are in `data/match/default_match.tres` / MatchSettings. Each hero profile
 is a HeroGrowth Resource in `data/match/*_growth.tres`; base overrides and per-level
 numeric UnitStats fields can be edited without changing combat code. Level and
-shop live in HeroProgression and match_shop; CombatEngine is unchanged.
+shop live in HeroProgression and match_shop; structure damage remains in CombatEngine.
 
 ## Changed files and verification
 
@@ -56,4 +56,6 @@ All regression suites also executed: Phase 1–6 **23/112/170/645/170/690**, ran
 **93**, playable match **66** checks; zero failures.
 
 Hero growth/economy remain experimental. No persistence between matches,
-item recipes, automatic bot shopping, team-shared XP splitting or skill scaling UI.
+item recipes, team-shared XP splitting or skill scaling UI.
+
+Latest siege/economy/navigation tuning: `match_balance.md`.

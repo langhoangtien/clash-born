@@ -182,3 +182,13 @@ Regen thường vẫn cộng riêng. Dùng khoảng cách tâm hero–tâm fount
 Radius/tỷ lệ chỉnh trong MatchSettings; max dùng stats hiện tại sau level/đồ.
 Metrics cộng đúng HP thực hồi, không tính phần vượt max. Pause ngừng hồi;
 rời vùng, hero chết hoặc vào fountain địch không nhận hồi thêm.
+
+
+## Damage lên công trình trong trận
+
+Công thức hit/crit/giáp giữ nguyên. FinalDamageToStructure = mitigated damage ×
+source.structure_damage_multiplier: hero 0.40, creep 0.65, mặc định Sandbox 1.0.
+Áp dụng physical/magical/pure khi target.is_structure; target thường không đổi.
+Projectile snapshot multiplier lúc launch, áp damage tại impact, kể cả nguồn chết.
+Bonus tấn công trong shop trận là bản sao giảm 50% từ reference items; giá riêng
+trong MatchItemCatalog. Không thay đồ/công thức của Combat Sandbox.

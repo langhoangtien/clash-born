@@ -136,11 +136,11 @@ func step() -> Array[Dictionary]:
 		if tick_count + 0.000000001 < source.next_attack_tick or source.distance_to_unit(target) > source.attack_range() + 0.000001: continue
 		if tick_count - source.next_attack_tick >= 1.0: source.next_attack_tick = tick_count
 		source.next_attack_tick += SimulationClock.TICKS_PER_SECOND / source.stats.attack_speed
-		var payload := {"type": "attack", "stats": source.stats.duplicate(true)}
+		var payload := {"type": "attack", "stats": source.stats.duplicate(true), "structure_multiplier": source.structure_damage_multiplier}
 		if source.stats.ranged_attacks:
 			_launch_projectile(source, target.unit_id, target.position, source.stats.projectile_speed, source.stats.projectile_hit_behavior, payload, events)
 		else:
-			_resolve_attack(source.unit_id, target, payload.stats, events, pending)
+			_resolve_attack(source.unit_id, target, payload.stats, events, pending, payload.structure_multiplier)
 	metrics.record_tick(units, tick_count)
 	for damage in pending:
 		var target := get_unit(damage.target_unit_id)
@@ -287,12 +287,12 @@ func _advance_projectiles(events: Array[Dictionary], pending: Array[Dictionary])
 			events.append(_event("projectile_evaded", projectile.source_id, projectile.target_id))
 			continue
 		if projectile.payload.type == "attack":
-			_resolve_attack(projectile.source_id, target, projectile.payload.stats, events, pending)
+			_resolve_attack(projectile.source_id, target, projectile.payload.stats, events, pending, projectile.payload.structure_multiplier)
 		else:
 			_resolve_ability(projectile.source_id, projectile.target_id, projectile.destination, projectile.payload, events)
 	projectiles = remaining
 
-func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Dictionary, events: Array[Dictionary], pending: Array[Dictionary]) -> void:
+func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Dictionary, events: Array[Dictionary], pending: Array[Dictionary], structure_multiplier: float = 1.0) -> void:
 	if target == null or not target.alive: return
 	var hit := HitCalculator.resolve(stats, target.stats, rng, balance)
 	var attack := _event("attack", source_id, target.unit_id)
@@ -314,6 +314,7 @@ func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Diction
 		var physical := DamageCalculator.effective_armor(target.physical_armor(), stats.armor_reduction, stats.physical_armor_penetration)
 		var magical := DamageCalculator.effective_armor(target.stats.magic_armor, stats.magic_armor_reduction)
 		damage.final_damage = DamageCalculator.calculate(damage.raw_damage, damage_type, physical, magical, balance)
+		if target.is_structure: damage.final_damage *= clampf(structure_multiplier, 0, 1)
 		pending.append(damage)
 
 func result() -> Dictionary:

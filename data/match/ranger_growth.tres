@@ -4,4 +4,4 @@
 script = ExtResource("1")
 display_name = "Xạ thủ"
 ranged_attacks = true
-per_level = {"base_hp": 120.0, "physical_damage": 12.0, "attack_speed_bonus": 0.035, "movement_speed": 2.0}
+per_level = {"base_hp": 120.0, "physical_damage": 7.0, "attack_speed_bonus": 0.025, "movement_speed": 2.0}

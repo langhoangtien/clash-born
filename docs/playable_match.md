@@ -15,6 +15,7 @@ top-left buttons, and both have a button returning to this match.
 | Click enemy | Lock that specific target |
 | Space / move | Cancel automatic attack/approach |
 | Right click ground / Ra MID | Navigate to point / allied MID approach |
+| Tab / Trang bị hai đội | Inspect live enemy/player equipment icons and stats |
 | B / Shop–Hero | Buy/sell items, inspect level growth, choose hero for a new match |
 | P | Pause/resume movement, combat and timers |
 | F | Follow player camera |
@@ -107,3 +108,5 @@ There is no tower-before-core invulnerability rule. Historical per-creep metrics
 are retained for the session, so very long matches still accumulate metric entries.
 Balance is experimental. The next useful step is hero skill controls and a simple
 cooldown UI, followed by tuning tower/creep aggro and damage.
+
+Latest balance/navigation/icon changes: `match_balance.md`.

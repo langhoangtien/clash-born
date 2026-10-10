@@ -50,7 +50,14 @@ func _draw() -> void:
 	if damage_flash > 0 and runtime.alive: color = color.lightened(0.3)
 	draw_circle(Vector2(0, 5), radius + 3, Color(0, 0, 0, 0.3))
 	if structure_visual: draw_rect(Rect2(Vector2.ONE * -radius, Vector2.ONE * radius * 2), color)
+	elif compact_visual and runtime.stats.ranged_attacks:
+		draw_colored_polygon(PackedVector2Array([Vector2(0, -radius), Vector2(radius, 0), Vector2(0, radius), Vector2(-radius, 0)]), color)
 	else: draw_circle(Vector2.ZERO, radius, color)
+	if compact_visual:
+		if runtime.stats.ranged_attacks:
+			draw_arc(Vector2.ZERO, radius * 0.65, -PI / 2, PI / 2, 12, Color.WHITE, 2, true)
+		else:
+			draw_line(Vector2(-radius * 0.55, radius * 0.55), Vector2(radius * 0.55, -radius * 0.55), Color.WHITE, 3, true)
 	draw_circle(Vector2.ZERO, 5, Color(1, 1, 1, 0.7))
 	if not compact_visual: _center_text(visual_data.display_name, -radius - 12, 20)
 	if show_resource_bars:
