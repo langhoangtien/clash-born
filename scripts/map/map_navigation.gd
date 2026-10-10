@@ -39,6 +39,9 @@ func path(from: Vector2, to: Vector2) -> PackedVector2Array:
 	if grid.is_point_solid(start) or grid.is_point_solid(end): return []
 	var points := grid.get_point_path(start, end)
 	if points.is_empty(): return points
+	# Replanning from a position between cell centers must not send the actor
+	# backwards to its current cell center before following the next segment.
+	points[0] = from
 	# Cell centers guide A*, but exact destinations remain world coordinates.
 	if points[-1].distance_to(to) > 0.001: points.append(to)
 	return points

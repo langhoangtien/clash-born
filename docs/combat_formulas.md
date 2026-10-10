@@ -207,3 +207,13 @@ chia cho toàn roster đội hạ địch. Assist pool=40+6×level, chia cho ng�
 đứng gần còn sống hoặc đã gây damage trong 30s, trừ người được ghi công.
 Kill gold không phụ thuộc radius XP. Đây là cơ chế rút gọn lấy cảm hứng từ Dota,
 không phải toàn bộ công thức Dota 2. Chi tiết: `docs/siege_rewards.md`.
+
+## Chết và hồi sinh trong trận
+
+RespawnSeconds = max(0, base_seconds) + max(0, per_level_seconds) × max(0, level−1).
+Mặc định 8 + 2 × (level−1). Deadline = death_tick + max(1, ceil(seconds × 30)).
+DeathGoldLoss = min(current_gold, max(0, gold_per_level) × level), mặc định 25/cấp.
+Trừ một lần khi hero chết; không trừ XP/level/đồ, không cho vàng âm. Pause ngừng
+đếm tick. HUD hiển thị vàng mất; respawn giữ progression và hồi đầy max HP/Mana.
+Player có thể chọn mục tiêu bị che nếu có đường đi; target attack chỉ gán khi có
+line-of-sight, vẫn kiểm tra range và damage tại impact như trước.

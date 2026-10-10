@@ -5,6 +5,8 @@ extends Resource
 @export var siege_wave_interval: int = 3
 @export var maximum_live_creeps: int = 108
 @export var respawn_seconds: float = 8.0
+@export var respawn_seconds_per_level: float = 2.0
+@export var death_gold_per_level: int = 25
 @export var aggro_range: float = 750.0
 @export var hero_acquisition_range: float = 1400.0
 @export var hero: UnitStats
@@ -41,3 +43,6 @@ extends Resource
 @export var siege_creep: UnitStats
 @export var tower: UnitStats
 @export var core: UnitStats
+
+func respawn_duration(level: int) -> float:
+	return maxf(0, respawn_seconds) + maxf(0, respawn_seconds_per_level) * maxi(0, level - 1)

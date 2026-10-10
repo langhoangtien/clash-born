@@ -34,7 +34,7 @@ one siege catapult to every team/lane. At most 108 live creeps can
 exist; a wave is skipped if the full wave would exceed the cap. Twelve towers and
 two cores attack within range/terrain line-of-sight, preferring creeps over heroes.
 Hero death awards the opposing team a kill; heroes respawn at their bases after
-eight seconds. Dead creeps are removed from the live scene and combat list.
+8 + 2 × (level − 1) seconds, losing up to 25 × level unspent gold. Dead creeps are removed from the live scene and combat list.
 Destroy the opposing core to win. The result freezes combat/movement and offers
 restart. Hero deaths and creep losses alone do not end the match.
 
@@ -113,3 +113,5 @@ cooldown UI, followed by tuning tower/creep aggro and damage.
 Latest balance/navigation/icon changes: `match_balance.md`.
 
 Siege tuning, shared XP and level-scaled kill/assist/team gold: `docs/siege_rewards.md`.
+
+Player auto-attack can approach reachable targets around terrain; see `docs/death_lane_attacks.md`.

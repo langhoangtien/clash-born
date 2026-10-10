@@ -23,6 +23,11 @@ func _init(state: UnitRuntimeState, hero_base: UnitStats, growth: HeroGrowth, ru
 func required_xp() -> int:
 	return settings.first_level_xp + (level - 1) * settings.level_xp_increment
 
+func lose_death_gold() -> int:
+	var loss := mini(gold, maxi(0, settings.death_gold_per_level) * level)
+	gold -= loss
+	return loss
+
 func award(xp: int, coins: int = 0) -> int:
 	gold += maxi(0, coins)
 	if level >= settings.maximum_level: return 0

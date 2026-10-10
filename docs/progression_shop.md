@@ -19,7 +19,7 @@ Default hero remains ranger, preserving the existing playable controls.
 Growth and equipment are recalculated through existing StatCalculator. Buying,
 selling or leveling preserves current HP/Mana percentage, effects, attack/cast
 timers, combat tick and position. There is no full-heal or reset shortcut. Hero
-respawn keeps level/XP/gold/gear; new matches reset them. Mage basic attacks use
+respawn keeps level/XP/gear and gold remaining after the death penalty; new matches reset them. Mage basic attacks use
 the existing mixed physical/magical damage system; there are still no skill buttons.
 
 ## Economy defaults
@@ -62,3 +62,6 @@ Hero growth/economy remain experimental. No persistence between matches,
 item recipes, team-shared XP splitting or skill scaling UI.
 
 Latest siege/economy/navigation tuning: `match_balance.md`.
+
+Hero death defaults: 8 + 2 × (level − 1) seconds to respawn, lose up to
+25 × level unspent gold. Exact behavior/tests: `docs/death_lane_attacks.md`.

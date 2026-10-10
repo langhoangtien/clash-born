@@ -29,6 +29,7 @@ var progression: Dictionary = {}
 var shop: PanelContainer
 var opponent_panel: PanelContainer
 var rewards: MatchRewards
+var death_gold_losses: Dictionary = {}
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -224,7 +225,7 @@ func _visible(source: MapUnit, target: MapUnit) -> bool:
 	var query := PhysicsRayQueryParameters2D.create(source.position, target.position, 1)
 	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
-func _choose_target(info: Dictionary, categories: Array, radius: float) -> MapUnit:
+func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false) -> MapUnit:
 	var source: MapUnit = info.actor
 	var best: MapUnit
 	var best_priority := 100
@@ -236,7 +237,8 @@ func _choose_target(info: Dictionary, categories: Array, radius: float) -> MapUn
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
 		if distance > radius or priority > best_priority or (priority == best_priority and distance >= best_distance): continue
-		if not _visible(source, target): continue
+		if not _visible(source, target):
+			if not allow_approach or source.navigation.path(source.position, target.position).is_empty(): continue
 		best = target
 		best_priority = priority
 		best_distance = distance
@@ -245,13 +247,14 @@ func _choose_target(info: Dictionary, categories: Array, radius: float) -> MapUn
 func _player_target() -> MapUnit:
 	if entities.has(locked_target):
 		var target: MapUnit = entities[locked_target].actor
-		if target.runtime.alive and player.runtime.distance_to_unit(target.runtime) <= settings.hero_acquisition_range: return target
+		if target.runtime.alive and target.runtime.team_id != player.runtime.team_id and player.runtime.distance_to_unit(target.runtime) <= settings.hero_acquisition_range: return target
 	locked_target = ""
 	var categories: Array = ["hero"] if attack_mode == "hero" else ["creep", "tower", "core"]
-	return _choose_target(entities.player, categories, settings.hero_acquisition_range)
+	return _choose_target(entities.player, categories, settings.hero_acquisition_range, true)
 
 func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var actor: MapUnit = info.actor
+	if target != null and (not target.runtime.alive or target.runtime.team_id == actor.runtime.team_id): target = null
 	actor.runtime.target_id = target.runtime.unit_id if target != null and _visible(actor, target) else ""
 	if target != null:
 		if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range() and _visible(actor, target):
@@ -282,7 +285,10 @@ func request_attack(category: String) -> void:
 	message.text = "Tự đánh hero · di chuyển để hủy" if category == "hero" else "Tự đánh lính / trụ · di chuyển để hủy"
 
 func _clicked_entity(id: String) -> void:
-	if not entities.has(id) or entities[id].actor.runtime.team_id == 0: return
+	if not entities.has(id): return
+	if entities[id].actor.runtime.team_id == player.runtime.team_id:
+		message.text = "Mục tiêu đồng minh · chỉ có thể đánh lính/tướng địch"
+		return
 	request_attack("hero" if entities[id].kind == "hero" else "creep")
 	locked_target = id
 
@@ -295,8 +301,10 @@ func _on_death(id: String, events: Array[Dictionary]) -> void:
 	_reward_death(info, killer)
 	rewards.forget(id)
 	if info.kind == "hero":
+		var hero: HeroProgression = progression[id]
+		death_gold_losses[id] = hero.lose_death_gold()
 		scores[1 - info.actor.runtime.team_id] += 1
-		respawns[id] = combat.tick_count + ceili(settings.respawn_seconds * SimulationClock.TICKS_PER_SECOND)
+		respawns[id] = combat.tick_count + maxi(1, ceili(settings.respawn_duration(hero.level) * SimulationClock.TICKS_PER_SECOND))
 		info.actor.stop()
 		if id == "player": attack_mode = ""; locked_target = ""
 	elif info.kind == "creep" and killer == "player": creep_kills += 1
@@ -360,6 +368,7 @@ func _revive(id: String) -> void:
 	actor.runtime.target_id = ""
 	actor.runtime.casting.clear()
 	actor.runtime.next_attack_tick = combat.tick_count + 1
+	death_gold_losses.erase(id)
 	info.route_index = 0
 	if id == "player": message.text = "Đã hồi sinh · J đánh lính/trụ, K đánh hero"
 
@@ -477,7 +486,7 @@ func _refresh_hud() -> void:
 	if in_fountain(state): hud.text += " · FOUNTAIN +HP/MANA"
 	if shop.visible: shop.refresh()
 	if opponent_panel.visible: opponent_panel.refresh()
-	if not state.alive: message.text = "Hồi sinh sau %.1f giây" % respawn
+	if not state.alive: message.text = "Hồi sinh sau %.1f giây · Mất %d vàng" % [respawn, death_gold_losses.get("player", 0)]
 	elif paused: message.text = "TẠM DỪNG · nhấn P để tiếp tục"
 
 func _unhandled_input(event: InputEvent) -> void:

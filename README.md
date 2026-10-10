@@ -218,3 +218,7 @@ Không mở rộng sang các tính năng MOBA đầy đủ khác.
 Xe bắn đá xuất hiện đợt 1/4/7/...; lính gần 700 HP, xa 450 HP, xe 1600 HP.
 XP chia cho hero gần; vàng hạ hero theo cấp, có hỗ trợ và ghi công khi trụ kết liễu.
 Công thức, cấu hình và giới hạn: `docs/siege_rewards.md`.
+
+Hồi sinh tăng theo cấp: 8 + 2 × (LV−1) giây; chết mất tối đa 25 × LV vàng.
+Đã sửa J không tiếp cận creep bị tường che ở TOP/BOT; hero tìm đường vòng
+rồi mới đánh khi đủ range/line-of-sight. Chi tiết: `docs/death_lane_attacks.md`.

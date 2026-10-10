@@ -312,3 +312,13 @@ creep kills, shares uncredited kill gold over the roster, and divides nearby XP.
 Payouts apply through HeroProgression; damage math, Sandbox and replay are intact.
 The roster-based calculator supports multiple heroes in tests; the scene stays
 1v1. Formulas, deterministic integer rounding and limitations: `docs/siege_rewards.md`.
+
+## Hero death and side-lane approach
+
+MatchSettings defines per-level respawn growth and gold loss; HeroProgression
+subtracts only available unspent gold. The scene schedules a fixed tick deadline
+on each death, preserves XP/gear and displays the actual penalty. Player acquisition
+can choose an occluded but A*-reachable target; attacks remain gated on terrain
+line of sight and edge range. NPC/tower acquisition remains unchanged. The TOP/BOT
+bug was reproduced before fixing, then verified with physical approach and real
+projectile damage. See `docs/death_lane_attacks.md` for defaults/files/tests.
