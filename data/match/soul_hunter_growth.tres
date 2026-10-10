@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="HeroGrowth" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="1"]
+[resource]
+script = ExtResource("1")
+display_name = "Veyra · Thợ Săn Linh Hồn"
+ranged_attacks = true
+primary_attribute = 2
+passive_id = "soul_hunter"
+base_overrides = {"strength": 20.0, "agility": 25.0, "intelligence": 19.0, "base_hp": 920.0, "physical_damage": 72.0}
+per_level = {"strength": 2.1, "agility": 2.8, "intelligence": 1.9, "physical_damage": 3.0}

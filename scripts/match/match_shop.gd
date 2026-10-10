@@ -14,6 +14,8 @@ var hero_select: OptionButton
 var passive_select: OptionButton
 var passive_upgrade: Button
 var close_button: Button
+var draft_enabled: bool = false
+var preview_progression: HeroProgression
 
 func _ready() -> void:
 	var background := StyleBoxFlat.new()
@@ -38,7 +40,7 @@ func _ready() -> void:
 	close_button.pressed.connect(hide)
 	top.add_child(close_button)
 	var note := Label.new()
-	note.text = "Mua ở mọi nơi · Trận vẫn chạy · Bán hoàn %.0f%% · Giữ tỷ lệ máu khi đổi đồ" % [progression.settings.sell_refund * 100]
+	note.text = "Click đồ lớn để mua thẳng nếu đủ vàng · nguyên liệu đang có tự trừ giá · Bán hoàn %.0f%%" % [progression.settings.sell_refund * 100]
 	content.add_child(note)
 	var columns := HBoxContainer.new()
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -82,22 +84,21 @@ func _ready() -> void:
 	hero_select.focus_mode = Control.FOCUS_NONE
 	for profile in progression.settings.hero_profiles: hero_select.add_item(profile.display_name)
 	hero_select.select(clampi(HeroProgression.selected_profile, 0, hero_select.item_count - 1))
+	hero_select.item_selected.connect(func(_index: int): _sync_hero_skill(); refresh())
 	right.add_child(hero_select)
 	passive_select = OptionButton.new()
 	passive_select.focus_mode = Control.FOCUS_NONE
-	for passive in HeroPassiveCatalog.DEFINITIONS:
-		passive_select.add_item(passive.name)
-		passive_select.set_item_tooltip(passive_select.item_count - 1, passive.description)
-	passive_select.select(clampi(HeroProgression.selected_passive, 0, passive_select.item_count - 1))
+	passive_select.disabled = true
 	right.add_child(passive_select)
+	_sync_hero_skill()
 	passive_upgrade = Button.new()
 	passive_upgrade.focus_mode = Control.FOCUS_NONE
 	passive_upgrade.pressed.connect(func(): passive_upgrade_requested.emit())
 	right.add_child(passive_upgrade)
 	var restart := Button.new()
-	restart.text = "Chọn hero + nội tại & chơi trận mới"
+	restart.text = "Chọn hero & chơi trận mới"
 	restart.focus_mode = Control.FOCUS_NONE
-	restart.pressed.connect(func(): HeroProgression.selected_passive = passive_select.selected; HeroProgression.draft_confirmed = true; hero_requested.emit(hero_select.selected))
+	restart.pressed.connect(func(): HeroProgression.draft_confirmed = true; hero_requested.emit(hero_select.selected))
 	right.add_child(restart)
 	feedback = Label.new()
 	content.add_child(feedback)
@@ -105,23 +106,37 @@ func _ready() -> void:
 	refresh()
 
 func set_draft_mode(enabled: bool) -> void:
+	draft_enabled = enabled
 	if close_button != null: close_button.disabled = enabled
 	if enabled:
-		feedback.text = "Chọn hero và một nội tại khởi đầu, sau đó bấm nút chơi trận mới."
+		feedback.text = "Mỗi hero có bộ chỉ số, tăng trưởng và một kỹ năng riêng. Chọn hero rồi bắt đầu."
+
+func _sync_hero_skill() -> void:
+	if passive_select == null or hero_select == null or progression == null: return
+	passive_select.clear()
+	var index := clampi(hero_select.selected, 0, progression.settings.hero_profiles.size() - 1)
+	var profile: HeroGrowth = progression.settings.hero_profiles[index]
+	var passive := HeroPassiveCatalog.definition(profile.passive_id)
+	passive_select.add_item("Kỹ năng riêng: " + passive.name)
+	passive_select.set_item_tooltip(0, passive.description)
+	var preview_state := UnitRuntimeState.new("hero_preview", 0, Vector2.ZERO, progression.base, progression.balance)
+	preview_progression = HeroProgression.new(preview_state, progression.base, profile, progression.settings, progression.balance)
+	preview_progression.select_profile_skill()
 
 func refresh() -> void:
 	if header == null: return
-	var stats: Dictionary = progression.unit.stats
-	header.text = "SHOP · %s · LV %d · %d vàng" % [progression.profile.display_name, progression.level, progression.gold]
-	var reduction := (1.0 - DamageCalculator.armor_multiplier(progression.unit.physical_armor(), progression.balance.armor_coefficient)) * 100.0
-	var passive := HeroPassiveCatalog.definition(progression.passive_id)
-	stats_label.text = "NỘI TẠI: %s · LV %d/5 · điểm %d\n%s\nSTR %.0f · AGI %.0f · INT %.0f\nHP %.0f · Mana %.0f · Regen %.1f\nDamage VL %.1f / Phép %.1f / Pure %.1f\nGiáp %.1f (giảm %.1f%% VL) · giáp phép %.1f\nNé/miss %.1f%% · chính xác %.1f%%\nCrit %.1f%% × %.2f · kháng %.1f%%\nTầm đánh %.0f · cast %.0f · chạy %.0f\nTốc đánh %.0f%% · %.2f đòn/s · BAT %.1fs\nTRANG BỊ · click để bán" % [passive.name, progression.passive_level, progression.skill_points, passive.description, stats.strength, stats.agility, stats.intelligence, stats.max_hp, stats.max_mana, stats.hp_regen, stats.physical_damage, stats.magic_damage, stats.pure_damage, progression.unit.physical_armor(), reduction, stats.magic_armor, stats.evasion * 100, stats.accuracy * 100, stats.critical_chance * 100, stats.critical_multiplier, stats.status_resistance * 100, stats.attack_range, stats.cast_range, stats.movement_speed, stats.attack_speed / progression.base.base_attacks_per_second * 100, progression.unit.attack_speed(), 1.0 / progression.base.base_attacks_per_second]
-	passive_upgrade.text = "Nâng nội tại (%d điểm còn lại)" % progression.skill_points
-	passive_upgrade.disabled = progression.skill_points <= 0 or progression.passive_level >= 5
+	var shown := preview_progression if draft_enabled and preview_progression != null else progression
+	var stats: Dictionary = shown.unit.stats
+	header.text = "SHOP · %s · LV %d · %d vàng" % [shown.profile.display_name, shown.level, progression.gold]
+	var reduction := (1.0 - DamageCalculator.armor_multiplier(shown.unit.physical_armor(), shown.balance.armor_coefficient)) * 100.0
+	var passive := HeroPassiveCatalog.definition(shown.passive_id)
+	stats_label.text = "KỸ NĂNG: %s · LV %d/5 · điểm %d\n%s\nSTR %.0f · AGI %.0f · INT %.0f\nHP %.0f · Mana %.0f · Regen %.1f\nDamage VL %.1f / Phép %.1f / Pure %.1f\nGiáp %.1f (giảm %.1f%% VL) · giáp phép %.1f\nNé/miss %.1f%% · chính xác %.1f%%\nCrit %.1f%% × %.2f · kháng %.1f%%\nTầm đánh %.0f · cast %.0f · chạy %.0f\nTốc đánh %.0f%% · %.2f đòn/s · BAT %.1fs\nTRANG BỊ · click để bán" % [passive.name, shown.passive_level, shown.skill_points, passive.description, stats.strength, stats.agility, stats.intelligence, stats.max_hp, stats.max_mana, stats.hp_regen, stats.physical_damage, stats.magic_damage, stats.pure_damage, shown.unit.physical_armor(), reduction, stats.magic_armor, stats.evasion * 100, stats.accuracy * 100, stats.critical_chance * 100, stats.critical_multiplier, stats.status_resistance * 100, stats.attack_range, stats.cast_range, stats.movement_speed, stats.attack_speed / stats.base_attacks_per_second * 100, shown.unit.attack_speed(), stats.base_attack_time]
+	passive_upgrade.text = "Nâng kỹ năng (%d điểm còn lại)" % progression.skill_points
+	passive_upgrade.disabled = draft_enabled or progression.skill_points <= 0 or progression.passive_level >= 5
 	for index in range(CATALOG.size()):
 		var reason := progression.purchase_error(CATALOG[index])
 		buy_buttons[index].disabled = not reason.is_empty()
-		buy_buttons[index].tooltip_text = CATALOG[index].description + ("\n" + reason if not reason.is_empty() else "")
+		buy_buttons[index].tooltip_text = CATALOG[index].description + "\nGiá cần trả lúc này: %d" % progression.purchase_cost(CATALOG[index]) + ("\n" + reason if not reason.is_empty() else "")
 	for slot in range(EquipmentManager.SLOT_COUNT):
 		var item := progression.equipment.get_item(slot)
 		slot_buttons[slot].disabled = item == null

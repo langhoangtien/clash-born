@@ -116,6 +116,7 @@ Siege tuning, shared XP and level-scaled kill/assist/team gold: `docs/siege_rewa
 
 Player auto-attack can approach reachable targets around terrain; see `docs/death_lane_attacks.md`.
 
-A fresh match first pauses at hero/passive selection. Match heroes use BAT 2.0,
+A fresh match first pauses at named-hero selection; each hero owns one fixed skill.
+Match heroes use BAT 2.0, regular creeps BAT 2.5, towers/catapults BAT 3.0,
 320 opening move speed and a 500% AS cap; tower range is 600. Item recipes and
 passive ranks are documented in `docs/late_game_items_passives.md`.

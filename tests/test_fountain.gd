@@ -28,19 +28,23 @@ func _run() -> void:
 	player.current_mana = 0
 	enemy.current_hp = 200
 	enemy.current_mana = 0
+	var player_max_hp: float = player.stats.max_hp
+	var player_max_mana: float = player.stats.max_mana
+	var enemy_max_hp: float = enemy.stats.max_hp
+	var enemy_max_mana: float = enemy.stats.max_mana
 	check(main.in_fountain(player) and main.in_fountain(enemy), "Both teams have allied spawn fountain")
 	for tick in range(30): main.clock.step()
-	check(is_equal_approx(player.current_hp, 524), "One second restores 20 percent max HP plus normal regen")
-	check(is_equal_approx(player.current_mana, 50), "One second restores 25 percent max mana")
-	check(is_equal_approx(enemy.current_hp, player.current_hp) and enemy.current_mana == player.current_mana, "Red fountain receives identical restoration")
+	check(is_equal_approx(player.current_hp, 200 + player_max_hp * 0.2 + player.stats.hp_regen), "One second restores 20 percent max HP plus normal regen")
+	check(is_equal_approx(player.current_mana, player_max_mana * 0.25 + player.stats.mana_regen), "One second restores 25 percent max mana plus regen")
+	check(is_equal_approx(enemy.current_hp, 200 + enemy_max_hp * 0.2 + enemy.stats.hp_regen) and is_equal_approx(enemy.current_mana, enemy_max_mana * 0.25 + enemy.stats.mana_regen), "Red fountain scales restoration to its named hero")
 	for tick in range(150): main.clock.step()
 	check(player.current_hp == player.stats.max_hp and player.current_mana == player.stats.max_mana, "Fountain reaches full resources without overflow")
-	check(main.combat.metrics.by_unit.player.healing_received == 1400, "Healing metrics count actual capped recovery only")
+	check(is_equal_approx(main.combat.metrics.by_unit.player.healing_received, player_max_hp - 200), "Healing metrics count actual capped recovery only")
 	place(main.player, blue + Vector2(main.settings.fountain_radius + 1, 0))
 	player.current_hp = 500
 	player.current_mana = 0
 	for tick in range(30): main.clock.step()
-	check(is_equal_approx(player.current_hp, 504) and player.current_mana == 0, "Leaving fountain immediately returns to ordinary regen")
+	check(absf(player.current_hp - (500 + player.stats.hp_regen)) < 0.01 and absf(player.current_mana - player.stats.mana_regen) < 0.01, "Leaving fountain immediately returns to ordinary regen")
 	place(main.player, red)
 	var before := player.current_hp
 	main._heal_fountains()
@@ -81,7 +85,7 @@ func _run() -> void:
 		main.clock.set_running(true)
 		main.clock.advance(1.0 / speed)
 		main.clock.set_running(false)
-		check(is_equal_approx(player.current_hp, 200 + player.stats.max_hp * 0.2 + player.stats.hp_regen) and is_equal_approx(player.current_mana, player.stats.max_mana * 0.25), "Same healing per simulation second at speed %.1f" % speed)
+		check(is_equal_approx(player.current_hp, 200 + player.stats.max_hp * 0.2 + player.stats.hp_regen) and is_equal_approx(player.current_mana, player.stats.max_mana * 0.25 + player.stats.mana_regen), "Same healing per simulation second at speed %.1f" % speed)
 	main._refresh_hud()
 	check("FOUNTAIN" in main.hud.text, "HUD shows fountain status")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":

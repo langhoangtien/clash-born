@@ -2,7 +2,9 @@
 [ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="1"]
 [resource]
 script = ExtResource("1")
-display_name = "Pháp sư"
+display_name = "Myra · Pháp sư"
 ranged_attacks = true
-base_overrides = {"base_hp": 1400.0, "base_mana": 500.0, "physical_damage": 40.0, "magic_damage": 60.0}
-per_level = {"base_hp": 100.0, "magic_damage": 10.0, "base_mana": 30.0, "movement_speed": 1.0}
+primary_attribute = 3
+passive_id = "pure_throw"
+base_overrides = {"strength": 18.0, "agility": 18.0, "intelligence": 30.0, "base_hp": 850.0, "base_mana": 320.0, "physical_damage": 38.0, "magic_damage": 75.0}
+per_level = {"strength": 1.7, "agility": 1.8, "intelligence": 3.7, "magic_damage": 8.0, "base_mana": 20.0}

@@ -1,10 +1,19 @@
-[gd_resource type="Resource" script_class="MatchSettings" load_steps=13 format=3]
+[gd_resource type="Resource" script_class="MatchSettings" load_steps=22 format=3]
 [ext_resource type="Script" path="res://scripts/match/match_settings.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/units/unit_stats.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="3"]
 [ext_resource type="Resource" path="res://data/match/ranger_growth.tres" id="4"]
 [ext_resource type="Resource" path="res://data/match/tank_growth.tres" id="5"]
 [ext_resource type="Resource" path="res://data/match/mage_growth.tres" id="6"]
+[ext_resource type="Resource" path="res://data/match/soul_hunter_growth.tres" id="7"]
+[ext_resource type="Resource" path="res://data/match/long_shot_growth.tres" id="8"]
+[ext_resource type="Resource" path="res://data/match/fury_growth.tres" id="9"]
+[ext_resource type="Resource" path="res://data/match/bash_growth.tres" id="10"]
+[ext_resource type="Resource" path="res://data/match/iron_growth.tres" id="11"]
+[ext_resource type="Resource" path="res://data/match/strength_growth.tres" id="12"]
+[ext_resource type="Resource" path="res://data/match/agility_growth.tres" id="13"]
+[ext_resource type="Resource" path="res://data/match/assassin_growth.tres" id="14"]
+[ext_resource type="Resource" path="res://data/match/feast_growth.tres" id="15"]
 [sub_resource type="Resource" id="hero"]
 script = ExtResource("2")
 display_name = "Hero"
@@ -26,6 +35,7 @@ base_hp = 700.0
 physical_damage = 35.0
 physical_armor = 4.0
 attack_range = 110.0
+base_attacks_per_second = 0.4
 movement_speed = 300.0
 collision_radius = 20.0
 [sub_resource type="Resource" id="ranged"]
@@ -34,7 +44,7 @@ display_name = "Ranged creep"
 base_hp = 450.0
 physical_damage = 45.0
 attack_range = 390.0
-base_attacks_per_second = 0.8
+base_attacks_per_second = 0.4
 movement_speed = 300.0
 collision_radius = 20.0
 ranged_attacks = true
@@ -46,7 +56,7 @@ physical_damage = 80.0
 physical_armor = 10.0
 magic_armor = 5.0
 attack_range = 300.0
-base_attacks_per_second = 0.65
+base_attacks_per_second = 0.333333333333
 movement_speed = 300.0
 collision_radius = 26.0
 ranged_attacks = true
@@ -59,7 +69,7 @@ physical_damage = 220.0
 physical_armor = 16.0
 magic_armor = 12.0
 attack_range = 600.0
-base_attacks_per_second = 0.9
+base_attacks_per_second = 0.333333333333
 collision_radius = 52.0
 ranged_attacks = true
 projectile_speed = 1000.0
@@ -76,7 +86,7 @@ ranged_attacks = true
 [resource]
 script = ExtResource("1")
 hero = SubResource("hero")
-hero_profiles = Array[ExtResource("3")]([ExtResource("4"), ExtResource("5"), ExtResource("6")])
+hero_profiles = Array[ExtResource("3")]([ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7"), ExtResource("8"), ExtResource("9"), ExtResource("10"), ExtResource("11"), ExtResource("12"), ExtResource("13"), ExtResource("14"), ExtResource("15")])
 melee_creep = SubResource("melee")
 ranged_creep = SubResource("ranged")
 siege_creep = SubResource("siege")

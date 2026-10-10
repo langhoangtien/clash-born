@@ -7,6 +7,8 @@ var runtime: UnitRuntimeState
 var selected: bool = false
 var damage_flash: float = 0.0
 var hit_notice: String = ""
+var hit_notice_color: Color = Color(1, 0.78, 0.45)
+var hit_notices: Array[Dictionary] = []
 var show_range_indicators: bool = true
 var show_resource_bars: bool = true
 var structure_visual: bool = false
@@ -15,6 +17,9 @@ var siege_visual: bool = false
 
 func _process(delta: float) -> void:
 	damage_flash = maxf(0, damage_flash - delta)
+	for index in range(hit_notices.size() - 1, -1, -1):
+		hit_notices[index].time = float(hit_notices[index].time) - delta
+		if hit_notices[index].time <= 0: hit_notices.remove_at(index)
 	if runtime != null: position = runtime.position
 	queue_redraw()
 
@@ -25,18 +30,37 @@ func _unhandled_input(event: InputEvent) -> void:
 			unit_selected.emit(visual_data.unit_id)
 			get_viewport().set_input_as_handled()
 
-func show_damage(amount: float, critical: bool = false) -> void:
+func show_damage(amount: float, critical: bool = false, damage_type: int = DamageCalculator.DamageType.PHYSICAL) -> void:
 	hit_notice = ("CRIT " if critical else "") + "-%.1f" % amount
+	hit_notice_color = {
+		DamageCalculator.DamageType.PHYSICAL: Color(0.25, 0.68, 1.0),
+		DamageCalculator.DamageType.MAGICAL: Color(1.0, 1.0, 1.0),
+		DamageCalculator.DamageType.PURE: Color(0.8, 0.35, 1.0),
+	}.get(damage_type, Color.WHITE)
+	hit_notices.append({"text": hit_notice, "color": hit_notice_color, "time": 0.7})
+	if hit_notices.size() > 4: hit_notices.pop_front()
 	damage_flash = 0.5
 
 func show_miss() -> void:
 	hit_notice = "MISS"
+	hit_notice_color = Color(1.0, 0.82, 0.25)
+	hit_notices.append({"text": hit_notice, "color": hit_notice_color, "time": 0.7})
+	if hit_notices.size() > 4: hit_notices.pop_front()
 	damage_flash = 0.5
 
 func _center_text(text: String, y: float, size_value: int, color: Color = Color.WHITE) -> void:
 	var font := ThemeDB.fallback_font
 	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_value).x
 	draw_string(font, Vector2(-width / 2, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_value, color)
+
+func status_labels() -> PackedStringArray:
+	var statuses: PackedStringArray = []
+	if runtime == null: return statuses
+	for effect in runtime.effects.active:
+		var tag: String = ["CHOÁNG", "CHẬM", "TRỪ GIÁP", "TẦM ĐÁNH", "TẦM PHÉP", "CHẬM ĐÁNH"][effect.kind]
+		if tag not in statuses: statuses.append(tag)
+	if not runtime.casting.is_empty(): statuses.append("ĐANG NIỆM")
+	return statuses
 
 func _draw() -> void:
 	if visual_data == null or runtime == null: return
@@ -70,14 +94,13 @@ func _draw() -> void:
 		_draw_bar(32 if compact_visual else 44, runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
 		if not compact_visual: _draw_bar(56, runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0, Color(0.25, 0.55, 0.95))
 		if selected: _center_text("%.0f / %.0f" % [runtime.current_hp, runtime.stats.max_hp], 82, 20)
-	var statuses: PackedStringArray = []
-	for effect in runtime.effects.active:
-		var tag: String = ["S", "L", "A", "AR", "CR"][effect.kind]
-		if tag not in statuses: statuses.append(tag)
-	if not runtime.casting.is_empty(): statuses.append("C")
+	var statuses := status_labels()
 	if not statuses.is_empty() and runtime.alive: _center_text(" ".join(statuses), 8, 18, Color(0.07, 0.08, 0.1))
 	if not runtime.alive: _center_text("DEAD", 8, 18)
-	elif damage_flash > 0: _center_text(hit_notice, -80, 24, Color(1, 0.78, 0.45))
+	else:
+		for index in range(hit_notices.size()):
+			var notice: Dictionary = hit_notices[hit_notices.size() - 1 - index]
+			_center_text(notice.text, -80.0 - index * 25.0, 24, notice.color)
 
 func _draw_bar(y: float, ratio: float, color: Color) -> void:
 	var width := 50.0 if compact_visual else 90.0

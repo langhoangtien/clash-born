@@ -12,6 +12,7 @@ var cores: Array[MapUnit] = []
 var camera: Camera2D
 var controls: Control
 var hud: Label
+var quick_stats: Label
 var message: Label
 var result_panel: PanelContainer
 var result_label: Label
@@ -49,10 +50,11 @@ func _ready() -> void:
 	], 777)
 	if settings.hero_profiles.is_empty(): settings.hero_profiles.append(HeroGrowth.new())
 	var profile_index := clampi(HeroProgression.selected_profile, 0, settings.hero_profiles.size() - 1)
+	var enemy_profile_index := 5 if settings.hero_profiles.size() > 5 else 0
 	progression.player = HeroProgression.new(combat.get_unit("player"), settings.hero, settings.hero_profiles[profile_index], settings, combat.balance)
-	progression.enemy_hero = HeroProgression.new(combat.get_unit("enemy_hero"), settings.hero, settings.hero_profiles[0], settings, combat.balance)
-	progression.player.select_passive(HeroProgression.selected_passive)
-	progression.enemy_hero.select_passive(4)
+	progression.enemy_hero = HeroProgression.new(combat.get_unit("enemy_hero"), settings.hero, settings.hero_profiles[enemy_profile_index], settings, combat.balance)
+	progression.player.select_profile_skill()
+	progression.enemy_hero.select_profile_skill()
 	player = _attach(combat.get_unit("player"), settings.hero, "hero", "MID")
 	enemy_hero = _attach(combat.get_unit("enemy_hero"), settings.hero, "hero", "MID")
 	player.view.selected = true
@@ -90,10 +92,11 @@ func _ready() -> void:
 
 func _start_draft() -> void:
 	draft_mode = true
+	if quick_stats != null: quick_stats.get_parent().hide()
 	shop.show()
 	shop.set_draft_mode(true)
 	set_paused(true)
-	message.text = "CHỌN HERO + NỘI TẠI KHỞI ĐẦU"
+	message.text = "CHỌN HERO VÀ KỸ NĂNG RIÊNG"
 
 func _entry(id: String, team: int, source: UnitStats, point: Vector2) -> Dictionary:
 	return {"id": id, "team": team, "source": source, "position": point, "ai": false}
@@ -204,8 +207,10 @@ func _tick(_index: int) -> void:
 	var events := combat.step()
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
-			entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical)
+			entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical, event.damage_type)
 			if event.applied_damage > 0: rewards.record_damage(event.target_unit_id, event.source_unit_id, combat.tick_count, progression)
+		elif event.kind == "miss" and entities.has(event.target_unit_id):
+			entities[event.target_unit_id].actor.view.show_miss()
 		elif event.kind == "death": _on_death(event.target_unit_id, events)
 	for id in entities.keys():
 		if entities[id].kind == "creep" and not entities[id].actor.runtime.alive:
@@ -371,7 +376,7 @@ func toggle_shop() -> void:
 
 func toggle_opponents() -> void:
 	if draft_mode:
-		message.text = "Hãy chọn hero và nội tại trước"
+		message.text = "Hãy chọn hero trước"
 		return
 	_stop_player()
 	controls.release_all()
@@ -452,6 +457,17 @@ func _build_ui() -> void:
 	controls.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	controls.attack_requested.connect(request_attack)
 	layer.add_child(controls)
+	var quick_panel := PanelContainer.new()
+	quick_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	quick_panel.position = Vector2(-410, -105)
+	quick_panel.size = Vector2(820, 95)
+	quick_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	quick_stats = Label.new()
+	quick_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	quick_stats.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	quick_stats.add_theme_font_size_override("font_size", 17)
+	quick_panel.add_child(quick_stats)
+	layer.add_child(quick_panel)
 	minimap = Control.new()
 	minimap.set_script(preload("res://scripts/match/match_minimap.gd"))
 	minimap.position = Vector2(1365, 18)
@@ -468,8 +484,8 @@ func _build_ui() -> void:
 	shop.buy_requested.connect(buy_item)
 	shop.sell_requested.connect(sell_item)
 	shop.passive_upgrade_requested.connect(func():
-		if progression.player.upgrade_passive(): shop.feedback.text = "Đã nâng nội tại lên cấp %d" % progression.player.passive_level
-		else: shop.feedback.text = "Không có điểm hoặc nội tại đã tối đa"
+		if progression.player.upgrade_passive(): shop.feedback.text = "Đã nâng kỹ năng lên cấp %d" % progression.player.passive_level
+		else: shop.feedback.text = "Không có điểm hoặc kỹ năng đã tối đa"
 		shop.refresh()
 	)
 	shop.hero_requested.connect(func(index: int): HeroProgression.selected_profile = index; get_tree().reload_current_scene())
@@ -513,6 +529,9 @@ func _refresh_hud() -> void:
 	hud.text = "CLASHBORN · %02d:%02d · BLUE %d : %d RED\nHP %.0f / %.0f · Lính hạ: %d · Đợt lính: %d" % [combat.tick_count / 1800, (combat.tick_count / 30) % 60, scores[0], scores[1], state.current_hp, state.stats.max_hp, creep_kills, wave_number]
 	var hero: HeroProgression = progression.player
 	hud.text += "\n%s · LV %d · XP %d/%d · Vàng %d [B]" % [hero.profile.display_name, hero.level, hero.experience, hero.required_xp(), hero.gold]
+	var stats := state.stats
+	var reduction := (1.0 - DamageCalculator.armor_multiplier(state.physical_armor(), combat.balance.armor_coefficient)) * 100.0
+	quick_stats.text = "%s · LV %d · %s LV%d · %d vàng\nHP %.0f/%.0f · Mana %.0f/%.0f · Dmg %.0f/%.0f/%.0f · AS %.2f/s · BAT %.1fs\nGiáp %.1f (giảm %.0f%%) · Miss %.0f%% · STR %.0f · AGI %.0f · INT %.0f" % [hero.profile.display_name, hero.level, HeroPassiveCatalog.definition(hero.passive_id).name, hero.passive_level, hero.gold, state.current_hp, stats.max_hp, state.current_mana, stats.max_mana, stats.physical_damage, stats.magic_damage, stats.pure_damage, state.attack_speed(), stats.base_attack_time, state.physical_armor(), reduction, stats.evasion * 100, stats.strength, stats.agility, stats.intelligence]
 	if in_fountain(state): hud.text += " · FOUNTAIN +HP/MANA"
 	if shop.visible: shop.refresh()
 	if opponent_panel.visible: opponent_panel.refresh()
@@ -525,7 +544,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_J: request_attack("creep")
 			KEY_K: request_attack("hero")
 			KEY_SPACE: _stop_player()
-			KEY_P: set_paused(not paused) if not draft_mode else message.set_text("Hãy chọn hero và nội tại trước")
+			KEY_P: set_paused(not paused) if not draft_mode else message.set_text("Hãy chọn hero trước")
 			KEY_F: camera.follow_enabled = true
 			KEY_B: toggle_shop()
 			KEY_TAB: toggle_opponents()

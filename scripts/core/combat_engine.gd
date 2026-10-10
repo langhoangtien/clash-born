@@ -333,7 +333,7 @@ func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Diction
 		bash.final_damage = DamageCalculator.calculate(bash.raw_damage, bash.damage_type, target.physical_armor(), target.stats.magic_armor, balance)
 		bash.is_attack = true
 		pending.append(bash)
-	var pure_on_hit: float = stats.physical_damage * stats.get("passive_pure_fraction", 0.0) + target.stats.max_hp * stats.get("passive_max_hp_fraction", 0.0)
+	var pure_on_hit: float = stats.get("base_physical_damage", stats.physical_damage) * stats.get("passive_pure_fraction", 0.0) + target.stats.max_hp * stats.get("passive_max_hp_fraction", 0.0)
 	if pure_on_hit > 0 and not target.is_structure:
 		var pure := _event("damage", source_id, target.unit_id)
 		pure.damage_type = DamageCalculator.DamageType.PURE

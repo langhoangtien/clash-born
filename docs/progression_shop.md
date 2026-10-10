@@ -1,20 +1,21 @@
 # Hero level and shop
 
-Press **B** or **Shop / Hero** in the match. Buy from the 23-item match catalog of components and recipes with icons,
+Press **B** or **Shop / Hero** in the match. Buy from the 25-item match catalog of components and recipes with icons,
 inspect six slots, click an equipped item to sell. Purchase auto-equips into the
 first free slot. Insufficient gold, duplicate exclusive items and a full inventory
-are rejected without charging. Selling refunds 50% (rounded down). No recipes.
+are rejected without charging. Selling refunds 50% (rounded down). Final recipes
+can be purchased directly and discount owned direct components.
 Shop is available anywhere, including while dead; the match continues unless P
 pauses it. Opening the panel stops hero approach/attack and movement input.
 
-The dropdown and **Chọn hero & chơi trận mới** restart the match with that hero.
-Default hero remains ranger, preserving the existing playable controls.
+The dropdown and **Chọn hero & chơi trận mới** restart the match with that named
+hero and its fixed skill. The default remains Aelira, preserving the controls.
 
-| Hero | Base HP | Per-level growth |
+| Hero | Base STR/AGI/INT | Skill and main growth |
 | --- | --- | --- |
-| Xạ thủ | 1600 | HP +120, physical damage +7, attack speed bonus +2.5 percentage points, move speed +2 |
-| Đỡ đòn | 2400 | HP +200, physical damage +5, armor +0.8, move speed +1; melee |
-| Pháp sư | 1400 | HP +100, magic damage +10, mana +30, move speed +1 |
+| Aelira · Xạ thủ | 21/27/17 | Base Power; AGI +3.2/level |
+| Brakk · Thiết Quyền | 30/16/15 | Battle Rhythm; STR +3.8/level; melee |
+| Myra · Pháp sư | 18/18/30 | Pure Throw; INT +3.7/level |
 
 Growth and equipment are recalculated through existing StatCalculator. Buying,
 selling or leveling preserves current HP/Mana percentage, effects, attack/cast
@@ -43,7 +44,7 @@ shop live in HeroProgression and match_shop; structure damage remains in CombatE
 ## Changed files and verification
 
 New: `scripts/match/hero_growth.gd`, `hero_progression.gd`, `match_shop.gd`,
-their UID companions; three `data/match/*_growth.tres` Resources;
+their UID companions; twelve `data/match/*_growth.tres` Resources;
 `tests/test_progression_shop.gd` and UID; this document.
 Updated: `scripts/match/match_settings.gd`, `moba_match.gd`,
 `data/match/default_match.tres`, `README.md`, `DESIGN.md`,
@@ -59,8 +60,8 @@ All regression suites also executed: Phase 1–6 **23/112/170/645/170/690**, ran
 **93**, playable match **66** checks; zero failures.
 
 Hero growth/economy remain experimental. No persistence between matches,
-The original limitation above has been superseded: recipes and one five-rank
-starting passive are implemented in `docs/late_game_items_passives.md`. Two future
+The original limitation above has been superseded: direct recipe purchases and one
+fixed five-rank skill per named hero are implemented in `docs/late_game_items_passives.md`. Two future
 active skill slots are still pending.
 
 Latest siege/economy/navigation tuning: `match_balance.md`.

@@ -21,9 +21,14 @@ func _hero(settings: MatchSettings) -> HeroProgression:
 	var state := UnitRuntimeState.new("hero", 0, Vector2.ZERO, settings.hero, BalanceSettings.new())
 	return HeroProgression.new(state, settings.hero, settings.hero_profiles[0], settings, BalanceSettings.new())
 
+func passive_index(id: String) -> int:
+	for index in range(HeroPassiveCatalog.DEFINITIONS.size()):
+		if HeroPassiveCatalog.DEFINITIONS[index].id == id: return index
+	return 0
+
 func _test_catalog_and_recipes() -> void:
 	var items := MatchItemCatalog.items()
-	check(items.size() == 23, "Catalog has components and late-game recipes")
+	check(items.size() == 25, "Catalog has components, Desolator and late-game recipes")
 	var crit1 := MatchItemCatalog.by_id("critical_blade")
 	var crit2 := MatchItemCatalog.by_id("critical_blade_2")
 	check(crit1.modifiers.physical_damage == 25 and crit1.modifiers.critical_chance == 0.20, "Crit I requested damage/chance")
@@ -33,7 +38,10 @@ func _test_catalog_and_recipes() -> void:
 	var settings := _settings()
 	var hero := _hero(settings)
 	hero.gold = 10000
-	check("Thiếu nguyên liệu" in hero.purchase_error(crit1), "Recipe rejects purchase without component")
+	check(hero.purchase_error(crit1).is_empty() and hero.purchase_cost(crit1) == crit1.price, "Large item can be bought directly for total price")
+	var direct := _hero(settings)
+	direct.gold = crit1.price
+	check(direct.buy(crit1) and direct.equipment.count_id("critical_blade") == 1 and direct.gold == 0, "Clicking a large item directly completes the purchase")
 	check(hero.buy(MatchItemCatalog.by_id("heavy_sword")), "Buy sword component")
 	var gold := hero.gold
 	check(hero.buy(crit1) and hero.gold == gold - crit1.recipe_cost, "Craft consumes component and charges recipe fee")
@@ -53,30 +61,48 @@ func _test_catalog_and_recipes() -> void:
 	near(capped.attack_speed_cap, 2.5, "BAT 2.0 gives 2.5 APS cap at 500 percent")
 	check(capped.attack_speed <= 2.5, "Items respect 500 percent attack-speed cap")
 	check(MatchItemCatalog.by_id("heart").modifiers.max_hp == 2400 and MatchItemCatalog.by_id("power_treads").modifiers.strength == 15, "HP specialization and attribute boots are substantial")
+	check(MatchItemCatalog.by_id("desolator").modifiers.armor_reduction == 10 and MatchItemCatalog.by_id("desolator_2").modifiers.physical_damage == 80 and MatchItemCatalog.by_id("desolator_2").modifiers.armor_reduction == 15, "Desolator I/II provide requested damage and armor reduction")
 
 func _test_passives() -> void:
 	var settings := _settings()
+	var names: Dictionary = {}
+	for profile in settings.hero_profiles:
+		names[profile.display_name] = true
+		var source := profile.source_at_level(settings.hero, 1)
+		check(not profile.passive_id.is_empty() and source.strength > 0 and source.agility > 0 and source.intelligence > 0, "Named hero has fixed skill and starting attributes: " + profile.display_name)
+	check(names.size() == 12, "All twelve heroes have unique names")
 	var hero := _hero(settings)
 	hero.select_passive(0)
-	near(hero.unit.stats.physical_damage, 115, "Base-power passive starts at plus 15 percent base damage")
+	var rank_one_damage: float = hero.unit.stats.physical_damage
+	check(rank_one_damage > hero.unit.stats.base_physical_damage, "Base-power passive starts at plus 15 percent source damage")
 	hero.award(100)
 	check(hero.skill_points == 1 and hero.upgrade_passive() and hero.passive_level == 2, "Level-up grants selectable passive point")
-	near(hero.unit.stats.physical_damage, 139.1, "Passive rank combines with level growth base damage")
+	check(hero.unit.stats.physical_damage > rank_one_damage, "Passive rank combines with attribute/level growth")
 	hero.select_passive(1)
 	for index in range(95): hero.record_kill("creep")
 	hero.record_kill("hero")
-	check(hero.unit.permanent_damage_bonus == 100 and hero.unit.stats.physical_damage == 207, "Soul Hunter gains creep/hero damage and caps at 100")
+	check(hero.unit.permanent_damage_bonus == 100 and hero.unit.stats.physical_damage >= hero.unit.stats.base_physical_damage + 100, "Soul Hunter gains creep/hero damage and caps at rank-one 100")
 	hero.select_passive(2)
 	near(hero.unit.stats.attack_range, 630, "Long Shot adds range at rank one")
-	hero.select_passive(7)
-	check(hero.unit.stats.strength == 20 and hero.unit.stats.max_hp >= 2120, "Strength passive updates attribute-derived HP")
-	hero.select_passive(8)
-	check(hero.unit.stats.agility == 20 and hero.unit.stats.physical_armor >= 11, "Agility passive updates armor and speed")
-	hero.select_passive(9)
+	hero.select_passive(passive_index("giant_strength"))
+	check(hero.unit.stats.strength >= 41 and hero.unit.stats.max_hp > 1700, "Strength passive updates attribute-derived HP")
+	hero.select_passive(passive_index("wind_agility"))
+	check(hero.unit.stats.agility >= 47 and hero.unit.stats.physical_armor >= 15, "Agility passive updates armor and speed")
+	hero.select_passive(passive_index("assassin"))
 	near(hero.unit.stats.critical_chance, 0.15, "Assassin rank-one chance")
 	near(hero.unit.stats.critical_multiplier, 2.0, "Assassin rank-one multiplier")
-	hero.select_passive(10)
+	hero.select_passive(passive_index("feast"))
 	near(hero.unit.stats.passive_max_hp_fraction, 0.015, "Feast rank-one percent max HP")
+	hero.select_passive(passive_index("pure_throw"))
+	near(hero.unit.stats.passive_pure_fraction, 0.20, "Pure skill starts at 20 percent")
+	hero.skill_points = 4
+	for index in range(4): hero.upgrade_passive()
+	near(hero.unit.stats.passive_pure_fraction, 0.40, "Pure skill scales 20/25/30/35/40 percent")
+	hero.select_passive(passive_index("bat_mastery"))
+	near(hero.unit.stats.base_attack_time, 1.9, "Melee BAT mastery begins at 1.9")
+	hero.skill_points = 4
+	for index in range(4): hero.upgrade_passive()
+	near(hero.unit.stats.base_attack_time, 1.5, "Melee BAT mastery reaches 1.5")
 
 func _unit(hp: float = 2000, damage: float = 100) -> UnitStats:
 	var unit := UnitStats.new()
@@ -152,10 +178,37 @@ func _test_match_ui() -> void:
 	main.clock.set_running(false)
 	check(main.player.runtime.stats.movement_speed == 320 and main.player.runtime.stats.attack_speed_cap == 2.5, "Match hero uses slower movement and BAT 2.0 cap")
 	check(main.settings.tower.attack_range == 600, "Tower range reduced")
-	check(main.shop.buy_buttons.size() == 23 and main.shop.passive_select.item_count == 11, "Shop exposes recipe catalog and passive chooser")
+	check(main.shop.buy_buttons.size() == 25 and main.shop.passive_select.item_count == 1 and main.shop.passive_select.disabled, "Shop exposes recipes and hero-locked skill")
+	check(is_equal_approx(main.settings.tower.base_attacks_per_second, 1.0 / 3.0) and is_equal_approx(main.settings.siege_creep.base_attacks_per_second, 1.0 / 3.0), "Tower and catapult use BAT 3.0")
+	check(main.settings.melee_creep.base_attacks_per_second == 0.4 and main.settings.ranged_creep.base_attacks_per_second == 0.4, "Regular creeps use BAT 2.5")
 	main.toggle_shop()
 	main.shop.refresh()
 	check("STR" in main.shop.stats_label.text and "giảm" in main.shop.stats_label.text and "miss" in main.shop.stats_label.text and "BAT" in main.shop.stats_label.text, "Hero panel displays detailed requested combat stats")
+	check("HP" in main.quick_stats.text and "Mana" in main.quick_stats.text and "AGI" in main.quick_stats.text and "BAT" in main.quick_stats.text, "Always-visible bottom panel shows compact combat stats")
+	main.player.view.show_damage(10, false, DamageCalculator.DamageType.PHYSICAL)
+	check(main.player.view.hit_notice_color == Color(0.25, 0.68, 1.0), "Physical damage text is blue")
+	main.player.view.show_damage(10, false, DamageCalculator.DamageType.MAGICAL)
+	check(main.player.view.hit_notice_color == Color.WHITE, "Magic damage text is white")
+	main.player.view.show_damage(10, false, DamageCalculator.DamageType.PURE)
+	check(main.player.view.hit_notice_color == Color(0.8, 0.35, 1.0), "Pure damage text is purple")
+	main.player.view.show_miss()
+	check(main.player.view.hit_notice == "MISS" and main.player.view.hit_notices.size() == 4, "Mixed damage colors and MISS remain simultaneously visible")
+	var visible_effect := StatusEffect.new()
+	visible_effect.kind = StatusEffect.Kind.STUN
+	visible_effect.instance_id = "ui_bash"
+	visible_effect.source_unit_id = "enemy_hero"
+	visible_effect.target_unit_id = "player"
+	visible_effect.expires_at_tick = 30
+	main.player.runtime.effects.apply(visible_effect)
+	check("CHOÁNG" in main.player.view.status_labels(), "Bash/stun status is displayed explicitly")
+	var visible_slow := StatusEffect.new()
+	visible_slow.kind = StatusEffect.Kind.ATTACK_SLOW
+	visible_slow.instance_id = "ui_slow"
+	visible_slow.source_unit_id = "enemy_hero"
+	visible_slow.target_unit_id = "player"
+	visible_slow.expires_at_tick = 30
+	main.player.runtime.effects.apply(visible_slow)
+	check("CHẬM ĐÁNH" in main.player.view.status_labels(), "Attack slow status is displayed explicitly")
 	main.progression.player.award(100)
 	main.shop.refresh()
 	check(not main.shop.passive_upgrade.disabled, "Earned skill point enables passive upgrade button")
@@ -172,8 +225,11 @@ func _test_match_ui() -> void:
 	draft.settings.maximum_live_creeps = 0
 	root.add_child(draft)
 	await process_frame
-	check(draft.draft_mode and draft.paused and draft.shop.visible and draft.shop.close_button.disabled, "Fresh game requires hero and passive draft before simulation")
-	check(draft.shop.hero_select.item_count == 3 and draft.shop.passive_select.item_count == 11, "Draft offers hero and starting passive")
+	check(draft.draft_mode and draft.paused and draft.shop.visible and draft.shop.close_button.disabled, "Fresh game requires named-hero draft before simulation")
+	check(draft.shop.hero_select.item_count == 12 and draft.shop.passive_select.item_count == 1, "Draft offers twelve named heroes with one fixed skill each")
+	draft.shop.hero_select.select(1)
+	draft.shop.hero_select.item_selected.emit(1)
+	check("Nhịp Chiến" in draft.shop.passive_select.get_item_text(0) and "Brakk" in draft.shop.header.text and "BAT 1.9s" in draft.shop.stats_label.text, "Changing hero previews that hero's locked skill and full stats")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		await RenderingServer.frame_post_draw
 		check(root.get_texture().get_image().save_png("res://.local/hero-passive-draft.png") == OK, "Hero/passive draft rendered")

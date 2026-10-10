@@ -57,7 +57,7 @@ func physical_armor() -> float:
 	return stats.physical_armor - effects.armor_reduction()
 
 func attack_speed() -> float:
-	var fury_bonus := fury_stacks * 0.10 * passive_level if passive_id == "fury" and current_tick < fury_expires_tick else 0.0
+	var fury_bonus: float = fury_stacks * float(stats.get("passive_fury_per_stack", 0.0)) if passive_id == "fury" and current_tick < fury_expires_tick else 0.0
 	var result: float = stats.attack_speed * (1.0 + fury_bonus) * (1.0 - effects.strongest_attack_slow())
 	return clampf(result, 0.1, stats.get("attack_speed_cap", 999.0))
 

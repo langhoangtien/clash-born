@@ -2,6 +2,9 @@
 [ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="1"]
 [resource]
 script = ExtResource("1")
-display_name = "Xạ thủ"
+display_name = "Aelira · Xạ thủ"
 ranged_attacks = true
-per_level = {"base_hp": 120.0, "physical_damage": 7.0, "attack_speed_bonus": 0.025, "movement_speed": 2.0}
+primary_attribute = 2
+passive_id = "base_power"
+base_overrides = {"strength": 21.0, "agility": 27.0, "intelligence": 17.0, "base_hp": 900.0, "base_mana": 180.0, "physical_damage": 82.0}
+per_level = {"strength": 2.0, "agility": 3.2, "intelligence": 1.6, "physical_damage": 4.0, "attack_speed_bonus": 0.015, "movement_speed": 1.0}

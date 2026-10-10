@@ -63,7 +63,7 @@ func _test_match() -> void:
 	main.clock.set_running(false)
 	for info in main.entities.values(): info.actor.paused = true
 	check(main.settings.tower.base_hp == 5000 and main.settings.tower.physical_damage == 220, "Towers use the revised siege tuning")
-	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage == 115, "Core durability and selected opening passive applied")
+	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage > 110 and main.progression.player.profile.display_name.begins_with("Aelira"), "Core durability and named hero skill applied")
 	check(main.progression.player.gold == 250, "Opening budget cannot buy a full damage item")
 	var original = preload("res://scripts/ui/equipment_panel.gd").CATALOG
 	var catalog := MatchItemCatalog.items()

@@ -224,8 +224,9 @@ Hồi sinh tăng theo cấp: 8 + 2 × (LV−1) giây; chết mất tối đa 25 
 Đã sửa J không tiếp cận creep bị tường che ở TOP/BOT; hero tìm đường vòng
 rồi mới đánh khi đủ range/line-of-sight. Chi tiết: `docs/death_lane_attacks.md`.
 
-Shop trận có 23 component/recipe mạnh, Crit I/II, Bash, Giáp Băng, Giáp Phản,
-Heart, giày và đồ attribute. Trận mở bằng chọn hero + một nội tại 5 cấp; bảng
-shop/Tab hiển thị chỉ số đầy đủ. Lính melee/ranged/xe thưởng 40/50/75 vàng;
-hero bounty và assist được tăng gấp đôi. Hero BAT 2.0, trần AS 500%, tốc chạy đầu 320,
+Shop trận có 25 component/recipe mạnh, Crit I/II, Bash, Desolator I/II, Giáp Băng,
+Giáp Phản, Heart, giày và đồ attribute. Có 12 hero có tên, attribute/growth và một
+kỹ năng riêng 5 cấp; bảng chỉ số nhỏ luôn hiện dưới màn hình. Damage vật lý/phép/pure
+hiện màu xanh/trắng/tím; miss và hiệu ứng hiện trên unit. Lính melee/ranged/xe thưởng 40/50/75 vàng;
+hero bounty và assist được tăng gấp đôi. Hero BAT 2.0, creep BAT 2.5, trụ/xe BAT 3.0, trần AS 500%, tốc chạy đầu 320,
 tầm trụ 600. Chi tiết: `docs/late_game_items_passives.md`.

@@ -1,13 +1,14 @@
 class_name HeroPassiveCatalog
 extends RefCounted
-## One selectable starting passive. Each can be raised from level 1 to 5.
+## Fixed hero-skill definitions. Every named hero owns one skill with five ranks.
 
 const DEFINITIONS: Array[Dictionary] = [
-	{"id": "base_power", "name": "Sức Mạnh Căn Bản", "description": "+15% base damage mỗi cấp"},
-	{"id": "soul_hunter", "name": "Săn Linh Hồn", "description": "+1 damage/creep, +5/hero; giới hạn 100"},
-	{"id": "long_shot", "name": "Tầm Bắn", "description": "+80 Attack Range mỗi cấp"},
-	{"id": "pure_throw", "name": "Phi Tiêu Pure", "description": "mỗi đòn thêm 20% base damage pure mỗi cấp"},
-	{"id": "fury", "name": "Cuồng Tốc", "description": "đánh trúng +10% tốc đánh mỗi cấp trong 6 giây, tối đa 10 stack"},
+	{"id": "base_power", "name": "Sức Mạnh Căn Bản", "description": "+15/20/25/30/35% base damage"},
+	{"id": "soul_hunter", "name": "Săn Linh Hồn", "description": "kill creep +1–3, hero +5–13 damage; giới hạn tăng theo cấp"},
+	{"id": "long_shot", "name": "Tầm Bắn", "description": "+80/120/160/200/240 Attack Range"},
+	{"id": "pure_throw", "name": "Phi Tiêu Pure", "description": "mỗi đòn thêm 20/25/30/35/40% base damage pure"},
+	{"id": "fury", "name": "Cuồng Tốc", "description": "đánh trúng +10/12.5/15/17.5/20% AS trong 6 giây, tối đa 10 stack"},
+	{"id": "bat_mastery", "name": "Nhịp Chiến", "description": "giảm BAT còn 1.9/1.8/1.7/1.6/1.5 giây"},
 	{"id": "melee_bash", "name": "Bash Cận Chiến", "description": "20% choáng 1.5 giây, bonus 30/40/50/60/70"},
 	{"id": "iron_skin", "name": "Da Sắt", "description": "+6/8/10/12/14 giáp"},
 	{"id": "giant_strength", "name": "Cường Lực", "description": "+20/30/40/50/60 STR"},
@@ -35,10 +36,21 @@ static func apply(stats: Dictionary, source: UnitStats, id: String, level: int, 
 	stats.passive_bash_chance = 0.0
 	stats.passive_bash_duration = 0.0
 	stats.passive_bash_damage = 0.0
+	stats.passive_fury_per_stack = 0.0
 	match id:
-		"base_power": stats.physical_damage += source.physical_damage * 0.15 * rank
-		"long_shot": stats.attack_range += 80.0 * rank
-		"pure_throw": stats.passive_pure_fraction = 0.20 * rank
+		"base_power": stats.physical_damage += source.physical_damage * [0.15, 0.20, 0.25, 0.30, 0.35][rank - 1]
+		"long_shot": stats.attack_range += [80.0, 120.0, 160.0, 200.0, 240.0][rank - 1]
+		"pure_throw": stats.passive_pure_fraction = [0.20, 0.25, 0.30, 0.35, 0.40][rank - 1]
+		"fury": stats.passive_fury_per_stack = [0.10, 0.125, 0.15, 0.175, 0.20][rank - 1]
+		"bat_mastery":
+			var new_bat: float = [1.9, 1.8, 1.7, 1.6, 1.5][rank - 1]
+			var old_base: float = maxf(stats.base_attacks_per_second, 0.001)
+			var speed_multiplier: float = stats.attack_speed / old_base
+			var new_base := 1.0 / new_bat
+			stats.base_attack_time = new_bat
+			stats.base_attacks_per_second = new_base
+			stats.attack_speed_cap = new_base * 5.0
+			stats.attack_speed = minf(stats.attack_speed_cap, new_base * speed_multiplier)
 		"melee_bash":
 			stats.passive_bash_chance = 0.20
 			stats.passive_bash_duration = 1.5

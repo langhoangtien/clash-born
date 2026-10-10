@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="HeroGrowth" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="1"]
+[resource]
+script = ExtResource("1")
+display_name = "Ferrum · Hộ Vệ"
+ranged_attacks = false
+primary_attribute = 1
+passive_id = "iron_skin"
+base_overrides = {"strength": 31.0, "agility": 14.0, "intelligence": 17.0, "base_hp": 1150.0, "physical_damage": 68.0, "physical_armor": 11.0, "attack_range": 150.0}
+per_level = {"strength": 4.0, "agility": 1.2, "intelligence": 1.8, "physical_armor": 0.3}

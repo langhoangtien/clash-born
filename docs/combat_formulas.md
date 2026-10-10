@@ -224,16 +224,21 @@ line-of-sight, vẫn kiểm tra range và damage tại impact như trước.
 Match APS = clamp(BaseAPS × (1 + AGI×0.005 + các bonus AS), minimum,
 min(absolute_cap, BaseAPS×5)). Hero match dùng BaseAPS=0.5 (BAT 2.0), nên trần
 500% là 2.5 đòn/s. Slow tốc đánh nhân tiếp `(1 − strongest_attack_slow)`;
-Cuồng Tốc nhân `(1 + stacks × 0.10 × skill_level)`, rồi vẫn clamp ở cap.
+Cuồng Tốc nhân `(1 + stacks × rank_value)`, rank value là
+10/12.5/15/17.5/20%, rồi vẫn clamp ở cap. Lính thường dùng BAT 2.5; trụ và xe
+bắn đá dùng BAT 3.0. Nhịp Chiến đổi BAT thành 1.9/1.8/1.7/1.6/1.5 theo rank.
 
 Bash roll một lần sau hit/miss/crit roll thành công. Bonus bash là physical và
 stun nhận status resistance. Giáp Băng áp ATTACK_SLOW lên nguồn gây basic-attack
 damage. Giáp Phản gây pure = applied incoming component × 0.15 và gắn cờ reflected,
-không tạo vòng phản mới. Pure Throw = source base physical damage × 20% × rank;
+không tạo vòng phản mới. Pure Throw = source base physical damage ×
+20/25/30/35/40%;
 Feast = target max HP × (1% + 0.5%×rank). Các on-hit này không tác động công trình.
 Projectile thực hiện toàn bộ roll/effect tại impact.
 
-Recipe yêu cầu đủ multiset component; giá trả lúc ghép là recipe_cost, component
-bị xóa và final item chiếm một slot. Giá total dùng cho bán lại. Crit I override
+Click recipe mua thẳng nếu đủ tiền. Component trực tiếp đang sở hữu bị xóa và
+giảm giá đúng full price; phần thiếu được trả từ vàng. Final item chiếm một slot.
+Desolator I/II thêm 50/80 damage và trừ 10/15 armor qua công thức armor reduction
+hiện có. Giá total dùng cho bán lại. Crit I override
 hệ số crit thành 1.2; Crit II thành 2.5. Chi tiết item, passive và UI:
 `docs/late_game_items_passives.md`.

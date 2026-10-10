@@ -241,7 +241,7 @@ Income runs on a configurable simulation-tick interval; pause stops it. Defaults
 is 100 + 50*(level-1); overflow can grant several levels. Death rewards and growth
 are configurable Resources. Bots receive XP/income and buy affordable gear using the match catalog every ten seconds.
 
-Match shop uses a separate 23-item component/recipe catalog (Sandbox items remain intact). Buy validates components, recipe funds, unique
+Match shop uses a separate 25-item component/recipe catalog (Sandbox items remain intact). Recipe clicks consume and discount owned direct components and buy missing parts when affordable. Buy validates funds, unique
 item rules and available/released slot before subtracting gold/equipping; sell refunds floor
 of price times 0.5. It is accessible anywhere, including while dead/paused, but
 blocked after victory. Opening it stops player movement/attack; combat continues
@@ -333,9 +333,10 @@ path. CombatEngine resolves item/passive on-hit behavior after a successful hit,
 at projectile impact for ranged attacks. Reflected damage is tagged and cannot
 recurse. ATTACK_SLOW is an ordinary tick-expiring status.
 
-Match heroes have BAT 2.0 and a per-source five-times-base APS cap, use 320 opening
-movement, and towers use 600 edge range. A startup draft pauses simulation until
-one existing hero profile and one starting passive are selected. HeroProgression
-owns passive rank/points and permanent kill damage, recalculating through the same
-runtime state. Only the passive slot is currently exposed; two active skill slots
+Match heroes have BAT 2.0, regular creeps BAT 2.5, and towers/catapults BAT 3.0.
+A per-source five-times-base APS cap remains. A startup draft pauses simulation
+until one of twelve named heroes is selected. HeroGrowth stores starting attributes,
+per-level attribute growth, primary attribute and one fixed five-rank skill.
+HeroProgression owns its rank/points and permanent kill damage. Brakk's skill lowers
+BAT from 1.9 to 1.5; Pure Throw scales 20/25/30/35/40%. Two active skill slots
 remain future work. See `docs/late_game_items_passives.md`.

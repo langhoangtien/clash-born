@@ -3,6 +3,8 @@ extends Resource
 ## Numeric UnitStats fields; formulas still come from StatCalculator.
 @export var display_name: String = "Hero"
 @export var ranged_attacks: bool = true
+@export var primary_attribute: UnitStats.PrimaryAttribute = UnitStats.PrimaryAttribute.NONE
+@export var passive_id: String = "base_power"
 @export var base_overrides: Dictionary[String, float] = {}
 @export var per_level: Dictionary[String, float] = {}
 
@@ -10,6 +12,7 @@ func source_at_level(base: UnitStats, level: int) -> UnitStats:
 	var source: UnitStats = base.duplicate(true)
 	source.display_name = display_name
 	source.ranged_attacks = ranged_attacks
+	source.primary_attribute = primary_attribute
 	for key in base_overrides: source.set(key, base_overrides[key])
 	for key in per_level: source.set(key, source.get(key) + per_level[key] * (level - 1))
 	return source

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="HeroGrowth" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/match/hero_growth.gd" id="1"]
+[resource]
+script = ExtResource("1")
+display_name = "Sylven · Ưng Nhãn"
+ranged_attacks = true
+primary_attribute = 2
+passive_id = "long_shot"
+base_overrides = {"strength": 19.0, "agility": 29.0, "intelligence": 18.0, "base_hp": 860.0, "physical_damage": 78.0, "attack_range": 570.0}
+per_level = {"strength": 1.8, "agility": 3.4, "intelligence": 1.7, "physical_damage": 3.5}

@@ -51,7 +51,7 @@ func refresh() -> void:
 		var hero: HeroProgression = heroes[id]
 		var stats: Dictionary = hero.unit.stats
 		var reduction := (1.0 - DamageCalculator.armor_multiplier(hero.unit.physical_armor(), hero.balance.armor_coefficient)) * 100.0
-		rows[id].text = "%s · %s · LV %d\nHP %.0f/%.0f · STR %.0f AGI %.0f INT %.0f\nDmg %.0f/%.0f/%.0f · giáp %.1f (%.1f%%) · miss %.0f%%\nAS %.0f%% · range %.0f · %s LV%d" % ["BLUE · BẠN" if id == "player" else "RED · BOT", hero.profile.display_name, hero.level, hero.unit.current_hp, stats.max_hp, stats.strength, stats.agility, stats.intelligence, stats.physical_damage, stats.magic_damage, stats.pure_damage, hero.unit.physical_armor(), reduction, stats.evasion * 100, stats.attack_speed / hero.base.base_attacks_per_second * 100, stats.attack_range, HeroPassiveCatalog.definition(hero.passive_id).name, hero.passive_level]
+		rows[id].text = "%s · %s · LV %d\nHP %.0f/%.0f · STR %.0f AGI %.0f INT %.0f\nDmg %.0f/%.0f/%.0f · giáp %.1f (%.1f%%) · miss %.0f%%\nAS %.0f%% · BAT %.1fs · range %.0f · %s LV%d" % ["BLUE · BẠN" if id == "player" else "RED · BOT", hero.profile.display_name, hero.level, hero.unit.current_hp, stats.max_hp, stats.strength, stats.agility, stats.intelligence, stats.physical_damage, stats.magic_damage, stats.pure_damage, hero.unit.physical_armor(), reduction, stats.evasion * 100, stats.attack_speed / stats.base_attacks_per_second * 100, stats.base_attack_time, stats.attack_range, HeroPassiveCatalog.definition(hero.passive_id).name, hero.passive_level]
 		rows[id].modulate = Color(0.5, 0.75, 1) if id == "player" else Color(1, 0.5, 0.5)
 		for index in range(EquipmentManager.SLOT_COUNT):
 			var item := hero.equipment.get_item(index)

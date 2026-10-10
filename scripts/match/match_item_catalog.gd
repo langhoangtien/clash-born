@@ -42,6 +42,8 @@ static func items() -> Array[EquipmentData]:
 		_item("assault_armor", "Giáp Cường Công", 4400, {"physical_armor": 35.0, "attack_speed_bonus": 1.00, "strength": 25.0, "armor_reduction": 12.0}, "armor_breaker", ["iron_armor", "swift_gloves", "ogre_axe"], 2100),
 		_item("arcane_staff", "Đại Trượng Phép", 3900, {"intelligence": 50.0, "magic_damage": 110.0, "max_mana": 700.0, "cast_range": 200.0}, "arcane_staff", ["wizard_staff", "wizard_staff", "cast_focus"], 1300),
 		_item("pure_blade", "Kiếm Pure", 4500, {"physical_damage": 70.0, "pure_damage": 65.0, "strength": 20.0, "agility": 20.0}, "pure_blade", ["heavy_sword", "ogre_axe", "agility_blade"], 2100),
+		_item("desolator", "Desolator I", 2600, {"physical_damage": 50.0, "armor_reduction": 10.0}, "armor_breaker", ["heavy_sword", "heavy_sword"], 1200),
+		_item("desolator_2", "Desolator II", 4700, {"physical_damage": 80.0, "armor_reduction": 15.0}, "armor_breaker", ["desolator", "heavy_sword"], 1400),
 	]
 	return _items
 

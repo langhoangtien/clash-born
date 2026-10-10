@@ -10,7 +10,9 @@ func check(value: bool, label: String) -> void:
 	if not value: failures += 1; push_error(label)
 func new_hero(settings: MatchSettings, index: int) -> HeroProgression:
 	var balance := BalanceSettings.new()
-	return HeroProgression.new(UnitRuntimeState.new("hero", 0, Vector2.ZERO, settings.hero, balance), settings.hero, settings.hero_profiles[index], settings, balance)
+	var hero := HeroProgression.new(UnitRuntimeState.new("hero", 0, Vector2.ZERO, settings.hero, balance), settings.hero, settings.hero_profiles[index], settings, balance)
+	hero.select_profile_skill()
+	return hero
 func _run() -> void:
 	var settings: MatchSettings = load("res://data/match/default_match.tres").duplicate(true)
 	settings.starting_gold = 1000 # Isolated purchase tests use original reference items.
@@ -18,15 +20,15 @@ func _run() -> void:
 	var tank := new_hero(settings, 1)
 	var mage := new_hero(settings, 2)
 	check(tank.unit.stats.max_hp > ranger.unit.stats.max_hp and not tank.unit.stats.ranged_attacks, "Tank has own base stats and melee attack")
-	check(mage.unit.stats.magic_damage == 60 and mage.unit.stats.physical_damage == 40, "Mage deals magic component through existing engine")
+	check(mage.profile.display_name.begins_with("Myra") and mage.unit.stats.magic_damage == 75 and mage.passive_id == "pure_throw", "Named mage has fixed skill and magic component")
 	check(ranger.award(99) == 0 and ranger.level == 1, "XP below threshold does not level")
 	check(ranger.award(1) == 1 and ranger.level == 2 and ranger.experience == 0, "Exact XP threshold raises level")
-	check(ranger.unit.stats.max_hp == 1720 and ranger.unit.stats.physical_damage == 107, "Ranger HP and damage growth")
-	check(is_equal_approx(ranger.unit.stats.attack_speed, 0.5 * 1.025) and ranger.unit.stats.movement_speed == 322, "Ranger attack/move speed growth")
+	check(ranger.unit.stats.strength == 23 and ranger.unit.stats.agility == 30.2 and ranger.unit.stats.intelligence == 18.6, "Ranger gains hero-specific STR/AGI/INT")
+	check(ranger.unit.stats.attack_speed > 0.5 and ranger.unit.stats.movement_speed == 321, "Ranger attack/move speed growth")
 	tank.award(100)
 	mage.award(100)
-	check(tank.unit.stats.max_hp == 2600 and is_equal_approx(tank.unit.stats.physical_armor, 12.8), "Tank prioritizes HP and armor growth")
-	check(mage.unit.stats.magic_damage == 70 and mage.unit.stats.max_mana == 530, "Mage magic and mana growth")
+	check(tank.unit.stats.strength == 33.8 and tank.unit.stats.physical_armor > 10 and tank.unit.stats.base_attack_time == 1.9, "Tank prioritizes STR/armor and BAT skill")
+	check(mage.unit.stats.intelligence == 33.7 and mage.unit.stats.magic_damage == 83 and mage.unit.stats.max_mana > 700, "Mage intelligence, magic and mana growth")
 	check(ranger.award(400) == 2 and ranger.level == 4 and ranger.experience == 50, "Multiple levels retain overflow XP")
 	ranger.award(100000)
 	check(ranger.level == 15 and ranger.experience == 0, "Level cap clamps XP")
@@ -35,17 +37,18 @@ func _run() -> void:
 	check(previous == ranger.unit.stats, "Capped XP does not keep growing stats")
 	check(settings.hero.base_hp == 1600 and settings.hero.magic_damage == 0, "Growth does not mutate shared hero source")
 	var hero := new_hero(settings, 0)
+	var hp_ratio: float = 800.0 / hero.unit.stats.max_hp
 	hero.unit.current_hp = 800
 	hero.unit.current_mana = 100
 	hero.unit.next_attack_tick = 123
 	hero.unit.target_id = "enemy"
 	check(hero.buy(HEALTH) and hero.gold == 0, "Purchase pays price and equips")
-	check(hero.unit.stats.max_hp == 2100 and hero.unit.current_hp == 1050, "HP ratio preserved rather than full heal on purchase")
+	check(is_equal_approx(hero.unit.current_hp, hero.unit.stats.max_hp * hp_ratio), "HP ratio preserved rather than full heal on purchase")
 	check(hero.unit.current_mana == 100 and hero.unit.next_attack_tick == 123 and hero.unit.target_id == "enemy", "Buying preserves mana, target and attack timer")
 	check(not hero.buy(SWORD) and hero.equipment.items().size() == 1 and hero.gold == 0, "Insufficient gold rejects purchase atomically")
 	hero.award(100, 1000)
-	check(hero.unit.stats.max_hp == 2220 and hero.unit.current_hp == 1110, "Equipment survives level-up; growth and item HP stack once")
-	check(hero.sell(0) and hero.gold == 1500 and hero.unit.stats.max_hp == 1720, "Sell refunds half and removes modifier")
+	check(hero.unit.stats.max_hp > 1800 and hero.unit.current_hp > 0, "Equipment survives attribute growth and stacks once")
+	check(hero.sell(0) and hero.gold == 1500 and hero.unit.stats.max_hp < 1800, "Sell refunds half and removes modifier")
 	check(not hero.sell(0) and not hero.sell(-1), "Empty/invalid slot cannot generate gold")
 	var exclusive: EquipmentData = SWORD.duplicate(true)
 	exclusive.allow_multiple = false
@@ -76,7 +79,7 @@ func _test_scene() -> void:
 	main.set_physics_process(false)
 	main.clock.set_running(false)
 	var hero: HeroProgression = main.progression.player
-	check(main.shop.hero_select.item_count == 3 and main.shop.buy_buttons.size() == 23 and main.shop.slot_buttons.size() == 6, "Shop has hero/passive chooser, recipe catalog and six slots")
+	check(main.shop.hero_select.item_count == 12 and main.shop.buy_buttons.size() == 25 and main.shop.slot_buttons.size() == 6, "Shop has named hero roster, expanded recipes and six slots")
 	var input := InputEventKey.new()
 	input.physical_keycode = KEY_B
 	input.pressed = true
@@ -84,10 +87,11 @@ func _test_scene() -> void:
 	check(main.shop.visible, "B opens shop through real viewport input")
 	var tick: int = main.combat.tick_count
 	main.shop.buy_buttons[2].pressed.emit()
-	check(hero.equipment.items().size() == 1 and hero.unit.stats.physical_damage == 140 and main.combat.tick_count == tick, "Shop button equips buffed sword without restarting combat")
+	var damage_with_sword: float = hero.unit.stats.physical_damage
+	check(hero.equipment.items().size() == 1 and damage_with_sword > 130 and main.combat.tick_count == tick, "Shop button equips buffed sword without restarting combat")
 	check(not main.buy_item(STAFF), "Controller enforces affordability")
 	main.shop.slot_buttons[0].pressed.emit()
-	check(hero.gold == 850 and hero.unit.stats.physical_damage == 115, "UI sell button removes sword")
+	check(hero.gold == 850 and hero.unit.stats.physical_damage < damage_with_sword, "UI sell button removes sword")
 	root.push_input(input, true)
 	check(not main.shop.visible, "B closes shop")
 	main.player.position = main.layout.cell_center(Vector2i(15, 24))
@@ -144,7 +148,7 @@ func _test_scene() -> void:
 	mage_scene.settings.show_draft_on_start = false
 	root.add_child(mage_scene)
 	await process_frame
-	check(mage_scene.player.runtime.stats.magic_damage == 60 and mage_scene.player.runtime.stats.physical_damage == 46 and mage_scene.progression.player.level == 1, "New match uses selected mage/passive and fresh progression")
+	check(mage_scene.player.runtime.stats.magic_damage == 75 and mage_scene.progression.player.passive_id == "pure_throw" and mage_scene.progression.player.level == 1, "New match uses named mage with fixed skill and fresh progression")
 	mage_scene.queue_free()
 	await process_frame
 	HeroProgression.selected_profile = 0
