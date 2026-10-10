@@ -1,4 +1,4 @@
-# Công thức đang triển khai — Phase 4
+# Công thức đang triển khai — Phase 5
 
 Mọi hệ số nằm trong BalanceSettings Resource. UnitStats lưu nguồn stats;
 StatCalculator tạo dictionary final stats mới, không sửa hoặc cộng dồn nguồn.
@@ -31,7 +31,8 @@ Magic damage chỉ dùng magic armor; physical damage chỉ dùng physical armor
 Pure damage giữ nguyên: 200 pure vào cả hai giáp 50 vẫn gây 200.
 Pure chỉ bỏ qua giáp: cả đòn bị miss thì mọi component đều bằng 0.
 Pure chỉ crit khi bật cả `attacks_can_crit` và `pure_attacks_can_crit`.
-Không triển khai invulnerability/immunity hay ability damage ở Phase 3.
+Không triển khai invulnerability/immunity hay ability damage ở Phase 5;
+kỹ năng hiện chỉ áp status effects.
 
 Hồi phục mỗi tick = regen/giây × 1/30, giới hạn ở max HP/Mana, chỉ khi còn sống.
 HP sau damage = max(0, current HP - final damage).
@@ -77,7 +78,7 @@ A 3 giây ở t=0 và B 3 giây ở t=2 kết thúc ở t=5. ID khác nhau tạo
 Slow dùng mức mạnh nhất; movement = max(minimum movement speed,
 base movement × (1 - strongest slow)). Base 300, slow 0.4 → 180;
 minimum movement mặc định 100. Nếu stun hoặc chết, movement bằng 0.
-Đây là tốc độ runtime, chưa có di chuyển hay AI trong scene.
+AI Phase 5 dùng tốc độ runtime này cho steering mỗi tick.
 
 Giảm giáp vật lý từ các instance khác nhau cộng dồn; cùng nguồn/ID refresh.
 Hết hạn khôi phục đúng giáp tính từ nguồn, không sửa base stats.
@@ -115,6 +116,6 @@ với base evasion 30% tạo 60.625%, không cộng thành 80%.
 
 Armor Breaker chỉ thay effective armor cho đòn của người mặc, không sửa giáp
 nguồn của mục tiêu. Pure Blade là damage bổ sung, không chuyển từ physical;
-có thể miss, không tự crit. Thay loadout trong UI reset duel, HP/Mana đầy theo
+có thể miss, không tự crit. Thay loadout trong UI reset battle, HP/Mana đầy theo
 max mới, xóa effect/cooldown attack/commands và reset RNG. Gỡ đồ khôi phục đúng
 stats nguồn; Reset trận giữ loadout, Reset equipment xóa loadout unit được chọn.

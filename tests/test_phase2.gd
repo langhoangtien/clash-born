@@ -179,7 +179,11 @@ func _test_scene() -> void:
 	var red = main.get_node("Arena/RedUnit")
 	var initial_hp: float = red.runtime.current_hp
 	main.step_button.pressed.emit()
-	_check(red.runtime.current_hp < initial_hp and blue.runtime.current_hp < blue.runtime.stats.max_hp, "Step attacks both units and updates bound state")
+	# Phase 5 starts outside melee range; allow AI approach/cast/recovery first.
+	for tick in range(600):
+		if (red.runtime.current_hp < initial_hp and blue.runtime.current_hp < blue.runtime.stats.max_hp) or main.combat.finished: break
+		main.clock.step()
+	_check(red.runtime.current_hp < initial_hp and blue.runtime.current_hp < blue.runtime.stats.max_hp, "AI approach eventually attacks both units and updates bound state")
 	main.run_button.pressed.emit()
 	main.clock.advance(120)
 	main._refresh_ui()

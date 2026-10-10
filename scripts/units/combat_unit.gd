@@ -1,18 +1,26 @@
 extends Node2D
 
+signal unit_selected(id: String)
 @export var visual_data: UnitVisualData
 @export var combat_data: UnitStats
 var runtime: UnitRuntimeState
-var last_damage: float = 0.0
+var selected: bool = false
 var damage_flash: float = 0.0
 var hit_notice: String = ""
 
 func _process(delta: float) -> void:
-	damage_flash = maxf(0.0, damage_flash - delta)
+	damage_flash = maxf(0, damage_flash - delta)
+	if runtime != null: position = runtime.position
 	queue_redraw()
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and visual_data != null:
+		var local_point: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
+		if local_point.length() <= visual_data.radius:
+			unit_selected.emit(visual_data.unit_id)
+			get_viewport().set_input_as_handled()
+
 func show_damage(amount: float, critical: bool = false) -> void:
-	last_damage = amount
 	hit_notice = ("CRIT " if critical else "") + "-%.1f" % amount
 	damage_flash = 0.5
 
@@ -20,49 +28,35 @@ func show_miss() -> void:
 	hit_notice = "MISS"
 	damage_flash = 0.5
 
-func _draw() -> void:
-	if visual_data == null:
-		return
-	var radius := visual_data.radius
-	draw_circle(Vector2(0, 6), radius + 5, Color(0, 0, 0, 0.3))
-	var color := visual_data.team_color
-	if runtime != null and not runtime.alive:
-		color = Color(0.3, 0.32, 0.34)
-	elif damage_flash > 0:
-		color = color.lightened(0.3)
-	draw_circle(Vector2.ZERO, radius, color)
-	draw_arc(Vector2.ZERO, radius, 0, TAU, 64, visual_data.team_color.lightened(0.45), 2.0, true)
-	draw_circle(Vector2.ZERO, 6, Color(1, 1, 1, 0.7))
+func _center_text(text: String, y: float, size_value: int, color: Color = Color.WHITE) -> void:
 	var font := ThemeDB.fallback_font
-	var text_size := font.get_string_size(visual_data.display_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
-	draw_string(font, Vector2(-text_size.x / 2, -radius - 18), visual_data.display_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.88, 0.91, 0.95))
-	if runtime == null:
-		return
-	_draw_bar(Vector2(-80, 52), runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
-	var mana_ratio: float = runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0.0
-	_draw_bar(Vector2(-80, 68), mana_ratio, Color(0.25, 0.55, 0.95))
-	var hp_text := "HP %.1f / %.1f   MP %.1f / %.1f" % [runtime.current_hp, runtime.stats.max_hp, runtime.current_mana, runtime.stats.max_mana]
-	var width := font.get_string_size(hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-	draw_string(font, Vector2(-width / 2, 104), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
-	var details := "STR %.1f · AGI %.1f · INT %.1f\nDMG P %.1f / M %.1f / Pure %.1f\nArmor P %.2f / M %.2f · APS %.2f\nEvade %.0f%% · Accuracy %.0f%% · Crit %.0f%%\nResist %.0f%% · Move %.0f" % [runtime.stats.strength, runtime.stats.agility, runtime.stats.intelligence, runtime.stats.physical_damage, runtime.stats.magic_damage, runtime.stats.pure_damage, runtime.physical_armor(), runtime.stats.magic_armor, runtime.stats.attack_speed, runtime.stats.evasion * 100, runtime.stats.accuracy * 100, runtime.stats.critical_chance * 100, runtime.stats.status_resistance * 100, runtime.movement_speed(preload("res://data/balance/default_balance.tres"))]
-	var y := 135.0
-	for line in details.split("\n"):
-		width = font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-		draw_string(font, Vector2(-width / 2, y), line, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.67, 0.74, 0.8))
-		y += 24
-	var status: PackedStringArray = []
-	for effect in runtime.effects.active:
-		var kind_name: String = ["STUN", "SLOW", "ARMOR -"][effect.kind]
-		status.append("%s %.1fs" % [kind_name, effect.remaining_seconds(runtime.current_tick)])
-	if not status.is_empty():
-		var effect_text := " · ".join(status)
-		width = font.get_string_size(effect_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-		draw_string(font, Vector2(-width / 2, y), effect_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 0.78, 0.45))
-	if not runtime.alive:
-		draw_string(font, Vector2(-27, 8), "DEAD", HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
-	elif damage_flash > 0:
-		draw_string(font, Vector2(-30, -95), hit_notice, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.78, 0.45))
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_value).x
+	draw_string(font, Vector2(-width / 2, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_value, color)
 
-func _draw_bar(origin: Vector2, ratio: float, color: Color) -> void:
-	draw_rect(Rect2(origin, Vector2(160, 10)), Color(0.02, 0.03, 0.04))
-	draw_rect(Rect2(origin, Vector2(160 * clampf(ratio, 0, 1), 10)), color)
+func _draw() -> void:
+	if visual_data == null or runtime == null: return
+	var radius := visual_data.radius
+	if selected:
+		draw_arc(Vector2.ZERO, runtime.stats.attack_range, 0, TAU, 96, Color(1, 1, 1, 0.2), 2, true)
+		draw_arc(Vector2.ZERO, radius + 6, 0, TAU, 48, Color(1, 0.86, 0.4), 3, true)
+	var color := visual_data.team_color if runtime.alive else Color(0.3, 0.32, 0.34)
+	if damage_flash > 0 and runtime.alive: color = color.lightened(0.3)
+	draw_circle(Vector2(0, 5), radius + 3, Color(0, 0, 0, 0.3))
+	draw_circle(Vector2.ZERO, radius, color)
+	draw_circle(Vector2.ZERO, 5, Color(1, 1, 1, 0.7))
+	_center_text(visual_data.display_name, -radius - 12, 20)
+	_draw_bar(44, runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
+	_draw_bar(56, runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0, Color(0.25, 0.55, 0.95))
+	if selected: _center_text("%.0f / %.0f" % [runtime.current_hp, runtime.stats.max_hp], 82, 20)
+	var statuses: PackedStringArray = []
+	for effect in runtime.effects.active:
+		var tag: String = ["S", "L", "A"][effect.kind]
+		if tag not in statuses: statuses.append(tag)
+	if not runtime.casting.is_empty(): statuses.append("C")
+	if not statuses.is_empty() and runtime.alive: _center_text(" ".join(statuses), 8, 18, Color(0.07, 0.08, 0.1))
+	if not runtime.alive: _center_text("DEAD", 8, 18)
+	elif damage_flash > 0: _center_text(hit_notice, -80, 24, Color(1, 0.78, 0.45))
+
+func _draw_bar(y: float, ratio: float, color: Color) -> void:
+	draw_rect(Rect2(Vector2(-45, y), Vector2(90, 8)), Color(0.02, 0.03, 0.04))
+	draw_rect(Rect2(Vector2(-45, y), Vector2(90 * clampf(ratio, 0, 1), 8)), color)

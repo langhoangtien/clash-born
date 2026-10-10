@@ -228,9 +228,10 @@ func _test_ui() -> void:
 			panel.slot_selectors[2].item_selected.emit(11)
 			panel.slot_selectors[3].item_selected.emit(4)
 			main.step_button.pressed.emit()
+			main.right_tabs.current_tab = 1
 			await process_frame
 			await RenderingServer.frame_post_draw
-			_check(panel.get_global_rect().end.y <= 732, "Equipment panel stays above simulation controls")
+			_check(panel.get_global_rect().end.y <= 814, "Equipment panel stays above simulation controls")
 			_check(panel.get_global_rect().end.x <= 1600, "Equipment panel stays within logical viewport")
 			_check(panel.stats_label.get_global_rect().end.y <= panel.get_global_rect().end.y, "All final stats fit inside equipment panel")
 			DirAccess.make_dir_recursive_absolute("res://.local")

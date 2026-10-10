@@ -2,6 +2,7 @@ extends PanelContainer
 ## Presentation selects loadouts; the controller rebuilds the combat snapshot.
 
 signal loadout_changed
+signal unit_selected(index: int)
 
 const CATALOG: Array[EquipmentData] = [
 	preload("res://data/equipment/iron_armor.tres"),
@@ -41,10 +42,10 @@ func _ready() -> void:
 	unit_select = OptionButton.new()
 	unit_select.add_item("Blue Unit")
 	unit_select.add_item("Red Unit")
-	unit_select.item_selected.connect(func(_index: int): refresh())
+	unit_select.item_selected.connect(func(index: int): refresh(); unit_selected.emit(index))
 	content.add_child(unit_select)
 	var note := Label.new()
-	note.text = "Empty removes item. Changes reset the duel."
+	note.text = "Empty removes item. Changes reset battle."
 	note.tooltip_text = "Prices are reference values only. No shop or gold economy."
 	note.add_theme_font_size_override("font_size", 14)
 	content.add_child(note)
@@ -79,7 +80,7 @@ func _ready() -> void:
 	content.add_child(stats_label)
 
 func _change_slot(slot: int, item_index: int) -> void:
-	if loadouts.size() != 2 or item_index < 0 or item_index > CATALOG.size():
+	if loadouts.is_empty() or item_index < 0 or item_index > CATALOG.size():
 		return
 	var loadout := loadouts[unit_select.selected]
 	var changed := loadout.remove(slot) if item_index == 0 else loadout.equip(slot, CATALOG[item_index - 1])
@@ -88,14 +89,14 @@ func _change_slot(slot: int, item_index: int) -> void:
 	refresh()
 
 func _clear_selected() -> void:
-	if loadouts.size() != 2:
+	if loadouts.is_empty():
 		return
 	loadouts[unit_select.selected].clear()
 	loadout_changed.emit()
 	refresh()
 
 func refresh() -> void:
-	if loadouts.size() != 2 or units.size() != 2:
+	if loadouts.is_empty() or loadouts.size() != units.size():
 		return
 	var loadout := loadouts[unit_select.selected]
 	for slot in range(EquipmentManager.SLOT_COUNT):
@@ -121,7 +122,15 @@ func refresh() -> void:
 	refresh_stats()
 
 func refresh_stats() -> void:
-	if units.size() != 2:
+	if units.is_empty():
 		return
 	var stats: Dictionary = units[unit_select.selected].stats
 	stats_label.text = "FINAL · HP %.0f · Mana %.0f\nDamage P %.1f / M %.1f / Pure %.1f\nArmor P %.2f / M %.2f · APS %.2f\nEvade %.1f%% · Accuracy %.0f%%\nCrit %.0f%% × %.1f · Resist %.0f%%" % [stats.max_hp, stats.max_mana, stats.physical_damage, stats.magic_damage, stats.pure_damage, units[unit_select.selected].physical_armor(), stats.magic_armor, stats.attack_speed, stats.evasion * 100, stats.accuracy * 100, stats.critical_chance * 100, stats.critical_multiplier, stats.status_resistance * 100]
+
+func bind_units(new_units: Array[UnitRuntimeState], new_loadouts: Array[EquipmentManager], selection: int) -> void:
+	units = new_units
+	loadouts = new_loadouts
+	unit_select.clear()
+	for unit in units: unit_select.add_item("%s · %s" % [unit.unit_id, unit.display_name])
+	unit_select.select(clampi(selection, 0, units.size() - 1))
+	refresh()

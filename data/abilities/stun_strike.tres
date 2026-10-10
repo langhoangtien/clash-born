@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/ability_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/abilities/ability_effect_data.gd" id="2"]
+
+[sub_resource type="Resource" id="Effect"]
+script = ExtResource("2")
+kind = 0
+duration = 3.0
+magnitude = 0.0
+
+[resource]
+script = ExtResource("1")
+id = "stun_strike"
+display_name = "Stun Strike"
+mana_cost = 80.0
+cooldown = 15.0
+cast_range = 550.0
+cast_time = 0.0
+effects = [SubResource("Effect")]

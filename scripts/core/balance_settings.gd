@@ -19,3 +19,6 @@ extends Resource
 @export var default_critical_multiplier: float = 2.0
 @export var status_resistance_cap: float = 0.6
 @export var minimum_movement_speed: float = 100.0
+@export var unit_radius: float = 32.0
+## Experimental timeout for passive/stalemate scenarios; returns a draw.
+@export var battle_time_limit_seconds: float = 180.0

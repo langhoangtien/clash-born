@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/units/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://data/abilities/heavy_slow.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Magic Tank"
+strength = 30.0
+agility = 10.0
+intelligence = 20.0
+primary_attribute = 1
+base_hp = 950.0
+base_mana = 150.0
+physical_damage = 60.0
+magic_damage = 0.0
+physical_armor = 9.0
+magic_armor = 22.0
+base_attacks_per_second = 0.8
+attack_range = 95.0
+abilities = [ExtResource("2")]

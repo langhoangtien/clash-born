@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/units/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://data/abilities/armor_shatter.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Melee Carry"
+strength = 16.0
+agility = 32.0
+intelligence = 8.0
+primary_attribute = 2
+base_hp = 600.0
+base_mana = 100.0
+physical_damage = 85.0
+magic_damage = 0.0
+physical_armor = 3.0
+magic_armor = 2.0
+base_attacks_per_second = 1.4
+attack_range = 95.0
+abilities = [ExtResource("2")]

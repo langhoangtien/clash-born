@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/units/unit_stats.gd" id="1"]
+[ext_resource type="Resource" path="res://data/abilities/heavy_slow.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Ranged Carry"
+strength = 12.0
+agility = 28.0
+intelligence = 12.0
+primary_attribute = 2
+base_hp = 500.0
+base_mana = 100.0
+physical_damage = 90.0
+magic_damage = 0.0
+physical_armor = 2.0
+magic_armor = 2.0
+base_attacks_per_second = 1.1
+attack_range = 450.0
+abilities = [ExtResource("2")]

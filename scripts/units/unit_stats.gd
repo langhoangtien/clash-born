@@ -4,6 +4,11 @@ extends Resource
 
 enum PrimaryAttribute { NONE, STRENGTH, AGILITY, INTELLIGENCE }
 
+@export var display_name: String = "Unit"
+@export_enum("Passive", "Attack nearest", "Attack lowest HP", "Attack highest damage") var ai_mode: int = 1
+@export var abilities: Array[AbilityData] = []
+@export var abilities_enabled: bool = true
+
 @export var strength: float = 0.0
 @export var agility: float = 0.0
 @export var intelligence: float = 0.0

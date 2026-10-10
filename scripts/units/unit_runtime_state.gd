@@ -11,9 +11,20 @@ var alive: bool = true
 var next_attack_tick: float = 1.0
 var effects := StatusEffectManager.new()
 var current_tick: int = 0
+var display_name: String
+var ai_enabled: bool = false
+var ai_mode: int = 1
+var target_id: String = ""
+var abilities: Array[AbilityData] = []
+var ability_ready_ticks: Dictionary = {}
+var casting: Dictionary = {}
 
 func _init(id: String, team: int, spawn: Vector2, source: UnitStats, balance: BalanceSettings, equipment: Array[EquipmentData] = []) -> void:
 	unit_id = id
+	display_name = source.display_name
+	ai_mode = source.ai_mode
+	abilities.assign(source.abilities)
+	if not source.abilities_enabled: abilities.clear()
 	team_id = team
 	position = spawn
 	stats = StatCalculator.calculate(source, balance, equipment)
