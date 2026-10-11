@@ -79,9 +79,6 @@ func _test_match() -> void:
 	check(bot.level == 2 and bot.passive_level == 2 and bot.skill_points == 0, "Enemy hero spends its new skill point automatically")
 	var player_home := player.position
 	var enemy_home := enemy.position
-	var enemy_info: Dictionary = main.entities.enemy_hero
-	main._drive_bot(enemy_info, null, main.combat.tick_count + 1)
-	check(not enemy.path.is_empty() and enemy.path[-1].distance_to(main.get_defensive_anchor(1, "MID")) < 1.0, "Enemy bot leaves its base toward the explicit MID defensive anchor")
 	var blue_tower: MapUnit = main.entities.tower_00.actor
 	player.position = blue_tower.position; player.runtime.position = player.position
 	enemy.position = player.position + Vector2(180, 0); enemy.runtime.position = enemy.position

@@ -73,6 +73,14 @@ func _test_match() -> void:
 	check(not main._core_is_unlocked(1), "One remaining T4 guard still locks the core")
 	red_guards[1].runtime.alive = false
 	check(main._core_is_unlocked(1), "Destroying both T4 guards unlocks the core")
+	# J must farm a nearby visible lane creep before falling back to a tower.
+	var red_mid_t1: MapUnit = main.entities[main.tower_registry["red_mid_t1"]].actor
+	red_mid_t1.runtime.alive = true
+	main.player.position = red_mid_t1.position + Vector2(-180, 0)
+	main.player.runtime.position = main.player.position
+	var priority_creep: MapUnit = main._spawn("priority_creep", 1, main.settings.melee_creep, main.player.position + Vector2(80, 0), "creep", "MID")
+	main.request_attack("creep")
+	check(main._player_target() == priority_creep, "J attack selection prioritizes a nearby lane creep over an attackable tower")
 	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage > 110 and main.progression.player.profile.display_name.begins_with("Aelira"), "Core durability and named hero skill applied")
 	check(main.progression.player.gold == 250, "Opening budget cannot buy a full damage item")
 	var original = preload("res://scripts/ui/equipment_panel.gd").CATALOG

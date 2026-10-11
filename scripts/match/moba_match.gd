@@ -203,7 +203,9 @@ func _structure_chain_configured(attacking_team: int, lane: String) -> bool:
 func get_defensive_anchor(team: int, lane: String) -> Vector2:
 	var tower := get_lane_defensive_tower(team, lane)
 	if tower == null: return layout.spawn_points(team)[0]
-	return tower.position.lerp(layout.spawn_points(team)[0], 0.28)
+	# This is deliberately just behind the outer living defense, not deep enough
+	# toward the fountain to overlap the next inner tower.
+	return tower.position.lerp(layout.spawn_points(team)[0], settings.bot_tower_anchor_backoff_fraction)
 
 func is_inside_enemy_tower_range(position: Vector2, team: int) -> bool:
 	for info in entities.values():
@@ -701,10 +703,11 @@ func _player_target() -> MapUnit:
 	# Creep/structure attack is deliberately local. It cannot select a wave at
 	# the enemy base or a third tower merely because that target exists on the map.
 	var lane := _nearest_lane(player.position)
-	# Structure commands take priority over a distant newly spawned wave.
-	var target := _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
+	# J means attack nearby creeps first. A tower is the fallback only after no
+	# visible enemy creep is in the command radius.
+	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, false, "", true)
 	if target == null:
-		target = _choose_target(entities.player, ["creep"], settings.player_target_range, true, false, "", true)
+		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
 	if target == null:
 		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true, false, "", true)
 	# If the lane is quiet, the same command can farm a nearby neutral camp.
@@ -810,9 +813,19 @@ func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var anchor := get_defensive_anchor(actor.runtime.team_id, info.get("assigned_lane", "MID"))
 	var frontline := _bot_frontline(actor.runtime.team_id, info.get("assigned_lane", "MID"))
 	var frontline_text := "none" if frontline == null else frontline.runtime.unit_id
-	_trace_ai(info, "BOT", "state=%s lane=%s anchor=%s frontline=%s hp=%.0f/%.0f in_fountain=%s" % [info.ai_state, info.get("assigned_lane", "MID"), str(anchor), frontline_text, actor.runtime.current_hp, actor.runtime.stats.max_hp, str(in_fountain(actor.runtime))])
-	if actor.position.distance_to(anchor) > 80.0:
-		_issue_ai_move(info, anchor, "defensive-anchor", tick)
+	var lane: String = info.get("assigned_lane", "MID")
+	var destination := anchor
+	var source := "defensive-anchor"
+	if frontline != null:
+		var candidate := frontline.position.lerp(layout.spawn_points(actor.runtime.team_id)[0], settings.bot_frontline_trail_fraction)
+		# Never lead a wave through the current outer defense while merely moving
+		# to lane; attacking a structure remains a separate AI state.
+		if _lane_progress(candidate, lane, actor.runtime.team_id) <= _lane_progress(anchor, lane, actor.runtime.team_id):
+			destination = candidate
+			source = "frontline-rally"
+	_trace_ai(info, "BOT", "state=%s lane=%s anchor=%s frontline=%s destination=%s source=%s hp=%.0f/%.0f in_fountain=%s" % [info.ai_state, lane, str(anchor), frontline_text, str(destination), source, actor.runtime.current_hp, actor.runtime.stats.max_hp, str(in_fountain(actor.runtime))])
+	if actor.position.distance_to(destination) > 80.0:
+		_issue_ai_move(info, destination, source, tick)
 	else:
 		actor.stop()
 
@@ -1042,6 +1055,12 @@ func _revive(id: String) -> void:
 	actor.runtime.next_attack_tick = combat.tick_count + 1
 	death_gold_losses.erase(id)
 	info.route_index = 0
+	if info.kind == "hero" and id != "player":
+		# A respawn must not inherit a stale RETREAT/FIGHT destination from the
+		# previous life. The next AI decision starts from lane rallying again.
+		info.ai_state = "GO_TO_LANE"
+		info.ai_state_since = combat.tick_count
+		actor.stop()
 	if id == "player": message.text = "Đã hồi sinh · J đánh lính/trụ, K đánh hero"
 
 func _end_match(winner: int) -> void:
