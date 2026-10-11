@@ -302,6 +302,18 @@ func _lane_progress(point: Vector2, lane: String, team: int) -> float:
 		accumulated += length
 	return best_progress
 
+func _lane_point_at_progress(lane: String, team: int, requested_progress: float) -> Vector2:
+	var route := layout.route(lane, team)
+	if route.is_empty(): return layout.spawn_points(team)[0]
+	var remaining := maxf(0.0, requested_progress)
+	for index in range(1, route.size()):
+		var start := route[index - 1]
+		var segment := route[index] - start
+		var length := segment.length()
+		if remaining <= length: return start + segment.normalized() * remaining
+		remaining -= length
+	return route[-1]
+
 func _trace_ai(info: Dictionary, category: String, detail: String) -> void:
 	if not debug_ai_trace_enabled: return
 	var actor: MapUnit = info.actor
@@ -337,6 +349,9 @@ func _issue_ai_move(info: Dictionary, destination: Vector2, source: String, tick
 	info.movement_source = source
 	info.movement_destination = destination
 	info.movement_tick = tick
+	# Helper parameters are copied from the entity registry. Store the resulting
+	# order now so it is still present when the next simulation tick begins.
+	entities[actor.runtime.unit_id] = info
 	var state: String = info.get("ai_state", "") if info.kind == "hero" else info.get("creep_state", "")
 	if source != "lane-waypoint" or previous_source != source or int(info.get("route_index", 0)) % 5 == 0 or not valid:
 		_trace_ai(info, "MOVE", "state=%s lane=%s waypoint=%d source=%s destination=%s navigation=%s" % [state, info.get("assigned_lane", info.get("lane", "")), int(info.get("route_index", 0)), source, str(destination), "ok" if valid else "failed"])
@@ -597,7 +612,7 @@ func _current_target(source: MapUnit) -> MapUnit:
 	if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id: return null
 	return target
 
-func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false, lane_filter: String = "", require_vision: bool = false) -> MapUnit:
+func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false, lane_filter: String = "", require_vision: bool = false, neutral_only: bool = false) -> MapUnit:
 	var source: MapUnit = info.actor
 	var best: MapUnit
 	var best_priority := 100
@@ -614,6 +629,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		# Neutral camps never pull lane AI or bot auto-attack selection off route.
 		# The player's creep command may opt into neutral targets.
 		if candidate.get("neutral", false) and not allow_neutral: continue
+		if neutral_only and not candidate.get("neutral", false): continue
 		if not lane_filter.is_empty() and candidate.kind in ["creep", "tower"] and candidate.lane != lane_filter: continue
 		if info.kind == "creep" and candidate.kind in ["creep", "tower"] and candidate.lane != info.lane: continue
 		if require_vision and not _has_vision(source, target): continue
@@ -632,6 +648,14 @@ func _tower_has_creep_cover(tower: MapUnit) -> bool:
 		if info.kind != "creep" or info.get("neutral", false): continue
 		var creep: MapUnit = info.actor
 		if creep.runtime.alive and creep.runtime.team_id == tower.runtime.team_id and creep.runtime.distance_to_unit(tower.runtime) <= tower.runtime.attack_range() + 180.0:
+			return true
+	return false
+
+func _tower_has_attacking_creep_cover(tower: MapUnit, attacking_team: int) -> bool:
+	for info in entities.values():
+		if info.kind != "creep" or info.get("neutral", false): continue
+		var creep: MapUnit = info.actor
+		if creep.runtime.alive and creep.runtime.team_id == attacking_team and creep.runtime.distance_to_unit(tower.runtime) <= tower.runtime.attack_range() + 180.0:
 			return true
 	return false
 
@@ -712,6 +736,10 @@ func _player_target() -> MapUnit:
 	locked_target = ""
 	if attack_mode == "hero":
 		return _choose_target(entities.player, ["hero"], settings.hero_acquisition_range, true, false, "", true)
+	# J is a farming command. A nearby jungle camp always wins over lane targets,
+	# so a player standing at a camp can never be pulled across the map by a lane.
+	var jungle_target := _choose_target(entities.player, ["creep"], minf(settings.player_target_range, 700.0), true, true, "", true, true)
+	if jungle_target != null: return jungle_target
 	# Creep/structure attack is deliberately local. It cannot select a wave at
 	# the enemy base or a third tower merely because that target exists on the map.
 	var lane := _nearest_lane(player.position)
@@ -722,7 +750,7 @@ func _player_target() -> MapUnit:
 		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
 	if target == null:
 		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true, false, "", true)
-	# If the lane is quiet, the same command can farm a nearby neutral camp.
+	# If the lane is quiet, the same command can still farm a nearby neutral camp.
 	if target == null:
 		target = _choose_target(entities.player, ["creep"], settings.player_target_range, true, true, "", true)
 	return target
@@ -781,6 +809,7 @@ func _set_bot_state(info: Dictionary, state: String, tick: int, reason: String =
 	info.ai_state = state
 	info.ai_state_since = tick
 	var actor: MapUnit = info.actor
+	entities[actor.runtime.unit_id] = info
 	_trace_ai(info, "STATE", "%s->%s reason=%s lane=%s hp=%.0f/%.0f" % [previous, state, reason, info.get("assigned_lane", ""), actor.runtime.current_hp, actor.runtime.stats.max_hp])
 
 func _bot_target(info: Dictionary, tick: int) -> MapUnit:
@@ -807,7 +836,7 @@ func _bot_target(info: Dictionary, tick: int) -> MapUnit:
 		info.ai_last_target_tick = tick
 		return creep_target
 	var tower := get_next_attackable_structure(actor.runtime.team_id, lane)
-	if tower != null and _tower_has_creep_cover(tower) and actor.position.distance_to(tower.position) <= settings.bot_chase_range:
+	if tower != null and _tower_has_attacking_creep_cover(tower, actor.runtime.team_id) and actor.position.distance_to(tower.position) <= settings.bot_chase_range:
 		_set_bot_state(info, "ATTACK_STRUCTURE", tick, "allied-creep-cover")
 		return tower
 	_set_bot_state(info, "GO_TO_LANE", tick, "no-local-combat-target")
@@ -829,14 +858,15 @@ func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var destination := anchor
 	var source := "defensive-anchor"
 	if frontline != null:
-		var candidate := frontline.position.lerp(layout.spawn_points(actor.runtime.team_id)[0], settings.bot_frontline_trail_fraction)
-		var enemy_tower := get_next_attackable_structure(actor.runtime.team_id, lane)
-		# The bot follows a surviving friendly wave through the lane. It only falls
-		# back to its defensive anchor if that wave is not covering the next enemy
-		# tower; this keeps a winning wave from being abandoned at the middle tower.
-		if enemy_tower == null or not is_inside_enemy_tower_range(candidate, actor.runtime.team_id) or _tower_has_creep_cover(enemy_tower):
-			destination = candidate
-			source = "frontline-rally"
+		# Trail on the lane itself instead of lerping toward the fountain. The old
+		# base lerp was the root cause of bots retreating far behind a winning wave.
+		var candidate := _lane_point_at_progress(lane, actor.runtime.team_id, _lane_progress(frontline.position, lane, actor.runtime.team_id) - settings.bot_frontline_trail_distance)
+		# Moving with the wave and attacking a protected tower are separate rules.
+		# Do not send the bot back to its own tower merely because its rally point
+		# touches enemy tower range; _bot_target still refuses the tower without
+		# an attacking creep wave.
+		destination = candidate
+		source = "frontline-rally"
 	_trace_ai(info, "BOT", "state=%s lane=%s anchor=%s frontline=%s destination=%s source=%s hp=%.0f/%.0f in_fountain=%s" % [info.ai_state, lane, str(anchor), frontline_text, str(destination), source, actor.runtime.current_hp, actor.runtime.stats.max_hp, str(in_fountain(actor.runtime))])
 	if actor.position.distance_to(destination) > 80.0:
 		_issue_ai_move(info, destination, source, tick)

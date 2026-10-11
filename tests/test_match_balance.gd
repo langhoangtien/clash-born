@@ -73,7 +73,7 @@ func _test_match() -> void:
 	main.combat.metrics.consume(expired_events)
 	check(is_equal_approx(main.combat.metrics.by_unit[main.player.runtime.unit_id].damage_received, received_before + 1.0), "Metrics safely ignore a removed projectile source while keeping target damage")
 	var brush_point: Vector2 = main.layout.cell_center(Vector2i(main.layout.brush_cells[0]))
-	var brush_enemy: MapUnit = main._spawn("brush_enemy", 1, main.settings.melee_creep, brush_point, "creep", "MID")
+	var brush_enemy: MapUnit = main._spawn("brush_enemy", 1, main.settings.melee_creep, brush_point, "creep", "JUNGLE")
 	main.player.position = brush_point + Vector2(650, 0)
 	main.player.runtime.position = main.player.position
 	check(not main._has_vision(main.player, brush_enemy), "Enemy inside brush is hidden from a player outside brush")
@@ -90,8 +90,13 @@ func _test_match() -> void:
 	bot_info.ai_state = "GO_TO_LANE"
 	var red_frontline: MapUnit = main._spawn("bot_frontline", 1, main.settings.melee_creep, main.layout.route("MID", 1)[1], "creep", "MID")
 	red_frontline.runtime.current_hp = red_frontline.runtime.stats.max_hp
-	main._drive_bot(bot_info, null, main.combat.tick_count + 1)
-	check(bot_info.get("movement_source", "") == "frontline-rally", "Healthy bot follows its surviving lane wave instead of retreating to its tower")
+	var front_progress: float = main._lane_progress(red_frontline.position, "MID", 1)
+	var expected_rally: Vector2 = main._lane_point_at_progress("MID", 1, front_progress - main.settings.bot_frontline_trail_distance)
+	main.entities[bot_actor.runtime.unit_id] = bot_info
+	for unused in range(4): main._tick(unused)
+	var persisted_bot: Dictionary = main.entities[bot_actor.runtime.unit_id]
+	check(persisted_bot.get("movement_source", "") == "frontline-rally", "Healthy bot receives a persisted movement order to follow its surviving lane wave")
+	check(Vector2(persisted_bot.get("movement_destination", Vector2.ZERO)).distance_to(expected_rally) < 2.0, "Bot rally point trails the wave by a fixed lane distance instead of moving toward base")
 	check(main.settings.tower_t1_hp == 3200 and main.settings.tower_t4_hp == 4200 and main.settings.tower_t1_damage < main.settings.tower_t4_damage, "Tower durability is reduced while damage increases toward T4")
 	var red_guards := [main.entities[main.tower_registry["red_base_guard_left"]].actor, main.entities[main.tower_registry["red_base_guard_right"]].actor]
 	check(not main._core_is_unlocked(1), "Living T4 guards keep the red core locked")
@@ -102,14 +107,19 @@ func _test_match() -> void:
 	check(not main._core_is_unlocked(1), "One remaining T4 guard still locks the core")
 	red_guards[1].runtime.alive = false
 	check(main._core_is_unlocked(1), "Destroying both T4 guards unlocks the core")
-	# J must farm a nearby visible lane creep before falling back to a tower.
+	# J at a jungle camp must farm the nearby neutral before a lane creep/trụ.
 	var red_mid_t1: MapUnit = main.entities[main.tower_registry["red_mid_t1"]].actor
 	red_mid_t1.runtime.alive = true
-	main.player.position = red_mid_t1.position + Vector2(-180, 0)
+	var camp_center: Vector2 = main.layout.cell_center(Vector2i(main.layout.jungle_camps[0]))
+	main.player.position = camp_center
 	main.player.runtime.position = main.player.position
 	var priority_creep: MapUnit = main._spawn("priority_creep", 1, main.settings.melee_creep, main.player.position + Vector2(80, 0), "creep", "MID")
+	if not main.entities.has("jungle_00_0"):
+		main.spawn_jungle_camps()
+		main.jungle_spawned = true
 	main.request_attack("creep")
-	check(main._player_target() == priority_creep, "J attack selection prioritizes a nearby lane creep over an attackable tower")
+	var camp_target: MapUnit = main._player_target()
+	check(camp_target != null and main.entities[camp_target.runtime.unit_id].get("neutral", false), "J attack selection prioritizes a nearby jungle camp over lane creep and tower")
 	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage > 110 and main.progression.player.profile.display_name.begins_with("Aelira"), "Core durability and named hero skill applied")
 	check(main.progression.player.gold == 250, "Opening budget cannot buy a full damage item")
 	var original = preload("res://scripts/ui/equipment_panel.gd").CATALOG
@@ -172,7 +182,6 @@ func _test_match() -> void:
 	wrong_lane.actor.position = top.actor.position + Vector2(20, 0)
 	wrong_lane.actor.runtime.position = wrong_lane.actor.position
 	check(main._choose_target(top, ["creep"], 25) != wrong_lane.actor, "Creeps do not abandon their lane to acquire other-lane creeps")
-	if not main.entities.has("jungle_00_0"): main.spawn_jungle_camps()
 	var camp_info: Dictionary = main.entities["jungle_00_0"]
 	main.player.position = camp_info.camp_center
 	main.player.runtime.position = main.player.position
