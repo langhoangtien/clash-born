@@ -345,7 +345,11 @@ func _issue_ai_move(info: Dictionary, destination: Vector2, source: String, tick
 func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, target: UnitRuntimeState) -> bool:
 	if target == null or not entities.has(target.unit_id): return true
 	var target_info: Dictionary = entities[target.unit_id]
-	var source_info: Dictionary = entities.get(_source.unit_id, {})
+	# Ranged attacks snapshot their damage at launch. The firing creep can be
+	# removed before impact, in which case CombatEngine deliberately supplies no
+	# live source. Structure locks still apply to the target, but no source-only
+	# adjustment may dereference a removed unit.
+	var source_info: Dictionary = entities.get(_source.unit_id, {}) if _source != null else {}
 	if source_info.get("kind", "") == "tower" and target_info.get("siege", false):
 		_damage.final_damage *= settings.tower_damage_to_siege_multiplier
 	if target_info.kind == "tower": return _tower_is_unlocked(target_info)

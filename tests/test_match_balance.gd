@@ -66,6 +66,7 @@ func _test_match() -> void:
 	main.set_physics_process(false)
 	main.clock.set_running(false)
 	for info in main.entities.values(): info.actor.paused = true
+	check(main._can_apply_match_damage({}, null, main.player.runtime), "Projectile impact remains safe after its removed source no longer exists")
 	check(main.settings.tower_t1_hp == 3200 and main.settings.tower_t4_hp == 4200 and main.settings.tower_t1_damage < main.settings.tower_t4_damage, "Tower durability is reduced while damage increases toward T4")
 	var red_guards := [main.entities[main.tower_registry["red_base_guard_left"]].actor, main.entities[main.tower_registry["red_base_guard_right"]].actor]
 	check(not main._core_is_unlocked(1), "Living T4 guards keep the red core locked")
