@@ -10,6 +10,9 @@ extends Resource
 @export var death_gold_per_level: int = 25
 @export var aggro_range: float = 750.0
 @export var hero_acquisition_range: float = 1400.0
+@export var player_target_range: float = 1200.0
+@export var player_structure_target_range: float = 1200.0
+@export var player_target_leash: float = 1000.0
 @export var hero: UnitStats
 @export var hero_profiles: Array[HeroGrowth] = []
 @export var starting_gold: int = 250

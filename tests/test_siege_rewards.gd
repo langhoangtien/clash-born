@@ -76,6 +76,10 @@ func _test_rewards() -> void:
 	heroes["0_1"].unit.position = Vector2(settings.xp_radius + 1, 0)
 	payouts = rewards.calculate(victim, "creep", "0_1", 0, 1, 100, heroes)
 	check(payouts["0_0"].xp == 45 and payouts["0_1"].xp == 0 and payouts["0_1"].gold == 40, "XP center-distance boundary and distant last-hit gold remain independent")
+	var tower_victim := UnitRuntimeState.new("tower_test", 1, Vector2.ZERO, settings.tower, BalanceSettings.new())
+	rewards.record_damage(tower_victim.unit_id, "0_1", 100, heroes)
+	payouts = rewards.calculate(tower_victim, "tower", "creep", 0, 1, 100, heroes)
+	check(payouts["0_1"].gold == settings.tower_gold, "Hero gets tower bounty when an allied creep delivers the killing impact")
 
 func _lifetime(source: UnitStats, tower: UnitStats) -> int:
 	var engine := CombatEngine.new(BalanceSettings.new())

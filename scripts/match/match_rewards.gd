@@ -51,7 +51,13 @@ func calculate(victim: UnitRuntimeState, kind: String, killer: String, killer_te
 	if kind != "hero":
 		var creep_bounty := settings.siege_gold if siege else (settings.ranged_creep_gold if ranged_creep else settings.creep_gold)
 		var gold: int = {"creep": creep_bounty, "tower": settings.tower_gold}.get(kind, 0)
-		if result.has(killer): result[killer].gold += gold
+		if kind == "tower":
+			# A creep/projectile may deliver the killing impact, but a hero who
+			# damaged the tower shortly before destruction still receives bounty.
+			var credited := killer if heroes.has(killer) and heroes[killer].unit.team_id == killer_team else _latest_hero_damage(victim, killer_team, tick, heroes)
+			if not credited.is_empty() and result.has(credited): result[credited].gold += gold
+			else: _split(result, team_ids, "gold", gold)
+		elif result.has(killer): result[killer].gold += gold
 		return result
 	var bounty := settings.hero_gold + settings.hero_gold_per_level * maxi(1, victim_level)
 	var credited := hero_kill_credit(victim, killer, killer_team, tick, heroes)
@@ -79,3 +85,17 @@ func _split(result: Dictionary, ids: Array[String], field: String, amount: int) 
 	var share: int = total / ids.size()
 	var remainder := total % ids.size()
 	for index in range(ids.size()): result[ids[index]][field] += share + (1 if index < remainder else 0)
+
+func _latest_hero_damage(victim: UnitRuntimeState, killer_team: int, tick: int, heroes: Dictionary) -> String:
+	var window := ceili(settings.hero_credit_seconds * SimulationClock.TICKS_PER_SECOND)
+	var history: Dictionary = damage_history.get(victim.unit_id, {})
+	var credited := ""
+	var newest := -1
+	for id in heroes:
+		var hero: HeroProgression = heroes[id]
+		if hero.unit.team_id != killer_team or victim.team_id == killer_team: continue
+		var hit_tick: int = history.get(id, -1)
+		if hit_tick >= 0 and tick - hit_tick <= window and hit_tick > newest:
+			credited = id
+			newest = hit_tick
+	return credited

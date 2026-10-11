@@ -9,6 +9,12 @@ It is the central index for the match balance resources:
 - `abilities`: the current stun, slow and armor-shatter definitions.
 - `item_resources`: the editable equipment Resources already stored in `data/equipment`.
 
+`match_settings` also exposes the player targeting limits: `player_target_range`
+for nearby creep farming, `player_structure_target_range` for tower/core
+approach, and `player_target_leash` for an explicitly locked target. These keep
+the attack button local to the current lane/camp instead of selecting a wave at
+the enemy base.
+
 Each roster profile in `match_settings.hero_profiles` now owns its base
 strength/agility/intelligence, HP, physical armor, attack speed/BAT and per-level
 growth. `primary_attribute` is authoritative: one point of the primary stat

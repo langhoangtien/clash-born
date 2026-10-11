@@ -299,7 +299,7 @@ func _current_target(source: MapUnit) -> MapUnit:
 	if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id: return null
 	return target
 
-func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false) -> MapUnit:
+func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false, lane_filter: String = "") -> MapUnit:
 	var source: MapUnit = info.actor
 	var best: MapUnit
 	var best_priority := 100
@@ -310,6 +310,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		# Neutral camps never pull lane AI or bot auto-attack selection off route.
 		# The player's creep command may opt into neutral targets.
 		if candidate.get("neutral", false) and not allow_neutral: continue
+		if not lane_filter.is_empty() and candidate.kind in ["creep", "tower"] and candidate.lane != lane_filter: continue
 		if info.kind == "creep" and candidate.kind in ["creep", "tower"] and candidate.lane != info.lane: continue
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
@@ -346,15 +347,22 @@ func _unsafe_tower_dive(source: MapUnit, target: MapUnit) -> bool:
 func _player_target() -> MapUnit:
 	if entities.has(locked_target):
 		var target: MapUnit = entities[locked_target].actor
-		if target.runtime.alive and target.runtime.team_id != player.runtime.team_id and player.runtime.distance_to_unit(target.runtime) <= settings.hero_acquisition_range: return target
+		var leash := settings.hero_acquisition_range if attack_mode == "hero" else settings.player_target_leash
+		if target.runtime.alive and target.runtime.team_id != player.runtime.team_id and player.runtime.distance_to_unit(target.runtime) <= leash: return target
 	locked_target = ""
-	var categories: Array = ["hero"] if attack_mode == "hero" else ["creep", "tower", "core"]
-	var target := _choose_target(entities.player, categories, settings.hero_acquisition_range, true, false)
-	# Keep lane last-hits and nearby structures ahead of jungle camps. If no
-	# hostile lane target is available, the same creep command can farm a nearby
-	# neutral camp instead of becoming idle.
-	if target == null and attack_mode == "creep":
-		target = _choose_target(entities.player, ["creep"], settings.hero_acquisition_range, true, true)
+	if attack_mode == "hero":
+		return _choose_target(entities.player, ["hero"], settings.hero_acquisition_range, true)
+	# Creep/structure attack is deliberately local. It cannot select a wave at
+	# the enemy base or a third tower merely because that target exists on the map.
+	var lane := _nearest_lane(player.position)
+	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, false)
+	if target == null:
+		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane)
+	if target == null:
+		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true)
+	# If the lane is quiet, the same command can farm a nearby neutral camp.
+	if target == null:
+		target = _choose_target(entities.player, ["creep"], settings.player_target_range, true, true)
 	return target
 
 func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:

@@ -131,6 +131,10 @@ func _test_match() -> void:
 	main.player.position = camp_info.camp_center
 	main.player.runtime.position = main.player.position
 	main.settings.hero_acquisition_range = 300.0
+	for candidate in main.entities.values():
+		if candidate.get("neutral", false) or candidate.actor == main.player: continue
+		candidate.actor.position = camp_info.camp_center + Vector2(3000, 0)
+		candidate.actor.runtime.position = candidate.actor.position
 	main.request_attack("creep")
 	var jungle_target: MapUnit = main._player_target()
 	check(jungle_target != null and main.entities[jungle_target.runtime.unit_id].get("neutral", false), "Player creep command can select a nearby jungle creep")
