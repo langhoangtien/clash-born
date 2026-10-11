@@ -60,6 +60,8 @@ extends Resource
 @export_range(0.0, 1.0) var bot_retreat_hp_fraction: float = 0.28
 @export_range(0.0, 1.0) var bot_recover_hp_fraction: float = 0.72
 @export var bot_chase_range: float = 1100.0
+## A recovered bot first clears hostile lane units that reached its own base.
+@export var bot_base_defense_radius: float = 1400.0
 ## Bot rallies a fixed distance behind its own frontline along the authored lane.
 ## A world-space distance avoids a deep retreat when the base is far from a wave.
 @export var bot_frontline_trail_distance: float = 260.0
@@ -71,6 +73,10 @@ extends Resource
 @export var creep_detection_range: float = 600.0
 @export var creep_hero_protection_range: float = 600.0
 @export var creep_chase_limit: float = 850.0
+## Lane creeps may only chase a hero after a direct hero-vs-hero aggro event.
+## The leash is measured from the creep's position when that event occurred.
+@export var creep_hero_leash_range: float = 500.0
+@export var creep_hero_aggro_ticks: int = 90
 @export var creep_lost_target_ticks: int = 24
 @export var creep_unreachable_ticks: int = 90
 @export var creep_reacquire_ticks: int = 18

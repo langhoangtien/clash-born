@@ -389,3 +389,50 @@ movement source/destination changes, or navigation fails. `structure_runtime_row
 prints the scene/resource/registry view of every tower and core, while
 `structure_registry_errors` rejects duplicate/missing IDs, metadata mismatches and
 a T1/T2/T3 order that is reversed relative to the owning team's lane route.
+
+## Match AI behaviour contract
+
+This contract defines the sole movement/target authority for the current 1v1
+prototype.  Values below live in `MatchSettings`, so balance tuning does not
+require new AI code.  A target only produces movement while its current state
+permits it; no generic lane-follow order may overwrite a combat or retreat order.
+
+**Lane creeps and siege catapults.** They travel only on their assigned lane,
+acquire nearby enemy lane creeps first, then the next unlocked structure in that
+same lane.  They never select a deeper tower, core, another lane, or a newly
+spawned wave outside their detection range.  A lane creep never normally
+auto-acquires a hero.  It may retaliate after that hero directly damages an allied
+hero within protection range, then only for `creep_hero_aggro_ticks` and within
+`creep_hero_leash_range` of the aggro origin.  Leaving either bound immediately
+clears the hero target and resumes its forward waypoint.  Catapults use the same
+rules but retain their configured building damage multiplier.  This prevents a
+hero kite from pulling an entire wave through towers or into a fountain.
+
+**Neutral camps.** Neutral creeps are passive until damaged.  They target only
+their aggressor, remain within their camp leash, and return to camp when their
+retaliation timer expires or their target leaves the leash.  Lane AI and hero bot
+automatic target selection do not pull neutral camps.
+
+**Towers and core.** A living, unlocked tower chooses visible hostile creeps in
+range before heroes and holds a valid in-range target.  Direct damage to a nearby
+allied hero can temporarily mark the attacker for defence; normal acquisition
+resumes once that target is invalid.  T1 gates T2, T2 gates T3, all lane T3s gate
+both T4 throne guards, and both T4 guards gate the core.  Locked buildings defend
+but reject damage.  Towers never move; destroyed towers are removed from collision
+and target registries.
+
+**Enemy hero bot.** State priority is: dead/respawning; `RETREAT` to fountain at
+or below the configured health threshold; remain there until recovery threshold;
+escape only far enough to leave an enemy tower that is actively targeting it;
+defend hostile lane creeps that reached its own fountain area; safely fight a
+visible enemy hero or local lane creep; attack the next unlocked tower only with
+allied creep cover; otherwise rally a fixed distance behind its lane frontline.
+When no friendly frontline exists it rallies just outside the next enemy tower,
+never to its own T2/T3 merely because the previous wave died.  After fountain
+recovery it therefore clears any enemy creeps still near base before returning to
+the lane.  It does not tower-dive unless `enable_tower_dive` is explicitly enabled.
+
+The controlled MID-lane regression fixture and AI trace are the required evidence
+for changes to these rules.  `Dictionary` AI metadata is persisted at the decision
+site because GDScript passes dictionary helper arguments by value; this prevents a
+target/leash/state decision from silently disappearing on the next tick.

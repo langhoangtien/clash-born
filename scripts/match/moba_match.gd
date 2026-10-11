@@ -364,11 +364,17 @@ func _issue_ai_move(info: Dictionary, destination: Vector2, source: String, tick
 	info.movement_tick = tick
 	# Helper parameters are copied from the entity registry. Store the resulting
 	# order now so it is still present when the next simulation tick begins.
-	entities[actor.runtime.unit_id] = info
+	_persist_entity_info(info)
 	var state: String = info.get("ai_state", "") if info.kind == "hero" else info.get("creep_state", "")
 	if source != "lane-waypoint" or previous_source != source or int(info.get("route_index", 0)) % 5 == 0 or not valid:
 		_trace_ai(info, "MOVE", "state=%s lane=%s waypoint=%d source=%s destination=%s navigation=%s" % [state, info.get("assigned_lane", info.get("lane", "")), int(info.get("route_index", 0)), source, str(destination), "ok" if valid else "failed"])
 	return valid
+
+func _persist_entity_info(info: Dictionary) -> void:
+	# Dictionary arguments are copied by GDScript. AI helpers therefore persist
+	# metadata when deciding, rather than relying on a stale outer-loop copy.
+	var actor: MapUnit = info.get("actor", null)
+	if actor != null and entities.has(actor.runtime.unit_id): entities[actor.runtime.unit_id] = info
 
 func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, target: UnitRuntimeState) -> bool:
 	if target == null or not entities.has(target.unit_id): return true
@@ -526,10 +532,14 @@ func _tick(_index: int) -> void:
 			if tick % 3 == info.ai_phase: _drive_jungle_creep(info, tick)
 		elif info.kind == "hero":
 			if tick % maxi(1, settings.bot_decision_ticks) == info.ai_phase or actor.position.distance_to(player.position) <= settings.bot_chase_range:
-				_drive_bot(info, _bot_target(info, tick), tick)
+				var bot_target := _bot_target(info, tick)
+				# Target selection persists state at its decision site. Re-read it so a
+				# movement order never overwrites that state with this loop's old copy.
+				_drive_bot(entities.get(id, info), bot_target, tick)
 		else:
 			if tick % maxi(1, settings.creep_target_scan_ticks) == info.ai_phase or _current_target(actor) == null:
-				_drive_lane_creep(info, _choose_lane_creep_target(info, tick), tick)
+				var creep_target := _choose_lane_creep_target(info, tick)
+				_drive_lane_creep(entities.get(id, info), creep_target, tick)
 	_heal_fountains()
 	var events := combat.step()
 	if audio_router != null: audio_router.consume(events, entities, combat.tick_count, _audio_listener_position(), _audio_listener_radius())
@@ -687,39 +697,52 @@ func _choose_lane_creep_target(info: Dictionary, tick: int) -> MapUnit:
 	if current != null:
 		var current_info: Dictionary = entities[current.runtime.unit_id]
 		var valid_structure: bool = current_info.kind not in ["tower", "core"] or current == get_next_attackable_structure(actor.runtime.team_id, info.lane)
-		var valid_target: bool = valid_structure and actor.runtime.distance_to_unit(current.runtime) <= settings.creep_chase_limit
+		var valid_target := false
+		if current_info.kind == "hero":
+			# Heroes are never ordinary lane targets. Creeps retaliate only after
+			# protecting an allied hero, briefly and from a fixed aggro origin.
+			var origin: Vector2 = info.get("creep_chase_origin", actor.position)
+			valid_target = tick <= int(info.get("hero_aggro_until", 0)) and actor.position.distance_to(origin) <= settings.creep_hero_leash_range and actor.runtime.distance_to_unit(current.runtime) <= settings.creep_hero_leash_range
+		else:
+			valid_target = valid_structure and actor.runtime.distance_to_unit(current.runtime) <= settings.creep_chase_limit
 		if valid_target:
 			info.creep_lost_since = -1
+			_persist_entity_info(info)
 			return current
 		if int(info.get("creep_lost_since", -1)) < 0: info.creep_lost_since = tick
-		if tick - int(info.creep_lost_since) < settings.creep_lost_target_ticks: return current
+		if current_info.kind != "hero" and tick - int(info.creep_lost_since) < settings.creep_lost_target_ticks:
+			_persist_entity_info(info)
+			return current
 		actor.runtime.target_id = ""
 		info.creep_reacquire_after = tick + settings.creep_reacquire_ticks
 		info.creep_state = "RETURN"
-	if tick < int(info.get("creep_reacquire_after", 0)): return null
+		info.hero_aggro_until = 0
+	if tick < int(info.get("creep_reacquire_after", 0)):
+		_persist_entity_info(info)
+		return null
 	if not _structure_chain_configured(actor.runtime.team_id, info.lane):
 		info.creep_config_error = true
 		info.creep_state = "CONFIG_ERROR"
 		_trace_ai(info, "STUCK", "missing structure chain team=%d lane=%s; movement stopped safely" % [actor.runtime.team_id, info.lane])
+		_persist_entity_info(info)
 		return null
 	info.creep_config_error = false
 	# Creep and hero selection is lane-local and deterministic.  A tower is not
 	# scanned globally: only the next explicitly unlocked structure is eligible.
 	var target := _choose_target(info, ["creep"], settings.creep_detection_range, true, false, info.lane)
-	if target == null: target = _choose_target(info, ["hero"], settings.creep_detection_range, true)
 	if target == null:
 		var structure := get_next_attackable_structure(actor.runtime.team_id, info.lane)
 		if structure != null and actor.runtime.distance_to_unit(structure.runtime) <= settings.creep_detection_range:
 			target = structure
 	if target != null:
 		info.creep_state = "ATTACK" if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range() else "APPROACH"
-		info.creep_chase_origin = actor.position
 		info.creep_lost_since = -1
 	var new_target_id := target.runtime.unit_id if target != null else ""
 	if new_target_id != old_target_id:
 		var target_kind: String = entities[new_target_id].kind if entities.has(new_target_id) else "none"
 		var distance := actor.runtime.distance_to_unit(target.runtime) if target != null else -1.0
 		_trace_ai(info, "TARGET", "state=%s team=%d lane=%s waypoint=%d old=%s new=%s kind=%s distance=%.1f structures=[%s]" % [info.creep_state, actor.runtime.team_id, info.lane, int(info.route_index), old_target_id, new_target_id, target_kind, distance, _structure_candidate_report(actor.runtime.team_id, info.lane)])
+	_persist_entity_info(info)
 	return target
 
 func _drive_lane_creep(info: Dictionary, target: MapUnit, tick: int) -> void:
@@ -727,13 +750,16 @@ func _drive_lane_creep(info: Dictionary, target: MapUnit, tick: int) -> void:
 	if info.get("creep_config_error", false):
 		actor.runtime.target_id = ""
 		actor.stop()
+		_persist_entity_info(info)
 		return
 	if target != null:
 		_drive_target(info, target, tick)
+		_persist_entity_info(info)
 		return
 	info.creep_state = "LANE" if info.get("creep_state", "") != "RETURN" else "RETURN"
 	actor.runtime.target_id = ""
 	_drive_target(info, null, tick)
+	_persist_entity_info(info)
 
 func _unsafe_tower_dive(source: MapUnit, target: MapUnit) -> bool:
 	if source == null or target == null: return false
@@ -788,6 +814,7 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 			if actor.position.distance_to(home) > 900.0:
 				actor.stop()
 				actor.runtime.target_id = ""
+				_persist_entity_info(info)
 				return
 		var route: PackedVector2Array = info.route
 		# After chasing, resume at the nearest forward point through A*, never
@@ -804,6 +831,7 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 			if actor.path.is_empty() or actor.path[-1].distance_to(waypoint) > 0.1: _issue_ai_move(info, waypoint, "lane-waypoint", tick)
 	else: actor.stop()
 	if target != null: info.chasing = true
+	_persist_entity_info(info)
 
 func _drive_jungle_creep(info: Dictionary, tick: int) -> void:
 	var actor: MapUnit = info.actor
@@ -823,7 +851,7 @@ func _set_bot_state(info: Dictionary, state: String, tick: int, reason: String =
 	info.ai_state = state
 	info.ai_state_since = tick
 	var actor: MapUnit = info.actor
-	entities[actor.runtime.unit_id] = info
+	_persist_entity_info(info)
 	_trace_ai(info, "STATE", "%s->%s reason=%s lane=%s hp=%.0f/%.0f" % [previous, state, reason, info.get("assigned_lane", ""), actor.runtime.current_hp, actor.runtime.stats.max_hp])
 
 func _bot_target(info: Dictionary, tick: int) -> MapUnit:
@@ -849,9 +877,15 @@ func _bot_target(info: Dictionary, tick: int) -> MapUnit:
 		info.retreat_tower_id = attacking_tower.runtime.unit_id
 		_set_bot_state(info, "RETREAT", tick, "enemy-tower-targeting-hero")
 		return null
+	var base_intruder := _bot_base_intruder(info, lane)
+	if base_intruder != null:
+		_set_bot_state(info, "DEFEND_BASE", tick, "hostile-lane-creep-near-fountain")
+		info.ai_last_target_tick = tick
+		_persist_entity_info(info)
+		return base_intruder
 	var player_distance := actor.position.distance_to(player.position)
 	if player.runtime.alive and player_distance <= settings.bot_chase_range and not is_inside_enemy_tower_range(player.position, actor.runtime.team_id):
-		var hero_target := _choose_target(info, ["hero"], settings.bot_chase_range, true)
+		var hero_target := _choose_target(info, ["hero"], settings.bot_chase_range, true, false, "", true)
 		if hero_target != null:
 			_set_bot_state(info, "CHASE", tick, "enemy-hero-in-safe-chase-range")
 			info.ai_last_target_tick = tick
@@ -867,6 +901,22 @@ func _bot_target(info: Dictionary, tick: int) -> MapUnit:
 		return tower
 	_set_bot_state(info, "GO_TO_LANE", tick, "no-local-combat-target")
 	return null
+
+func _bot_base_intruder(info: Dictionary, lane: String) -> MapUnit:
+	var actor: MapUnit = info.actor
+	var fountain := layout.fountain_point(actor.runtime.team_id)
+	var best: MapUnit
+	var best_distance := INF
+	for candidate_info in entities.values():
+		if candidate_info.kind != "creep" or candidate_info.get("neutral", false) or candidate_info.lane != lane: continue
+		var candidate: MapUnit = candidate_info.actor
+		if not candidate.runtime.alive or candidate.runtime.team_id == actor.runtime.team_id: continue
+		if candidate.position.distance_to(fountain) > settings.bot_base_defense_radius: continue
+		var distance := actor.runtime.distance_to_unit(candidate.runtime)
+		if distance < best_distance:
+			best = candidate
+			best_distance = distance
+	return best
 
 func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var actor: MapUnit = info.actor
@@ -1043,6 +1093,8 @@ func _arm_lane_defenders(event: Dictionary) -> void:
 				defender.runtime.target_id = source.runtime.unit_id
 				info.creep_state = "APPROACH"
 				info.creep_chase_origin = defender.position
+				info.hero_aggro_until = combat.tick_count + settings.creep_hero_aggro_ticks
+				_persist_entity_info(info)
 
 func _on_death(id: String, events: Array[Dictionary]) -> void:
 	if not entities.has(id): return

@@ -107,6 +107,47 @@ func _test_match() -> void:
 	var persisted_bot: Dictionary = main.entities[bot_actor.runtime.unit_id]
 	check(persisted_bot.get("movement_source", "") == "frontline-rally", "Healthy bot receives a persisted movement order to follow its surviving lane wave")
 	check(Vector2(persisted_bot.get("movement_destination", Vector2.ZERO)).distance_to(expected_rally) < 2.0, "Bot rally point trails the wave by a fixed lane distance instead of moving toward base")
+	# Creep hero aggro is a deliberate, short retaliation rather than ordinary
+	# lane targeting. It must expire at its leash instead of dragging a wave home.
+	var leash_creep: MapUnit = main._spawn("hero_leash_creep", 0, main.settings.melee_creep, Vector2(2600, 2600), "creep", "MID")
+	var leash_info: Dictionary = main.entities[leash_creep.runtime.unit_id]
+	bot_actor.position = leash_creep.position + Vector2(main.settings.creep_hero_leash_range + 80.0, 0)
+	bot_actor.runtime.position = bot_actor.position
+	leash_creep.runtime.target_id = bot_actor.runtime.unit_id
+	leash_info.creep_chase_origin = leash_creep.position
+	leash_info.hero_aggro_until = main.combat.tick_count + main.settings.creep_hero_aggro_ticks
+	main.entities[leash_creep.runtime.unit_id] = leash_info
+	check(main._choose_lane_creep_target(leash_info, main.combat.tick_count + 1) == null and leash_creep.runtime.target_id.is_empty(), "Lane creep drops a hero beyond its retaliation leash instead of chasing through towers")
+	# Normal lane scanning must never pick a hero merely because no enemy creep is
+	# nearby. Only _arm_lane_defenders may install a hero target.
+	bot_actor.position = leash_creep.position + Vector2(100.0, 0)
+	bot_actor.runtime.position = bot_actor.position
+	leash_info = main.entities[leash_creep.runtime.unit_id]
+	leash_info.creep_reacquire_after = 0
+	main.entities[leash_creep.runtime.unit_id] = leash_info
+	var ordinary_target: MapUnit = main._choose_lane_creep_target(leash_info, main.combat.tick_count + 2)
+	check(ordinary_target != bot_actor, "Lane creep does not auto-acquire a nearby enemy hero")
+	# A recovered bot clears hostile lane creeps that actually reached its base
+	# before returning to its forward rally point.
+	var base_intruder: MapUnit = main._spawn("base_intruder", 0, main.settings.melee_creep, main.layout.fountain_point(1) + Vector2(180, 0), "creep", "MID")
+	bot_actor.position = main.layout.fountain_point(1)
+	bot_actor.runtime.position = bot_actor.position
+	bot_info = main.entities[bot_actor.runtime.unit_id]
+	bot_info.assigned_lane = "MID"
+	bot_info.ai_state = "GO_TO_LANE"
+	bot_actor.runtime.current_hp = bot_actor.runtime.stats.max_hp
+	main.entities[bot_actor.runtime.unit_id] = bot_info
+	check(main._bot_base_intruder(bot_info, "MID") == base_intruder, "Recovered bot recognizes hostile lane creeps that reached its fountain area")
+	check(main._bot_target(bot_info, main.combat.tick_count + 3) == base_intruder, "Recovered bot targets a base intruder before attempting to rally forward")
+	# Retaliation metadata survives the helper boundary: this is what enforces the
+	# short hero leash for a wave protecting its own hero.
+	main.player.position = bot_actor.position + Vector2(120, 0)
+	main.player.runtime.position = main.player.position
+	var response_creep: MapUnit = main._spawn("response_creep", 1, main.settings.melee_creep, bot_actor.position + Vector2(45, 0), "creep", "MID")
+	main._arm_lane_defenders({"source_unit_id": main.player.runtime.unit_id, "target_unit_id": bot_actor.runtime.unit_id, "reflected": false})
+	var response_info: Dictionary = main.entities[response_creep.runtime.unit_id]
+	check(response_creep.runtime.target_id == main.player.runtime.unit_id, "Nearby lane creep receives direct hero-aggression retaliation target")
+	check(int(response_info.get("hero_aggro_until", 0)) == main.combat.tick_count + main.settings.creep_hero_aggro_ticks, "Hero retaliation leash metadata persists in the runtime registry")
 	check(main.settings.tower_t1_hp == 3200 and main.settings.tower_t4_hp == 4200 and main.settings.tower_t1_damage < main.settings.tower_t4_damage, "Tower durability is reduced while damage increases toward T4")
 	var red_guards := [main.entities[main.tower_registry["red_base_guard_left"]].actor, main.entities[main.tower_registry["red_base_guard_right"]].actor]
 	check(not main._core_is_unlocked(1), "Living T4 guards keep the red core locked")
