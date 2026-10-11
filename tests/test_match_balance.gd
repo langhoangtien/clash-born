@@ -8,8 +8,9 @@ func check(value: bool, label: String) -> void:
 func _run() -> void:
 	_test_siege()
 	await _test_match()
-	if "--controlled-soak" in OS.get_cmdline_user_args(): await _test_controlled_soak()
-	elif "--soak" in OS.get_cmdline_user_args(): await _test_soak()
+	var args := OS.get_cmdline_user_args()
+	if "--controlled-soak" in args: await _test_controlled_soak()
+	elif "--soak" in args or "--long-soak" in args or "--smoke-soak" in args: await _test_soak()
 	print("Match balance/navigation: %d checks, %d failures" % [checks, failures])
 	quit(0 if failures == 0 else 1)
 
@@ -185,8 +186,9 @@ func _test_soak() -> void:
 	var lane_damage: Dictionary = {"TOP": 0.0, "MID": 0.0, "BOT": 0.0}
 	var samples: Dictionary = {}
 	var stalled: Array[String] = []
-	var target_ticks := 18000 if "--long-soak" in OS.get_cmdline_user_args() else 5400
-	var frame_budget := 60 * (601 if target_ticks > 5400 else 181)
+	var soak_args := OS.get_cmdline_user_args()
+	var target_ticks := 300 if "--smoke-soak" in soak_args else (18000 if "--long-soak" in soak_args else 5400)
+	var frame_budget := 60 * (ceili(target_ticks / 30.0) + 1)
 	var last_report_usec := Time.get_ticks_usec()
 	for frame in range(frame_budget):
 		await physics_frame
@@ -211,7 +213,8 @@ func _test_soak() -> void:
 			if ("_" + lane + "_") in id: lane_damage[lane] += main.combat.metrics.by_unit[id].damage_dealt
 	check(not main.match_over and main.combat.tick_count >= target_ticks, "Default autonomous match remains playable through the soak duration")
 	check(main.combat.metrics.by_unit.size() <= main.entities.size() + 2, "Retired creep metrics are released during the soak")
-	for lane in lane_damage: check(lane_damage[lane] > 0, "Live creep combat occurs on " + lane)
+	if target_ticks >= 5400:
+		for lane in lane_damage: check(lane_damage[lane] > 0, "Live creep combat occurs on " + lane)
 	check(stalled.is_empty(), "No creep stalls without a target for eight simulation seconds: " + str(stalled))
 	print("Match soak: tick=%d waves=%d cores=%.0f/%.0f lane_damage=%s" % [main.combat.tick_count, main.wave_number, main.cores[0].runtime.current_hp, main.cores[1].runtime.current_hp, str(lane_damage)])
 	main.queue_free()
