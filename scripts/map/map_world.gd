@@ -115,13 +115,24 @@ func _draw() -> void:
 				draw_rect(rect, ground_color)
 			else:
 				draw_rect(rect, terrain.get("color", Color.MAGENTA))
+			if terrain_name == "Lane":
+				draw_rect(rect.grow(-10), Color(0.82, 0.73, 0.55, 0.36))
+			elif terrain_name == "Jungle" and ((x * 17 + y * 31) % 7 == 0):
+				_draw_jungle_patch(rect, x, y)
+			elif terrain_name == "Ground / passage" and ((x * 13 + y * 19) % 23 == 0):
+				draw_circle(rect.get_center() + Vector2(-12, 14), 7, Color(0.35, 0.52, 0.28, 0.6))
 			if terrain_name == "River":
 				river_total += x + 0.5
 				river_count += 1
 			if walkability_overlay:
 				draw_rect(rect.grow(-6), Color(0.3, 1, 0.4, 0.12) if layout.is_walkable(cell) else Color(1, 0.2, 0.15, 0.65), false, 4)
 		if river_count > 0: river_points.append(Vector2(river_total / river_count * tile, (y + 0.5) * tile))
-	if river_points.size() > 1: draw_polyline(river_points, river_color, tile * 1.4, true)
+	if river_points.size() > 1:
+		for point in river_points: draw_circle(point, tile * 0.74, Color(0.12, 0.45, 0.72, 0.92))
+		draw_polyline(river_points, river_color.lightened(0.18), tile * 1.18, true)
+		for index in range(0, river_points.size(), 3):
+			var point := river_points[index]
+			draw_line(point + Vector2(-tile * 0.28, -6), point + Vector2(tile * 0.18, -6), Color(0.55, 0.88, 0.96, 0.45), 5, true)
 	var wall_color: Color = layout.terrain_definitions.get("#", {}).get("color", Color(0.20, 0.23, 0.24))
 	for bounds in _interior_wall_bounds():
 		var wall_style := StyleBoxFlat.new()
@@ -139,6 +150,7 @@ func _draw() -> void:
 		var rect := Rect2(Vector2(area.position) * tile, Vector2(area.size) * tile)
 		draw_rect(rect.grow(-12), Color(0.45, 0.75, 1) if index == 0 else Color(1, 0.5, 0.5), false, 8)
 		_label("BLUE BASE" if index == 0 else "RED BASE", rect.position + Vector2(30, 65), Color.WHITE, 48)
+		_draw_base_badge(rect.get_center(), Color(0.18, 0.58, 1.0) if index == 0 else Color(1.0, 0.28, 0.3))
 	for lane in ["TOP", "MID", "BOT"]:
 		var points := layout.route(lane, 0)
 		if points.is_empty(): continue
@@ -166,3 +178,16 @@ func _draw() -> void:
 			var points := PackedVector2Array([unit.position])
 			points.append_array(unit.path.slice(unit.path_index))
 			if points.size() > 1: draw_polyline(points, unit.view.visual_data.team_color.lightened(0.4), 5, true)
+
+func _draw_jungle_patch(rect: Rect2, x: int, y: int) -> void:
+	var center := rect.get_center() + Vector2(float((x * 11) % 17 - 8), float((y * 7) % 13 - 6))
+	draw_circle(center + Vector2(-18, 10), 22, Color(0.05, 0.25, 0.2, 0.92))
+	draw_circle(center + Vector2(12, 5), 26, Color(0.10, 0.40, 0.26, 0.95))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(-28, 8), center + Vector2(-8, -30), center + Vector2(5, 8)]), Color(0.30, 0.62, 0.25, 0.9))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(0, 8), center + Vector2(17, -35), center + Vector2(35, 8)]), Color(0.20, 0.52, 0.23, 0.9))
+	draw_line(center + Vector2(-17, 8), center + Vector2(-17, 30), Color(0.25, 0.20, 0.12, 0.8), 7, true)
+
+func _draw_base_badge(center: Vector2, color: Color) -> void:
+	draw_circle(center + Vector2(0, 18), 62, Color(0.03, 0.08, 0.12, 0.3))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(0, -58), center + Vector2(43, 0), center + Vector2(0, 58), center + Vector2(-43, 0)]), Color(color, 0.8))
+	draw_colored_polygon(PackedVector2Array([center + Vector2(0, -39), center + Vector2(28, 0), center + Vector2(0, 39), center + Vector2(-28, 0)]), color.lightened(0.22))

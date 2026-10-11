@@ -75,12 +75,23 @@ were visually inspected.
 | scripts/map/map_unit.gd | Continuous physics probe reusing existing unit state/view |
 | scripts/map/map_camera.gd | Pan, zoom, follow and map clamping |
 | scripts/map/map_prototype.gd | Scene coordination, input and controls |
-| scripts/units/combat_unit.gd | Optional range/HP-bar visibility for reused map views |
+| scripts/units/combat_unit.gd | Flat-vector hero, creep and structure silhouettes |
+| scripts/match/fountain_view.gd | Flat-vector fountain crystal and team aura |
 | scripts/ui/sandbox_controller.gd | Map Prototype entry button |
 | tests/test_phase6.gd | Map/navigation/collision/camera/input/mode regression tests |
 | README.md | Phase 6 launch, controls, scope and executed QA |
 | DESIGN.md | Map architecture and integration contract |
 | docs/phase6_map.md | Usage, authoring, verification and file inventory |
+
+## Flat-vector style slice
+
+The prototype now includes a first style reference built from Godot drawing
+primitives: soft lane insets, a continuous blue river ribbon, deterministic
+jungle foliage, team-colored base badges, crystal towers, a fountain crystal,
+and primitive hero silhouettes. This keeps the simulation independent from
+rendering and avoids a large background texture. It is a visual slice for
+approval; it does not yet replace every map decoration or provide final hero
+and item artwork.
 
 Godot also creates tracked `.gd.uid` files for the six new map scripts and the
 new Phase 6 test. Existing scenes, unit Resources, combat formulas and earlier

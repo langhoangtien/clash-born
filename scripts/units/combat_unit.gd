@@ -76,7 +76,7 @@ func _draw() -> void:
 	var color := visual_data.team_color if runtime.alive else Color(0.3, 0.32, 0.34)
 	if damage_flash > 0 and runtime.alive: color = color.lightened(0.3)
 	draw_circle(Vector2(0, 5), radius + 3, Color(0, 0, 0, 0.3))
-	if structure_visual: draw_rect(Rect2(Vector2.ONE * -radius, Vector2.ONE * radius * 2), color)
+	if structure_visual: _draw_structure(radius, color)
 	elif siege_visual:
 		draw_rect(Rect2(Vector2(-radius, -radius * 0.6), Vector2(radius * 2, radius * 1.2)), color)
 		for x in [-0.65, 0.65]: draw_circle(Vector2(radius * x, radius * 0.65), radius * 0.3, Color(0.15, 0.12, 0.1))
@@ -84,7 +84,7 @@ func _draw() -> void:
 		draw_circle(Vector2(radius * 0.5, -radius * 0.8), radius * 0.25, Color(0.65, 0.65, 0.65))
 	elif compact_visual and runtime.stats.ranged_attacks:
 		draw_colored_polygon(PackedVector2Array([Vector2(0, -radius), Vector2(radius, 0), Vector2(0, radius), Vector2(-radius, 0)]), color)
-	else: draw_circle(Vector2.ZERO, radius, color)
+	else: _draw_hero(radius, color)
 	if compact_visual and not siege_visual:
 		if runtime.stats.ranged_attacks:
 			draw_arc(Vector2.ZERO, radius * 0.65, -PI / 2, PI / 2, 12, Color.WHITE, 2, true)
@@ -108,3 +108,40 @@ func _draw_bar(y: float, ratio: float, color: Color) -> void:
 	var width := 50.0 if compact_visual else 90.0
 	draw_rect(Rect2(Vector2(-width / 2, y), Vector2(width, 8)), Color(0.02, 0.03, 0.04))
 	draw_rect(Rect2(Vector2(-width / 2, y), Vector2(width * clampf(ratio, 0, 1), 8)), color)
+
+func _draw_hero(radius: float, color: Color) -> void:
+	# Small flat-vector silhouette: cape, body, head and weapon remain legible
+	# at the match camera zoom without requiring sprite textures.
+	var facing := -1.0 if color.r > color.b else 1.0
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(-radius * 0.75, -radius * 0.15),
+		Vector2(-radius * 1.2, radius * 0.9),
+		Vector2(radius * 0.15, radius * 0.62),
+		Vector2(radius * 0.42, -radius * 0.35)
+	]), color.darkened(0.28))
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(-radius * 0.36, radius * 0.62),
+		Vector2(radius * 0.38, radius * 0.62),
+		Vector2(radius * 0.58, -radius * 0.15),
+		Vector2(0, -radius * 0.66),
+		Vector2(-radius * 0.58, -radius * 0.15)
+	]), color)
+	draw_circle(Vector2(0, -radius * 0.88), radius * 0.34, color.lightened(0.28))
+	draw_line(Vector2(facing * radius * 0.24, -radius * 0.1), Vector2(facing * radius * 1.05, -radius * 0.7), Color(0.92, 0.95, 1.0), maxf(3.0, radius * 0.12), true)
+	draw_line(Vector2(facing * radius * 0.75, -radius * 0.78), Vector2(facing * radius * 1.1, -radius * 0.52), Color(0.55, 0.72, 0.9), maxf(2.0, radius * 0.08), true)
+
+func _draw_structure(radius: float, color: Color) -> void:
+	var is_core := visual_data != null and visual_data.display_name.find("NHÀ") >= 0
+	var base_width := radius * (2.2 if is_core else 1.8)
+	var base_height := radius * (0.72 if is_core else 0.6)
+	draw_rect(Rect2(Vector2(-base_width * 0.5, radius * 0.35), Vector2(base_width, base_height)), Color(0.10, 0.14, 0.19, 0.95))
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(-radius * 0.62, radius * 0.35), Vector2(-radius * 0.45, -radius * 0.6),
+		Vector2(radius * 0.45, -radius * 0.6), Vector2(radius * 0.62, radius * 0.35)
+	]), color.darkened(0.18))
+	draw_rect(Rect2(Vector2(-radius * 0.3, -radius * 0.42), Vector2(radius * 0.6, radius * 0.72)), color.lightened(0.06))
+	var crystal := radius * (0.58 if is_core else 0.42)
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(0, -radius * 1.16), Vector2(crystal, -radius * 0.56),
+		Vector2(0, -radius * 0.08), Vector2(-crystal, -radius * 0.56)
+	]), Color(0.45, 0.9, 1.0) if color.b > color.r else Color(1.0, 0.5, 0.42))
