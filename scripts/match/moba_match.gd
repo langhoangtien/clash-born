@@ -563,6 +563,9 @@ func _visible(source: MapUnit, target: MapUnit) -> bool:
 func _has_vision(source: MapUnit, target: MapUnit) -> bool:
 	if source == null or target == null: return false
 	if full_map_mode or source.runtime.team_id == target.runtime.team_id: return true
+	# Brush hides only opposing playable teams. Neutral camps remain discoverable;
+	# a player must physically enter the same brush to reveal an enemy waiting in it.
+	if source.runtime.team_id in [0, 1] and target.runtime.team_id in [0, 1] and layout.is_brush_world(target.position) and not layout.is_brush_world(source.position): return false
 	var vision := float(source.runtime.stats.get("vision_range", 1200.0))
 	# Vision is a deterministic radial rule. Navigation/terrain visibility still
 	# controls whether an actor can approach, but does not make UI targetability
@@ -827,9 +830,11 @@ func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var source := "defensive-anchor"
 	if frontline != null:
 		var candidate := frontline.position.lerp(layout.spawn_points(actor.runtime.team_id)[0], settings.bot_frontline_trail_fraction)
-		# Never lead a wave through the current outer defense while merely moving
-		# to lane; attacking a structure remains a separate AI state.
-		if _lane_progress(candidate, lane, actor.runtime.team_id) <= _lane_progress(anchor, lane, actor.runtime.team_id):
+		var enemy_tower := get_next_attackable_structure(actor.runtime.team_id, lane)
+		# The bot follows a surviving friendly wave through the lane. It only falls
+		# back to its defensive anchor if that wave is not covering the next enemy
+		# tower; this keeps a winning wave from being abandoned at the middle tower.
+		if enemy_tower == null or not is_inside_enemy_tower_range(candidate, actor.runtime.team_id) or _tower_has_creep_cover(enemy_tower):
 			destination = candidate
 			source = "frontline-rally"
 	_trace_ai(info, "BOT", "state=%s lane=%s anchor=%s frontline=%s destination=%s source=%s hp=%.0f/%.0f in_fountain=%s" % [info.ai_state, lane, str(anchor), frontline_text, str(destination), source, actor.runtime.current_hp, actor.runtime.stats.max_hp, str(in_fountain(actor.runtime))])

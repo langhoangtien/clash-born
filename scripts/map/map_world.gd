@@ -119,6 +119,8 @@ func _draw() -> void:
 				draw_rect(rect.grow(-10), Color(0.82, 0.73, 0.55, 0.36))
 			elif terrain_name == "Jungle" and ((x * 17 + y * 31) % 7 == 0):
 				_draw_jungle_patch(rect, x, y)
+			if layout.is_brush_cell(cell):
+				_draw_brush_patch(rect)
 			elif terrain_name == "Ground / passage" and ((x * 13 + y * 19) % 23 == 0):
 				draw_circle(rect.get_center() + Vector2(-12, 14), 7, Color(0.35, 0.52, 0.28, 0.6))
 			if terrain_name == "River":
@@ -186,6 +188,11 @@ func _draw_jungle_patch(rect: Rect2, x: int, y: int) -> void:
 	draw_colored_polygon(PackedVector2Array([center + Vector2(-28, 8), center + Vector2(-8, -30), center + Vector2(5, 8)]), Color(0.30, 0.62, 0.25, 0.9))
 	draw_colored_polygon(PackedVector2Array([center + Vector2(0, 8), center + Vector2(17, -35), center + Vector2(35, 8)]), Color(0.20, 0.52, 0.23, 0.9))
 	draw_line(center + Vector2(-17, 8), center + Vector2(-17, 30), Color(0.25, 0.20, 0.12, 0.8), 7, true)
+
+func _draw_brush_patch(rect: Rect2) -> void:
+	var color := Color(0.22, 0.62, 0.23, 0.9)
+	for offset in [Vector2(-32, 30), Vector2(-12, 12), Vector2(12, 28), Vector2(34, 7)]:
+		draw_colored_polygon(PackedVector2Array([rect.get_center() + offset + Vector2(-10, 13), rect.get_center() + offset + Vector2(0, -24), rect.get_center() + offset + Vector2(10, 13)]), color)
 
 func _draw_base_badge(center: Vector2, color: Color) -> void:
 	draw_circle(center + Vector2(0, 18), 62, Color(0.03, 0.08, 0.12, 0.3))

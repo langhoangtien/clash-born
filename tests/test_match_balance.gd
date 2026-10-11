@@ -10,7 +10,7 @@ func _run() -> void:
 	await _test_match()
 	var args := OS.get_cmdline_user_args()
 	if "--controlled-soak" in args: await _test_controlled_soak()
-	elif "--soak" in args or "--long-soak" in args or "--smoke-soak" in args: await _test_soak()
+	elif "--soak" in args or "--long-soak" in args or "--medium-soak" in args or "--smoke-soak" in args: await _test_soak()
 	print("Match balance/navigation: %d checks, %d failures" % [checks, failures])
 	quit(0 if failures == 0 else 1)
 
@@ -67,6 +67,31 @@ func _test_match() -> void:
 	main.clock.set_running(false)
 	for info in main.entities.values(): info.actor.paused = true
 	check(main._can_apply_match_damage({}, null, main.player.runtime), "Projectile impact remains safe after its removed source no longer exists")
+	var expired_event := {"kind": "damage", "source_unit_id": "removed_creep", "target_unit_id": main.player.runtime.unit_id, "damage_type": DamageCalculator.DamageType.PHYSICAL, "applied_damage": 1.0}
+	var received_before: float = main.combat.metrics.by_unit[main.player.runtime.unit_id].damage_received
+	var expired_events: Array[Dictionary] = [expired_event]
+	main.combat.metrics.consume(expired_events)
+	check(is_equal_approx(main.combat.metrics.by_unit[main.player.runtime.unit_id].damage_received, received_before + 1.0), "Metrics safely ignore a removed projectile source while keeping target damage")
+	var brush_point: Vector2 = main.layout.cell_center(Vector2i(main.layout.brush_cells[0]))
+	var brush_enemy: MapUnit = main._spawn("brush_enemy", 1, main.settings.melee_creep, brush_point, "creep", "MID")
+	main.player.position = brush_point + Vector2(650, 0)
+	main.player.runtime.position = main.player.position
+	check(not main._has_vision(main.player, brush_enemy), "Enemy inside brush is hidden from a player outside brush")
+	main.player.position = brush_point
+	main.player.runtime.position = main.player.position
+	check(main._has_vision(main.player, brush_enemy), "Player entering brush reveals enemy in the same brush")
+	# A healthy bot must continue behind a winning allied wave instead of falling
+	# back to its tower after the opposing wave has been cleared.
+	var bot_info: Dictionary = main.entities.enemy_hero
+	var bot_actor: MapUnit = bot_info.actor
+	bot_actor.position = main.get_defensive_anchor(1, "MID")
+	bot_actor.runtime.position = bot_actor.position
+	bot_actor.runtime.current_hp = bot_actor.runtime.stats.max_hp
+	bot_info.ai_state = "GO_TO_LANE"
+	var red_frontline: MapUnit = main._spawn("bot_frontline", 1, main.settings.melee_creep, main.layout.route("MID", 1)[1], "creep", "MID")
+	red_frontline.runtime.current_hp = red_frontline.runtime.stats.max_hp
+	main._drive_bot(bot_info, null, main.combat.tick_count + 1)
+	check(bot_info.get("movement_source", "") == "frontline-rally", "Healthy bot follows its surviving lane wave instead of retreating to its tower")
 	check(main.settings.tower_t1_hp == 3200 and main.settings.tower_t4_hp == 4200 and main.settings.tower_t1_damage < main.settings.tower_t4_damage, "Tower durability is reduced while damage increases toward T4")
 	var red_guards := [main.entities[main.tower_registry["red_base_guard_left"]].actor, main.entities[main.tower_registry["red_base_guard_right"]].actor]
 	check(not main._core_is_unlocked(1), "Living T4 guards keep the red core locked")
@@ -190,7 +215,7 @@ func _test_soak() -> void:
 	var samples: Dictionary = {}
 	var stalled: Array[String] = []
 	var soak_args := OS.get_cmdline_user_args()
-	var target_ticks := 300 if "--smoke-soak" in soak_args else (18000 if "--long-soak" in soak_args else 5400)
+	var target_ticks := 300 if "--smoke-soak" in soak_args else (1200 if "--medium-soak" in soak_args else (18000 if "--long-soak" in soak_args else 5400))
 	var frame_budget := 60 * (ceili(target_ticks / 30.0) + 1)
 	var last_report_usec := Time.get_ticks_usec()
 	for frame in range(frame_budget):

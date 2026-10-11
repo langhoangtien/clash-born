@@ -18,6 +18,8 @@ extends Resource
 @export var tower_tiers: PackedInt32Array = []
 @export var tower_prerequisites: Array[PackedStringArray] = []
 @export var jungle_camps: PackedVector2Array = []
+## Brush is gameplay data: an enemy inside it is hidden from a unit outside it.
+@export var brush_cells: PackedVector2Array = []
 @export var fountain_cells: PackedVector2Array = []
 @export var throne_cells: PackedVector2Array = []
 
@@ -39,6 +41,12 @@ func terrain_at(cell: Vector2i) -> Dictionary:
 
 func is_walkable(cell: Vector2i) -> bool:
 	return terrain_at(cell).get("walkable", false)
+
+func is_brush_cell(cell: Vector2i) -> bool:
+	return Vector2(cell) in brush_cells
+
+func is_brush_world(point: Vector2) -> bool:
+	return is_brush_cell(world_to_cell(point))
 
 func route(lane: String, team: int) -> PackedVector2Array:
 	var result := PackedVector2Array()
@@ -99,7 +107,9 @@ func validation_errors() -> PackedStringArray:
 	for point in tower_cells:
 		if not is_walkable(Vector2i(point)): errors.append("Blocked tower")
 	for point in jungle_camps:
-		if not is_walkable(Vector2i(point)): errors.append("Blocked jungle camp")
+		if terrain_at(Vector2i(point)).get("name", "") != "Jungle": errors.append("Jungle camp is not on jungle terrain")
+	for point in brush_cells:
+		if terrain_at(Vector2i(point)).get("name", "") != "Jungle": errors.append("Brush is not on jungle terrain")
 	for point in fountain_cells + throne_cells:
 		if not is_walkable(Vector2i(point)): errors.append("Blocked base marker")
 	return errors
