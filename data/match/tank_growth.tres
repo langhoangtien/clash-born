@@ -6,5 +6,5 @@ display_name = "Brakk · Thiết Quyền"
 ranged_attacks = false
 primary_attribute = 1
 passive_id = "bat_mastery"
-base_overrides = {"strength": 30.0, "agility": 16.0, "intelligence": 15.0, "base_hp": 1100.0, "physical_damage": 74.0, "physical_armor": 10.0, "attack_range": 150.0}
+base_overrides = {"strength": 30.0, "agility": 16.0, "intelligence": 15.0, "base_hp": 1100.0, "physical_damage": 74.0, "physical_armor": 4.5, "base_attacks_per_second": 0.5, "attack_range": 150.0}
 per_level = {"strength": 3.8, "agility": 1.5, "intelligence": 1.4, "physical_damage": 3.0, "physical_armor": 0.4}

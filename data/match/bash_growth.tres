@@ -6,5 +6,5 @@ display_name = "Torvak · Đập Đá"
 ranged_attacks = false
 primary_attribute = 1
 passive_id = "melee_bash"
-base_overrides = {"strength": 28.0, "agility": 18.0, "intelligence": 14.0, "base_hp": 1080.0, "physical_damage": 80.0, "physical_armor": 8.0, "attack_range": 150.0}
+base_overrides = {"strength": 28.0, "agility": 18.0, "intelligence": 14.0, "base_hp": 1080.0, "physical_damage": 80.0, "physical_armor": 4.2, "base_attacks_per_second": 0.5, "attack_range": 150.0}
 per_level = {"strength": 3.5, "agility": 1.8, "intelligence": 1.2, "physical_damage": 4.0}

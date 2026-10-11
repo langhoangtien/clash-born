@@ -6,5 +6,5 @@ display_name = "Myra · Pháp sư"
 ranged_attacks = true
 primary_attribute = 3
 passive_id = "pure_throw"
-base_overrides = {"strength": 18.0, "agility": 18.0, "intelligence": 30.0, "base_hp": 850.0, "base_mana": 320.0, "physical_damage": 38.0, "magic_damage": 75.0}
+base_overrides = {"strength": 18.0, "agility": 18.0, "intelligence": 30.0, "base_hp": 850.0, "base_mana": 320.0, "physical_damage": 38.0, "magic_damage": 75.0, "physical_armor": 2.6, "base_attacks_per_second": 0.5}
 per_level = {"strength": 1.7, "agility": 1.8, "intelligence": 3.7, "magic_damage": 8.0, "base_mana": 20.0}

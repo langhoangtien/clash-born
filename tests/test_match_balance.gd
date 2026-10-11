@@ -126,6 +126,14 @@ func _test_match() -> void:
 	wrong_lane.actor.position = top.actor.position + Vector2(20, 0)
 	wrong_lane.actor.runtime.position = wrong_lane.actor.position
 	check(main._choose_target(top, ["creep"], 25) != wrong_lane.actor, "Creeps do not abandon their lane to acquire other-lane creeps")
+	if not main.entities.has("jungle_00_0"): main.spawn_jungle_camps()
+	var camp_info: Dictionary = main.entities["jungle_00_0"]
+	main.player.position = camp_info.camp_center
+	main.player.runtime.position = main.player.position
+	main.settings.hero_acquisition_range = 300.0
+	main.request_attack("creep")
+	var jungle_target: MapUnit = main._player_target()
+	check(jungle_target != null and main.entities[jungle_target.runtime.unit_id].get("neutral", false), "Player creep command can select a nearby jungle creep")
 	# A level-six bot has an unspent point after its only five-rank skill is full.
 	# The AI must leave that point for future skills instead of retrying forever.
 	var bot: HeroProgression = main.progression.enemy_hero

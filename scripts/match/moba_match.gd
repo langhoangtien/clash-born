@@ -299,7 +299,7 @@ func _current_target(source: MapUnit) -> MapUnit:
 	if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id: return null
 	return target
 
-func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false) -> MapUnit:
+func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false) -> MapUnit:
 	var source: MapUnit = info.actor
 	var best: MapUnit
 	var best_priority := 100
@@ -307,9 +307,9 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 	for candidate in entities.values():
 		var target: MapUnit = candidate.actor
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
-		# Neutral camps never pull lane AI or auto-attack selection off route.
-		# Players can still attack one explicitly through locked_target.
-		if candidate.get("neutral", false): continue
+		# Neutral camps never pull lane AI or bot auto-attack selection off route.
+		# The player's creep command may opt into neutral targets.
+		if candidate.get("neutral", false) and not allow_neutral: continue
 		if info.kind == "creep" and candidate.kind in ["creep", "tower"] and candidate.lane != info.lane: continue
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
@@ -349,7 +349,13 @@ func _player_target() -> MapUnit:
 		if target.runtime.alive and target.runtime.team_id != player.runtime.team_id and player.runtime.distance_to_unit(target.runtime) <= settings.hero_acquisition_range: return target
 	locked_target = ""
 	var categories: Array = ["hero"] if attack_mode == "hero" else ["creep", "tower", "core"]
-	return _choose_target(entities.player, categories, settings.hero_acquisition_range, true)
+	var target := _choose_target(entities.player, categories, settings.hero_acquisition_range, true, false)
+	# Keep lane last-hits and nearby structures ahead of jungle camps. If no
+	# hostile lane target is available, the same creep command can farm a nearby
+	# neutral camp instead of becoming idle.
+	if target == null and attack_mode == "creep":
+		target = _choose_target(entities.player, ["creep"], settings.hero_acquisition_range, true, true)
+	return target
 
 func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var actor: MapUnit = info.actor

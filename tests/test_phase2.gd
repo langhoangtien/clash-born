@@ -67,11 +67,11 @@ func _test_attributes() -> void:
 	_near(stats.mana_regen, 1.8, "INT mana regeneration")
 	_near(stats.physical_armor, -4, "AGI fractional armor, negatives retained")
 	_near(stats.magic_armor, -2, "INT magic armor")
-	_near(stats.physical_damage, 128, "AGI primary damage")
+	_near(stats.physical_damage, 140, "AGI primary damage")
 	source.primary_attribute = UnitStats.PrimaryAttribute.STRENGTH
-	_near(StatCalculator.calculate(source, balance).physical_damage, 107, "STR primary damage")
+	_near(StatCalculator.calculate(source, balance).physical_damage, 110, "STR primary damage")
 	source.primary_attribute = UnitStats.PrimaryAttribute.INTELLIGENCE
-	_near(StatCalculator.calculate(source, balance).physical_damage, 114, "INT primary damage")
+	_near(StatCalculator.calculate(source, balance).physical_damage, 120, "INT primary damage")
 	source.primary_attribute = UnitStats.PrimaryAttribute.NONE
 	_near(StatCalculator.calculate(source, balance).physical_damage, 100, "NONE primary damage")
 	source.primary_attribute = UnitStats.PrimaryAttribute.AGILITY

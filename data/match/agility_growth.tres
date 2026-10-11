@@ -6,5 +6,5 @@ display_name = "Zephra · Kiếm Vũ"
 ranged_attacks = false
 primary_attribute = 2
 passive_id = "wind_agility"
-base_overrides = {"strength": 21.0, "agility": 31.0, "intelligence": 16.0, "base_hp": 900.0, "physical_damage": 70.0, "attack_range": 150.0}
+base_overrides = {"strength": 21.0, "agility": 31.0, "intelligence": 16.0, "base_hp": 900.0, "physical_damage": 70.0, "physical_armor": 3.4, "base_attacks_per_second": 0.588, "attack_range": 150.0}
 per_level = {"strength": 2.0, "agility": 4.0, "intelligence": 1.5, "physical_damage": 3.0}

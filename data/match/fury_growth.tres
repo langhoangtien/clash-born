@@ -6,5 +6,5 @@ display_name = "Kaelor · Cuồng Cung"
 ranged_attacks = true
 primary_attribute = 2
 passive_id = "fury"
-base_overrides = {"strength": 22.0, "agility": 26.0, "intelligence": 16.0, "base_hp": 940.0, "physical_damage": 76.0}
+base_overrides = {"strength": 22.0, "agility": 26.0, "intelligence": 16.0, "base_hp": 940.0, "physical_damage": 76.0, "physical_armor": 3.2, "base_attacks_per_second": 0.556}
 per_level = {"strength": 2.2, "agility": 3.0, "intelligence": 1.5, "attack_speed_bonus": 0.02, "physical_damage": 3.0}

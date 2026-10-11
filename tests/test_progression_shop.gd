@@ -27,7 +27,7 @@ func _run() -> void:
 	check(ranger.unit.stats.attack_speed > 0.5 and ranger.unit.stats.movement_speed == 281, "Ranger attack/move speed growth")
 	tank.award(100)
 	mage.award(100)
-	check(tank.unit.stats.strength == 33.8 and tank.unit.stats.physical_armor > 10 and tank.unit.stats.base_attack_time == 1.9, "Tank prioritizes STR/armor and BAT skill")
+	check(tank.unit.stats.strength == 33.8 and tank.unit.stats.physical_armor > 6 and tank.unit.stats.base_attack_time == 1.9, "Tank prioritizes STR/armor and BAT skill")
 	check(mage.unit.stats.intelligence == 33.7 and mage.unit.stats.magic_damage == 83 and mage.unit.stats.max_mana > 700, "Mage intelligence, magic and mana growth")
 	check(ranger.award(400) == 2 and ranger.level == 4 and ranger.experience == 50, "Multiple levels retain overflow XP")
 	ranger.award(100000)
