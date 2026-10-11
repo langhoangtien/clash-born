@@ -14,6 +14,7 @@ var camera: Camera2D
 var controls: Control
 var hud: Label
 var quick_stats: Label
+var effects_bar: HBoxContainer
 var message: Label
 var result_panel: PanelContainer
 var result_label: Label
@@ -133,8 +134,52 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	var route := PackedVector2Array()
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3}
+	var tower_tier := _tower_tier(state.team_id, lane, state.position) if kind == "tower" else 0
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": tower_tier, "lane_buffed": false, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3}
 	return actor
+
+func _tower_tier(team: int, lane: String, point: Vector2) -> int:
+	if lane.is_empty(): return 0
+	var own_base := layout.spawn_points(team)[0]
+	var tier := 1
+	for index in range(layout.tower_cells.size()):
+		if layout.tower_team(index) != team: continue
+		var other := layout.cell_center(Vector2i(layout.tower_cells[index]))
+		if _nearest_lane(other) == lane and other.distance_to(own_base) < point.distance_to(own_base): tier += 1
+	return tier
+
+func _tower_is_unlocked(candidate: Dictionary) -> bool:
+	if candidate.kind != "tower": return true
+	var tier := int(candidate.get("tower_tier", 0))
+	if tier <= 1: return true
+	for other in entities.values():
+		if other.kind == "tower" and other.actor.runtime.team_id == candidate.actor.runtime.team_id and other.lane == candidate.lane and int(other.get("tower_tier", 0)) < tier and other.actor.runtime.alive:
+			return false
+	return true
+
+func _core_is_unlocked(team: int) -> bool:
+	for info in entities.values():
+		if info.kind == "tower" and info.actor.runtime.team_id == team and info.actor.runtime.alive: return false
+	return true
+
+func _lane_push_buff_active(team: int, lane: String) -> bool:
+	for info in entities.values():
+		if info.kind == "tower" and info.actor.runtime.team_id == team and info.lane == lane and int(info.get("tower_tier", 0)) == 3 and info.actor.runtime.alive: return false
+	return true
+
+func _buff_lane_creep(actor: MapUnit, info: Dictionary) -> void:
+	if info.get("lane_buffed", false): return
+	info.lane_buffed = true
+	actor.runtime.stats.max_hp *= 2.0
+	actor.runtime.current_hp = actor.runtime.stats.max_hp
+	actor.runtime.stats.physical_damage *= 2.0
+	actor.runtime.stats.magic_damage *= 2.0
+	actor.runtime.stats.pure_damage *= 2.0
+
+func _apply_lane_push_buff(team: int, lane: String) -> void:
+	for info in entities.values():
+		if info.kind == "creep" and not info.get("neutral", false) and info.lane == lane and info.actor.runtime.team_id == team and info.actor.runtime.alive:
+			_buff_lane_creep(info.actor, info)
 
 func _nearest_lane(point: Vector2) -> String:
 	var closest := INF
@@ -166,7 +211,8 @@ func spawn_wave() -> void:
 				var source := settings.ranged_creep if ranged_creep else settings.melee_creep
 				if siege: source = settings.siege_creep
 				var point := layout.spawn_points(team)[0] + Vector2((slot - 1) * 45, 35 if lane == "TOP" else (-35 if lane == "BOT" else 0))
-				_spawn("creep_%d_%d_%s_%d" % [wave_number, team, lane, slot], team, source, point, "creep", lane, siege, ranged_creep)
+				var creep := _spawn("creep_%d_%d_%s_%d" % [wave_number, team, lane, slot], team, source, point, "creep", lane, siege, ranged_creep)
+				if _lane_push_buff_active(1 - team, lane): _buff_lane_creep(creep, entities[creep.runtime.unit_id])
 
 func spawn_jungle_camps() -> void:
 	for camp_index in range(layout.jungle_camps.size()):
@@ -240,7 +286,7 @@ func _tick(_index: int) -> void:
 			if tick % 3 == info.ai_phase: _drive_jungle_creep(info, tick)
 		else:
 			var target := _current_target(actor)
-			if (target == null and actor.path.is_empty()) or tick % 3 == info.ai_phase:
+			if (target == null and actor.path.is_empty()) or tick % 3 == info.ai_phase or (info.kind == "hero" and actor.position.distance_to(player.position) <= settings.aggro_range):
 				if info.kind == "hero":
 					var categories: Array = ["hero", "creep", "tower", "core"]
 					if actor == enemy_hero and _unsafe_tower_dive(actor, player): categories = ["creep", "tower", "core"]
@@ -331,6 +377,8 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 	for candidate in entities.values():
 		var target: MapUnit = candidate.actor
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
+		if candidate.kind == "tower" and not _tower_is_unlocked(candidate): continue
+		if candidate.kind == "core" and not _core_is_unlocked(target.runtime.team_id): continue
 		# Neutral camps never pull lane AI or bot auto-attack selection off route.
 		# The player's creep command may opt into neutral targets.
 		if candidate.get("neutral", false) and not allow_neutral: continue
@@ -536,6 +584,8 @@ func _on_death(id: String, events: Array[Dictionary]) -> void:
 		info.actor.stop()
 		if id == "player": attack_mode = ""; locked_target = ""
 	elif info.kind == "creep" and killer == "player": creep_kills += 1
+	if info.kind == "tower":
+		_apply_lane_push_buff(1 - info.actor.runtime.team_id, info.lane)
 	if progression.has(credited_killer): progression[credited_killer].record_kill(info.kind)
 
 func _reward_death(info: Dictionary, killer: String) -> void:
@@ -670,7 +720,12 @@ func _build_ui() -> void:
 	quick_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	quick_stats.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	quick_stats.add_theme_font_size_override("font_size", 17)
-	quick_panel.add_child(quick_stats)
+	var quick_content := VBoxContainer.new()
+	quick_panel.add_child(quick_content)
+	quick_content.add_child(quick_stats)
+	effects_bar = HBoxContainer.new()
+	effects_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	quick_content.add_child(effects_bar)
 	layer.add_child(quick_panel)
 	minimap = Control.new()
 	minimap.set_script(preload("res://scripts/match/match_minimap.gd"))
@@ -737,12 +792,30 @@ func _refresh_hud() -> void:
 	hud.text += "\n%s · LV %d · XP %d/%d · Vàng %d [B]" % [hero.profile.display_name, hero.level, hero.experience, hero.required_xp(), hero.gold]
 	var stats := state.stats
 	var reduction := (1.0 - DamageCalculator.armor_multiplier(state.physical_armor(), combat.balance.armor_coefficient)) * 100.0
-	quick_stats.text = "%s · LV %d · %s LV%d · %d vàng\nHP %.0f/%.0f · Mana %.0f/%.0f · Dmg %.0f/%.0f/%.0f · AS %.2f/s · BAT %.1fs\nGiáp %.1f (giảm %.0f%%) · Miss %.0f%% · STR %.0f · AGI %.0f · INT %.0f" % [hero.profile.display_name, hero.level, HeroPassiveCatalog.definition(hero.passive_id).name, hero.passive_level, hero.gold, state.current_hp, stats.max_hp, state.current_mana, stats.max_mana, stats.physical_damage, stats.magic_damage, stats.pure_damage, state.attack_speed(), stats.base_attack_time, state.physical_armor(), reduction, stats.evasion * 100, stats.strength, stats.agility, stats.intelligence]
+	quick_stats.text = "%s · LV %d · %s LV%d · %d vàng\nHP %.0f/%.0f · Mana %.0f/%.0f · Dmg %.0f/%.0f/%.0f · AS %.2f/s (%0.f%%) · BAT %.1fs\nGiáp %.1f (giảm %.0f%%) · Miss %.0f%% · STR %.0f · AGI %.0f · INT %.0f" % [hero.profile.display_name, hero.level, HeroPassiveCatalog.definition(hero.passive_id).name, hero.passive_level, hero.gold, state.current_hp, stats.max_hp, state.current_mana, stats.max_mana, stats.physical_damage, stats.magic_damage, stats.pure_damage, state.attack_speed(), state.attack_speed() / maxf(stats.base_attacks_per_second, 0.001) * 100.0, stats.base_attack_time, state.physical_armor(), reduction, stats.evasion * 100, stats.strength, stats.agility, stats.intelligence]
+	_refresh_effects_bar()
 	if in_fountain(state): hud.text += " · FOUNTAIN +HP/MANA"
 	if shop.visible: shop.refresh()
 	if opponent_panel.visible: opponent_panel.refresh()
 	if not state.alive: message.text = "Hồi sinh sau %.1f giây · Mất %d vàng" % [respawn, death_gold_losses.get("player", 0)]
 	elif paused: message.text = "TẠM DỪNG · nhấn P để tiếp tục"
+
+func _refresh_effects_bar() -> void:
+	if effects_bar == null: return
+	for child in effects_bar.get_children(): child.queue_free()
+	var badges: Array[Dictionary] = player.view.status_badges()
+	if badges.is_empty():
+		var label := Label.new()
+		label.text = "HIỆU ỨNG: —"
+		label.add_theme_font_size_override("font_size", 14)
+		effects_bar.add_child(label)
+		return
+	for badge in badges:
+		var label := Label.new()
+		label.text = "%s %.1fs" % [badge.icon, float(badge.seconds)]
+		label.add_theme_color_override("font_color", badge.color)
+		label.add_theme_font_size_override("font_size", 15)
+		effects_bar.add_child(label)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
