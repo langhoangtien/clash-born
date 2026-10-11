@@ -193,7 +193,7 @@ func _test_scene() -> void:
 	wheel.position = Vector2(1000, 650)
 	var zoom_before: float = camera.zoom.x
 	root.push_input(wheel, true)
-	check(camera.zoom.x > zoom_before, "Desktop wheel zoom input works")
+	check(is_equal_approx(camera.zoom.x, zoom_before), "Match wheel input keeps the requested fixed camera zoom")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		camera.fit_map()
 		main.overlay_controls.waypoints.button_pressed = true

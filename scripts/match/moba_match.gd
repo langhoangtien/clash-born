@@ -44,6 +44,11 @@ var audio_death: AudioStreamPlayer
 var audio_wave: AudioStreamPlayer
 var last_hit_audio_tick: int = -1000
 var tower_registry: Dictionary = {}
+@export_group("AI Debug")
+@export var debug_mid_lane_only: bool = false
+@export var debug_ai_trace_enabled: bool = false
+var ai_debug_events: Array[String] = []
+var _last_ai_debug_signature: Dictionary = {}
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -87,8 +92,10 @@ func _ready() -> void:
 		tower_info.lane = layout.tower_lanes[index]
 		tower_info.tower_tier = layout.tower_tiers[index]
 		tower_info.semantic_id = layout.tower_ids[index]
-		tower_info.prerequisites = _structure_prerequisites(tower_info.semantic_id, team, tower_info.lane, int(tower_info.tower_tier))
+		tower_info.prerequisites = layout.tower_prerequisites[index].duplicate()
 		tower_registry[tower_info.semantic_id] = tower_id
+	var registry_errors := structure_registry_errors()
+	for error in registry_errors: push_error("STRUCTURE REGISTRY: " + error)
 	var fountain_view := Node2D.new()
 	fountain_view.set_script(preload("res://scripts/match/fountain_view.gd"))
 	fountain_view.layout = layout
@@ -154,28 +161,46 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1}
 	return actor
 
-func _structure_prerequisites(_id: String, team: int, lane: String, tier: int) -> PackedStringArray:
-	var side := "blue" if team == 0 else "red"
-	if lane == "BASE":
-		return PackedStringArray(["%s_top_t3" % side, "%s_mid_t3" % side, "%s_bot_t3" % side])
-	if tier <= 1: return PackedStringArray()
-	return PackedStringArray(["%s_%s_t%d" % [side, lane.to_lower(), tier - 1]])
-
 func get_outer_tower(team: int, lane: String) -> MapUnit:
 	var id := "%s_%s_t1" % ["blue" if team == 0 else "red", lane.to_lower()]
 	return entities[tower_registry[id]].actor if tower_registry.has(id) and entities.has(tower_registry[id]) else null
+
+func get_lane_defensive_tower(team: int, lane: String) -> MapUnit:
+	var side := "blue" if team == 0 else "red"
+	for tier in range(1, 4):
+		var semantic_id := "%s_%s_t%d" % [side, lane.to_lower(), tier]
+		if not tower_registry.has(semantic_id): return null
+		var runtime_id: String = tower_registry[semantic_id]
+		if entities.has(runtime_id) and entities[runtime_id].actor.runtime.alive: return entities[runtime_id].actor
+	return null
 
 func get_next_attackable_structure(attacking_team: int, lane: String) -> MapUnit:
 	var owner := 1 - attacking_team
 	for tier in range(1, 4):
 		var id := "%s_%s_t%d" % ["blue" if owner == 0 else "red", lane.to_lower(), tier]
-		if tower_registry.has(id) and entities.has(tower_registry[id]):
-			var tower: MapUnit = entities[tower_registry[id]].actor
-			if tower.runtime.alive: return tower
+		if not tower_registry.has(id):
+			push_error("Missing required structure registry entry: " + id)
+			return null
+		var runtime_id: String = tower_registry[id]
+		if not entities.has(runtime_id): continue # Explicitly destroyed and cleaned up.
+		var info: Dictionary = entities[runtime_id]
+		var tower: MapUnit = info.actor
+		if not tower.runtime.alive: continue
+		if not _tower_is_unlocked(info):
+			push_error("Structure chain is inconsistent; next living tower is locked: " + id)
+			return null
+		return tower
 	return null
 
+func _structure_chain_configured(attacking_team: int, lane: String) -> bool:
+	var owner := 1 - attacking_team
+	for tier in range(1, 4):
+		var semantic_id := "%s_%s_t%d" % ["blue" if owner == 0 else "red", lane.to_lower(), tier]
+		if not tower_registry.has(semantic_id): return false
+	return true
+
 func get_defensive_anchor(team: int, lane: String) -> Vector2:
-	var tower := get_outer_tower(team, lane)
+	var tower := get_lane_defensive_tower(team, lane)
 	if tower == null: return layout.spawn_points(team)[0]
 	return tower.position.lerp(layout.spawn_points(team)[0], 0.28)
 
@@ -188,10 +213,125 @@ func is_inside_enemy_tower_range(position: Vector2, team: int) -> bool:
 func _tower_is_unlocked(candidate: Dictionary) -> bool:
 	if candidate.kind != "tower": return true
 	for prerequisite in candidate.get("prerequisites", PackedStringArray()):
-		if not tower_registry.has(prerequisite): continue
+		if not tower_registry.has(prerequisite): return false
 		var tower_id: String = tower_registry[prerequisite]
 		if entities.has(tower_id) and entities[tower_id].actor.runtime.alive: return false
 	return true
+
+func structure_runtime_rows() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for index in range(layout.tower_cells.size()):
+		var semantic_id: String = layout.tower_ids[index]
+		var runtime_id: String = tower_registry.get(semantic_id, "")
+		var info: Dictionary = entities.get(runtime_id, {})
+		var actor: MapUnit = info.get("actor")
+		rows.append({
+			"id": semantic_id,
+			"runtime_id": runtime_id,
+			"team": layout.tower_teams[index],
+			"lane": layout.tower_lanes[index],
+			"tier": layout.tower_tiers[index],
+			"position": layout.cell_center(Vector2i(layout.tower_cells[index])),
+			"prerequisites": layout.tower_prerequisites[index],
+			"alive": actor != null and actor.runtime.alive,
+			"attackable": not info.is_empty() and actor.runtime.alive and _tower_is_unlocked(info),
+		})
+	for team in range(2):
+		var core: MapUnit = cores[team] if team < cores.size() else null
+		rows.append({"id": "core_%d" % team, "runtime_id": "core_%d" % team, "team": team, "lane": "BASE", "tier": 5, "position": layout.throne_point(team), "prerequisites": PackedStringArray(["%s_base_guard_left" % ("blue" if team == 0 else "red"), "%s_base_guard_right" % ("blue" if team == 0 else "red")]), "alive": core != null and core.runtime.alive, "attackable": core != null and core.runtime.alive and _core_is_unlocked(team)})
+	return rows
+
+func structure_registry_errors() -> PackedStringArray:
+	var errors := layout.validation_errors()
+	var expected_ids := {}
+	for index in range(layout.tower_cells.size()):
+		var semantic_id: String = layout.tower_ids[index]
+		expected_ids[semantic_id] = true
+		if not tower_registry.has(semantic_id):
+			errors.append("Missing runtime registration: " + semantic_id)
+			continue
+		var runtime_id: String = tower_registry[semantic_id]
+		if not entities.has(runtime_id):
+			errors.append("Registry points to missing entity: %s -> %s" % [semantic_id, runtime_id])
+			continue
+		var info: Dictionary = entities[runtime_id]
+		var expected_position := layout.cell_center(Vector2i(layout.tower_cells[index]))
+		if info.get("semantic_id", "") != semantic_id: errors.append("Runtime ID mismatch: " + semantic_id)
+		if info.actor.runtime.team_id != layout.tower_teams[index]: errors.append("Runtime team mismatch: " + semantic_id)
+		if info.get("lane", "") != layout.tower_lanes[index]: errors.append("Runtime lane mismatch: " + semantic_id)
+		if int(info.get("tower_tier", 0)) != layout.tower_tiers[index]: errors.append("Runtime tier mismatch: " + semantic_id)
+		if info.get("prerequisites", PackedStringArray()) != layout.tower_prerequisites[index]: errors.append("Runtime prerequisite mismatch: " + semantic_id)
+		if info.actor.position.distance_to(expected_position) > 0.01: errors.append("Runtime position mismatch: " + semantic_id)
+	for semantic_id in tower_registry:
+		if not expected_ids.has(semantic_id): errors.append("Unexpected runtime registration: " + semantic_id)
+	# Tier labels are authored data, but this audit catches an accidental reversal:
+	# routes start at the owning base, so T3 < T2 < T1 in route progress.
+	for team in range(2):
+		for lane in ["TOP", "MID", "BOT"]:
+			var progress_by_tier := {}
+			for row in structure_runtime_rows():
+				if row.team == team and row.lane == lane: progress_by_tier[row.tier] = _lane_progress(row.position, lane, team)
+			if progress_by_tier.size() == 3 and not (progress_by_tier[3] < progress_by_tier[2] and progress_by_tier[2] < progress_by_tier[1]):
+				errors.append("Reversed tower order: team %d %s (%s)" % [team, lane, str(progress_by_tier)])
+	return errors
+
+func _lane_progress(point: Vector2, lane: String, team: int) -> float:
+	var route := layout.route(lane, team)
+	var accumulated := 0.0
+	var best_distance := INF
+	var best_progress := 0.0
+	for index in range(1, route.size()):
+		var segment := route[index] - route[index - 1]
+		var length := segment.length()
+		if length <= 0.001: continue
+		var ratio := clampf((point - route[index - 1]).dot(segment) / (length * length), 0.0, 1.0)
+		var projected := route[index - 1] + segment * ratio
+		var distance := point.distance_to(projected)
+		if distance < best_distance:
+			best_distance = distance
+			best_progress = accumulated + length * ratio
+		accumulated += length
+	return best_progress
+
+func _trace_ai(info: Dictionary, category: String, detail: String) -> void:
+	if not debug_ai_trace_enabled: return
+	var actor: MapUnit = info.actor
+	var key := actor.runtime.unit_id + "|" + category
+	if _last_ai_debug_signature.get(key, "") == detail: return
+	_last_ai_debug_signature[key] = detail
+	var line := "AI[%d] %s %s %s" % [combat.tick_count, actor.runtime.unit_id, category, detail]
+	ai_debug_events.append(line)
+	print(line)
+
+func _structure_candidate_report(attacking_team: int, lane: String) -> String:
+	var owner := 1 - attacking_team
+	var parts: PackedStringArray = []
+	for tier in range(1, 4):
+		var semantic_id := "%s_%s_t%d" % ["blue" if owner == 0 else "red", lane.to_lower(), tier]
+		if not tower_registry.has(semantic_id):
+			parts.append(semantic_id + ":missing-registry")
+			continue
+		var runtime_id: String = tower_registry[semantic_id]
+		if not entities.has(runtime_id):
+			parts.append(semantic_id + ":destroyed")
+			continue
+		var info: Dictionary = entities[runtime_id]
+		parts.append("%s:%s" % [semantic_id, "chosen" if info.actor.runtime.alive and _tower_is_unlocked(info) else ("locked" if info.actor.runtime.alive else "dead")])
+	return ",".join(parts)
+
+func _issue_ai_move(info: Dictionary, destination: Vector2, source: String, tick: int) -> bool:
+	var actor: MapUnit = info.actor
+	if not actor.path.is_empty() and info.get("movement_source", "") == source and Vector2(info.get("movement_destination", Vector2.INF)).distance_to(destination) <= 1.0:
+		return true
+	var previous_source: String = info.get("movement_source", "")
+	var valid := actor.go_to(destination)
+	info.movement_source = source
+	info.movement_destination = destination
+	info.movement_tick = tick
+	var state: String = info.get("ai_state", "") if info.kind == "hero" else info.get("creep_state", "")
+	if source != "lane-waypoint" or previous_source != source or int(info.get("route_index", 0)) % 5 == 0 or not valid:
+		_trace_ai(info, "MOVE", "state=%s lane=%s waypoint=%d source=%s destination=%s navigation=%s" % [state, info.get("assigned_lane", info.get("lane", "")), int(info.get("route_index", 0)), source, str(destination), "ok" if valid else "failed"])
+	return valid
 
 func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, target: UnitRuntimeState) -> bool:
 	if target == null or not entities.has(target.unit_id): return true
@@ -246,8 +386,10 @@ func spawn_wave() -> void:
 	var per_lane := settings.creeps_per_lane + (1 if has_siege else 0)
 	if live + per_lane * 6 > settings.maximum_live_creeps: return
 	wave_number += 1
+	var active_lanes: Array[String] = []
+	active_lanes.assign(["MID"] if debug_mid_lane_only else ["TOP", "MID", "BOT"])
 	for team in range(2):
-		for lane in ["TOP", "MID", "BOT"]:
+		for lane in active_lanes:
 			for slot in range(per_lane):
 				var siege := has_siege and slot == settings.creeps_per_lane
 				var ranged_creep := not siege and slot == settings.creeps_per_lane - 1
@@ -461,9 +603,12 @@ func _tower_has_creep_cover(tower: MapUnit) -> bool:
 
 func _choose_lane_creep_target(info: Dictionary, tick: int) -> MapUnit:
 	var actor: MapUnit = info.actor
+	var old_target_id: String = actor.runtime.target_id
 	var current := _current_target(actor)
 	if current != null:
-		var valid_target := actor.runtime.distance_to_unit(current.runtime) <= settings.creep_chase_limit
+		var current_info: Dictionary = entities[current.runtime.unit_id]
+		var valid_structure: bool = current_info.kind not in ["tower", "core"] or current == get_next_attackable_structure(actor.runtime.team_id, info.lane)
+		var valid_target: bool = valid_structure and actor.runtime.distance_to_unit(current.runtime) <= settings.creep_chase_limit
 		if valid_target:
 			info.creep_lost_since = -1
 			return current
@@ -473,6 +618,12 @@ func _choose_lane_creep_target(info: Dictionary, tick: int) -> MapUnit:
 		info.creep_reacquire_after = tick + settings.creep_reacquire_ticks
 		info.creep_state = "RETURN"
 	if tick < int(info.get("creep_reacquire_after", 0)): return null
+	if not _structure_chain_configured(actor.runtime.team_id, info.lane):
+		info.creep_config_error = true
+		info.creep_state = "CONFIG_ERROR"
+		_trace_ai(info, "STUCK", "missing structure chain team=%d lane=%s; movement stopped safely" % [actor.runtime.team_id, info.lane])
+		return null
+	info.creep_config_error = false
 	# Creep and hero selection is lane-local and deterministic.  A tower is not
 	# scanned globally: only the next explicitly unlocked structure is eligible.
 	var target := _choose_target(info, ["creep"], settings.creep_detection_range, true, false, info.lane)
@@ -485,10 +636,19 @@ func _choose_lane_creep_target(info: Dictionary, tick: int) -> MapUnit:
 		info.creep_state = "ATTACK" if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range() else "APPROACH"
 		info.creep_chase_origin = actor.position
 		info.creep_lost_since = -1
+	var new_target_id := target.runtime.unit_id if target != null else ""
+	if new_target_id != old_target_id:
+		var target_kind: String = entities[new_target_id].kind if entities.has(new_target_id) else "none"
+		var distance := actor.runtime.distance_to_unit(target.runtime) if target != null else -1.0
+		_trace_ai(info, "TARGET", "state=%s team=%d lane=%s waypoint=%d old=%s new=%s kind=%s distance=%.1f structures=[%s]" % [info.creep_state, actor.runtime.team_id, info.lane, int(info.route_index), old_target_id, new_target_id, target_kind, distance, _structure_candidate_report(actor.runtime.team_id, info.lane)])
 	return target
 
 func _drive_lane_creep(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var actor: MapUnit = info.actor
+	if info.get("creep_config_error", false):
+		actor.runtime.target_id = ""
+		actor.stop()
+		return
 	if target != null:
 		_drive_target(info, target, tick)
 		return
@@ -540,9 +700,11 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 	if target != null:
 		if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range() and _visible(actor, target):
 			actor.stop()
+			var state: String = info.get("ai_state", "") if info.kind == "hero" else info.get("creep_state", "")
+			_trace_ai(info, "MOVE", "state=%s source=attack-stop target=%s distance=%.1f" % [state, target.runtime.unit_id, actor.runtime.distance_to_unit(target.runtime)])
 		else:
 			var target_moved := not actor.path.is_empty() and actor.path[-1].distance_to(target.position) > 96.0
-			if actor.path.is_empty() or (target_moved and tick % 30 == info.ai_phase): actor.go_to(target.position)
+			if actor.path.is_empty() or (target_moved and tick % 30 == info.ai_phase): _issue_ai_move(info, target.position, "target:" + target.runtime.unit_id, tick)
 	elif info.actor != player:
 		if info.kind == "hero":
 			var home := layout.spawn_points(actor.runtime.team_id)[0]
@@ -562,7 +724,7 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 		while info.route_index < route.size() and actor.position.distance_to(route[info.route_index]) < 8: info.route_index += 1
 		if info.route_index < route.size():
 			var waypoint := route[info.route_index]
-			if actor.path.is_empty() or actor.path[-1].distance_to(waypoint) > 0.1: actor.go_to(waypoint)
+			if actor.path.is_empty() or actor.path[-1].distance_to(waypoint) > 0.1: _issue_ai_move(info, waypoint, "lane-waypoint", tick)
 	else: actor.stop()
 	if target != null: info.chasing = true
 
@@ -578,52 +740,77 @@ func _drive_jungle_creep(info: Dictionary, tick: int) -> void:
 		return
 	_continue_jungle_creep(info, tick)
 
-func _set_bot_state(info: Dictionary, state: String, tick: int) -> void:
+func _set_bot_state(info: Dictionary, state: String, tick: int, reason: String = "") -> void:
 	if info.get("ai_state", "") == state: return
+	var previous: String = info.get("ai_state", "")
 	info.ai_state = state
 	info.ai_state_since = tick
+	var actor: MapUnit = info.actor
+	_trace_ai(info, "STATE", "%s->%s reason=%s lane=%s hp=%.0f/%.0f" % [previous, state, reason, info.get("assigned_lane", ""), actor.runtime.current_hp, actor.runtime.stats.max_hp])
 
 func _bot_target(info: Dictionary, tick: int) -> MapUnit:
 	var actor: MapUnit = info.actor
 	var lane: String = info.get("assigned_lane", "MID")
+	if info.get("ai_state", "") == "RETREAT":
+		if in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction:
+			_set_bot_state(info, "GO_TO_LANE", tick, "recovered")
+		else:
+			return null
 	if actor.runtime.current_hp <= actor.runtime.stats.max_hp * settings.bot_retreat_hp_fraction:
-		_set_bot_state(info, "RETREAT", tick)
+		_set_bot_state(info, "RETREAT", tick, "hp-below-retreat-threshold")
 		return null
 	var player_distance := actor.position.distance_to(player.position)
 	if player.runtime.alive and player_distance <= settings.bot_chase_range and not is_inside_enemy_tower_range(player.position, actor.runtime.team_id):
 		var hero_target := _choose_target(info, ["hero"], settings.bot_chase_range, true)
 		if hero_target != null:
-			_set_bot_state(info, "CHASE", tick)
+			_set_bot_state(info, "CHASE", tick, "enemy-hero-in-safe-chase-range")
 			info.ai_last_target_tick = tick
 			return hero_target
 	var creep_target := _choose_target(info, ["creep"], settings.bot_chase_range, true, false, lane)
 	if creep_target != null:
-		_set_bot_state(info, "FIGHT", tick)
+		_set_bot_state(info, "FIGHT", tick, "enemy-lane-creep-in-range")
 		info.ai_last_target_tick = tick
 		return creep_target
 	var tower := get_next_attackable_structure(actor.runtime.team_id, lane)
 	if tower != null and _tower_has_creep_cover(tower) and actor.position.distance_to(tower.position) <= settings.bot_chase_range:
-		_set_bot_state(info, "ATTACK_STRUCTURE", tick)
+		_set_bot_state(info, "ATTACK_STRUCTURE", tick, "allied-creep-cover")
 		return tower
-	_set_bot_state(info, "GO_TO_LANE", tick)
+	_set_bot_state(info, "GO_TO_LANE", tick, "no-local-combat-target")
 	return null
 
 func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var actor: MapUnit = info.actor
 	if info.ai_state == "RETREAT":
-		if in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction:
-			_set_bot_state(info, "GO_TO_LANE", tick)
-		else:
-			actor.go_to(layout.fountain_point(actor.runtime.team_id))
+		if not (in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction):
+			_issue_ai_move(info, layout.fountain_point(actor.runtime.team_id), "retreat-fountain", tick)
 		return
 	if target != null:
 		_drive_target(info, target, tick)
 		return
 	var anchor := get_defensive_anchor(actor.runtime.team_id, info.get("assigned_lane", "MID"))
+	var frontline := _bot_frontline(actor.runtime.team_id, info.get("assigned_lane", "MID"))
+	var frontline_text := "none" if frontline == null else frontline.runtime.unit_id
+	_trace_ai(info, "BOT", "state=%s lane=%s anchor=%s frontline=%s hp=%.0f/%.0f in_fountain=%s" % [info.ai_state, info.get("assigned_lane", "MID"), str(anchor), frontline_text, actor.runtime.current_hp, actor.runtime.stats.max_hp, str(in_fountain(actor.runtime))])
 	if actor.position.distance_to(anchor) > 80.0:
-		actor.go_to(anchor)
+		_issue_ai_move(info, anchor, "defensive-anchor", tick)
 	else:
 		actor.stop()
+
+func _bot_frontline(team: int, lane: String) -> MapUnit:
+	var best: MapUnit
+	var best_progress := -INF
+	var ids: Array = entities.keys()
+	ids.sort()
+	for id in ids:
+		var candidate: Dictionary = entities[id]
+		if candidate.kind != "creep" or candidate.get("neutral", false) or candidate.lane != lane: continue
+		var actor: MapUnit = candidate.actor
+		if not actor.runtime.alive or actor.runtime.team_id != team: continue
+		var progress := _lane_progress(actor.position, lane, team)
+		if progress > best_progress:
+			best = actor
+			best_progress = progress
+	return best
 
 func _continue_jungle_creep(info: Dictionary, tick: int) -> void:
 	var actor: MapUnit = info.actor

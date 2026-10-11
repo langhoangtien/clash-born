@@ -16,6 +16,7 @@ extends Resource
 @export var tower_ids: PackedStringArray = []
 @export var tower_lanes: PackedStringArray = []
 @export var tower_tiers: PackedInt32Array = []
+@export var tower_prerequisites: Array[PackedStringArray] = []
 @export var jungle_camps: PackedVector2Array = []
 @export var fountain_cells: PackedVector2Array = []
 @export var throne_cells: PackedVector2Array = []
@@ -84,6 +85,7 @@ func validation_errors() -> PackedStringArray:
 	if tower_ids.size() != tower_cells.size(): errors.append("Tower id count mismatch")
 	if tower_lanes.size() != tower_cells.size(): errors.append("Tower lane count mismatch")
 	if tower_tiers.size() != tower_cells.size(): errors.append("Tower tier count mismatch")
+	if tower_prerequisites.size() != tower_cells.size(): errors.append("Tower prerequisite count mismatch")
 	var seen_tower_ids := {}
 	for index in range(tower_ids.size()):
 		var id := tower_ids[index]
@@ -91,6 +93,9 @@ func validation_errors() -> PackedStringArray:
 		seen_tower_ids[id] = true
 		if tower_lanes[index] not in ["TOP", "MID", "BOT", "BASE"]: errors.append("Invalid tower lane: " + tower_lanes[index])
 		if tower_tiers[index] < 1: errors.append("Invalid tower tier: " + str(tower_tiers[index]))
+	for prerequisites in tower_prerequisites:
+		for prerequisite in prerequisites:
+			if prerequisite not in tower_ids: errors.append("Unknown tower prerequisite: " + prerequisite)
 	for point in tower_cells:
 		if not is_walkable(Vector2i(point)): errors.append("Blocked tower")
 	for point in jungle_camps:

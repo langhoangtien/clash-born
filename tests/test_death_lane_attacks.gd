@@ -16,6 +16,9 @@ func _test_lane_attacks() -> void:
 	main.settings = main.settings.duplicate(true)
 	main.settings.show_draft_on_start = false
 	main.settings.maximum_live_creeps = 0
+	# This fixture isolates pathing to a creep; corrected tower tiers place a real
+	# MID outer tower near the BOT bend, so exclude structures from this test.
+	main.settings.player_structure_target_range = 0
 	root.add_child(main)
 	await process_frame
 	await physics_frame

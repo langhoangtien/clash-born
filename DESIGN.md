@@ -378,3 +378,10 @@ creeps, retains targets inside range, and direct hero damage near a defended her
 causes nearby allied creeps/towers to target the attacker for their next shot.
 Designer-facing distances and timers live in `data/match/default_match.tres`
 through `MatchSettings`, exposed from `data/balance/balance_hub.tres`.
+
+The match can enable `debug_mid_lane_only` and `debug_ai_trace_enabled` for a
+controlled one-lane diagnosis. Trace lines are emitted only when a target, state,
+movement source/destination changes, or navigation fails. `structure_runtime_rows`
+prints the scene/resource/registry view of every tower and core, while
+`structure_registry_errors` rejects duplicate/missing IDs, metadata mismatches and
+a T1/T2/T3 order that is reversed relative to the owning team's lane route.
