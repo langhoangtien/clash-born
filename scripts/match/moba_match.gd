@@ -43,6 +43,7 @@ var audio_hit: AudioStreamPlayer
 var audio_death: AudioStreamPlayer
 var audio_wave: AudioStreamPlayer
 var last_hit_audio_tick: int = -1000
+var tower_registry: Dictionary = {}
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -91,6 +92,9 @@ func _ready() -> void:
 		else:
 			tower_info.lane = "BASE"
 			tower_info.tower_tier = 4
+		var semantic_id := _tower_semantic_id(team, tower_info.lane, int(tower_info.tower_tier), index)
+		tower_info.semantic_id = semantic_id
+		tower_registry[semantic_id] = tower_id
 	var fountain_view := Node2D.new()
 	fountain_view.set_script(preload("res://scripts/match/fountain_view.gd"))
 	fountain_view.layout = layout
@@ -154,7 +158,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
 	var tower_tier := _tower_tier(state.team_id, lane, state.position) if kind == "tower" else 0
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": tower_tier, "lane_buffed": false, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3}
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": tower_tier, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3}
 	return actor
 
 func _tower_tier(team: int, lane: String, point: Vector2) -> int:
@@ -179,6 +183,36 @@ func _lane_tier(team: int, lane: String, point: Vector2) -> int:
 		var other_lane: String = ["TOP", "MID", "BOT"][(index if team == 0 else index - 11) / 3]
 		if other_lane == lane and other.distance_to(own_base) < point.distance_to(own_base): tier += 1
 	return tier
+
+func _tower_semantic_id(team: int, lane: String, tier: int, index: int) -> String:
+	var side := "blue" if team == 0 else "red"
+	if lane == "BASE": return "%s_base_guard_%d" % [side, index]
+	var names := ["outer", "inner", "base"]
+	return "%s_%s_%s" % [side, lane.to_lower(), names[clampi(tier - 1, 0, 2)]]
+
+func get_outer_tower(team: int, lane: String) -> MapUnit:
+	var id := "%s_%s_outer" % ["blue" if team == 0 else "red", lane.to_lower()]
+	return entities[tower_registry[id]].actor if tower_registry.has(id) and entities.has(tower_registry[id]) else null
+
+func get_next_attackable_structure(attacking_team: int, lane: String) -> MapUnit:
+	var owner := 1 - attacking_team
+	for tier in range(1, 4):
+		var id := "%s_%s_%s" % ["blue" if owner == 0 else "red", lane.to_lower(), ["outer", "inner", "base"][tier - 1]]
+		if tower_registry.has(id) and entities.has(tower_registry[id]):
+			var tower: MapUnit = entities[tower_registry[id]].actor
+			if tower.runtime.alive: return tower
+	return null
+
+func get_defensive_anchor(team: int, lane: String) -> Vector2:
+	var tower := get_outer_tower(team, lane)
+	if tower == null: return layout.spawn_points(team)[0]
+	return tower.position.lerp(layout.spawn_points(team)[0], 0.28)
+
+func is_inside_enemy_tower_range(position: Vector2, team: int) -> bool:
+	for info in entities.values():
+		if info.kind != "tower" or info.actor.runtime.team_id == team or not info.actor.runtime.alive: continue
+		if info.actor.position.distance_to(position) <= info.actor.runtime.attack_range() + settings.bot_tower_safety_margin: return true
+	return false
 
 func _tower_is_unlocked(candidate: Dictionary) -> bool:
 	if candidate.kind != "tower": return true
@@ -324,6 +358,9 @@ func _tick(_index: int) -> void:
 				actor.runtime.target_id = target.runtime.unit_id if target != null else ""
 		elif info.get("neutral", false):
 			if tick % 3 == info.ai_phase: _drive_jungle_creep(info, tick)
+		elif info.kind == "hero":
+			if tick % maxi(1, settings.bot_decision_ticks) == info.ai_phase or actor.position.distance_to(player.position) <= settings.bot_chase_range:
+				_drive_bot(info, _bot_target(info, tick), tick)
 		else:
 			var target := _current_target(actor)
 			if (target == null and actor.path.is_empty()) or tick % 3 == info.ai_phase or (info.kind == "hero" and actor.position.distance_to(player.position) <= settings.aggro_range):
@@ -540,6 +577,59 @@ func _drive_jungle_creep(info: Dictionary, tick: int) -> void:
 		info.aggro_expires_tick = 0
 		if tick % 10 == 1 or actor.path.is_empty(): actor.go_to(center)
 		return
+	_continue_jungle_creep(info, tick)
+
+func _set_bot_state(info: Dictionary, state: String, tick: int) -> void:
+	if info.get("ai_state", "") == state: return
+	info.ai_state = state
+	info.ai_state_since = tick
+
+func _bot_target(info: Dictionary, tick: int) -> MapUnit:
+	var actor: MapUnit = info.actor
+	var lane: String = info.get("assigned_lane", "MID")
+	if actor.runtime.current_hp <= actor.runtime.stats.max_hp * settings.bot_retreat_hp_fraction:
+		_set_bot_state(info, "RETREAT", tick)
+		return null
+	var player_distance := actor.position.distance_to(player.position)
+	if player.runtime.alive and player_distance <= settings.bot_chase_range and not is_inside_enemy_tower_range(player.position, actor.runtime.team_id):
+		var hero_target := _choose_target(info, ["hero"], settings.bot_chase_range, true)
+		if hero_target != null:
+			_set_bot_state(info, "CHASE", tick)
+			info.ai_last_target_tick = tick
+			return hero_target
+	var creep_target := _choose_target(info, ["creep"], settings.bot_chase_range, true, false, lane)
+	if creep_target != null:
+		_set_bot_state(info, "FIGHT", tick)
+		info.ai_last_target_tick = tick
+		return creep_target
+	var tower := get_next_attackable_structure(actor.runtime.team_id, lane)
+	if tower != null and _tower_has_creep_cover(tower) and actor.position.distance_to(tower.position) <= settings.bot_chase_range:
+		_set_bot_state(info, "ATTACK_STRUCTURE", tick)
+		return tower
+	_set_bot_state(info, "GO_TO_LANE", tick)
+	return null
+
+func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
+	var actor: MapUnit = info.actor
+	if info.ai_state == "RETREAT":
+		if in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction:
+			_set_bot_state(info, "GO_TO_LANE", tick)
+		else:
+			actor.go_to(layout.fountain_point(actor.runtime.team_id))
+		return
+	if target != null:
+		_drive_target(info, target, tick)
+		return
+	var anchor := get_defensive_anchor(actor.runtime.team_id, info.get("assigned_lane", "MID"))
+	if actor.position.distance_to(anchor) > 80.0:
+		actor.go_to(anchor)
+	else:
+		actor.stop()
+
+func _continue_jungle_creep(info: Dictionary, tick: int) -> void:
+	var actor: MapUnit = info.actor
+	var center: Vector2 = info.camp_center
+	var leash: float = info.leash_range
 	var target: MapUnit
 	var target_id: String = info.get("aggro_target", "")
 	if not target_id.is_empty() and tick <= int(info.get("aggro_expires_tick", 0)) and entities.has(target_id):

@@ -43,6 +43,14 @@ extends Resource
 @export var fountain_radius: float = 250.0
 @export var fountain_hp_fraction_per_second: float = 0.20
 @export var fountain_mana_fraction_per_second: float = 0.25
+## Opponent AI tuning. Tower dive is deliberately disabled by default.
+@export var enable_tower_dive: bool = false
+@export_range(0.0, 1.0) var bot_retreat_hp_fraction: float = 0.28
+@export_range(0.0, 1.0) var bot_recover_hp_fraction: float = 0.72
+@export var bot_chase_range: float = 1100.0
+@export var bot_lost_target_ticks: int = 45
+@export var bot_decision_ticks: int = 6
+@export var bot_tower_safety_margin: float = 90.0
 @export var melee_creep: UnitStats
 @export var ranged_creep: UnitStats
 @export var siege_creep: UnitStats
