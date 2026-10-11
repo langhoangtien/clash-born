@@ -4,6 +4,7 @@ extends RefCounted
 
 var balance: BalanceSettings
 var units: Array[UnitRuntimeState] = []
+var _units_by_id: Dictionary = {}
 var tick_count: int = 0
 var finished: bool = false
 var winner_team: int = -1
@@ -38,8 +39,11 @@ func reset_scenario(entries: Array[Dictionary], seed_value: int = 1) -> bool:
 		counts[entry.team] += 1
 	if counts[0] not in range(1, 6) or counts[1] not in range(1, 6): return false
 	units.clear()
+	_units_by_id.clear()
 	for entry in entries:
-		units.append(_make_unit(entry))
+		var unit := _make_unit(entry)
+		units.append(unit)
+		_units_by_id[unit.unit_id] = unit
 	tick_count = 0
 	finished = false
 	winner_team = -1
@@ -65,13 +69,17 @@ func add_unit(entry: Dictionary) -> UnitRuntimeState:
 	var unit := _make_unit(entry)
 	unit.current_tick = tick_count
 	units.append(unit)
+	_units_by_id[unit.unit_id] = unit
 	metrics.register_unit(unit)
 	return unit
 
 func get_unit(id: String) -> UnitRuntimeState:
-	for unit in units:
-		if unit.unit_id == id: return unit
-	return null
+	return _units_by_id.get(id)
+
+func remove_unit(unit: UnitRuntimeState) -> void:
+	if unit == null: return
+	units.erase(unit)
+	if _units_by_id.get(unit.unit_id) == unit: _units_by_id.erase(unit.unit_id)
 
 ## Debug command, intentionally bypasses ability cost/cast rules.
 func queue_effect(source_id: String, target_id: String, kind: StatusEffect.Kind, duration: float, magnitude: float, instance_id: String) -> void:

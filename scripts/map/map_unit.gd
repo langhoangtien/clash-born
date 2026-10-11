@@ -11,6 +11,7 @@ var view: Node2D
 var show_collision: bool = false
 var paused: bool = false
 var manual_direction := Vector2.ZERO
+var movement_speed_multiplier: float = 1.0
 var balance: BalanceSettings = preload("res://data/balance/default_balance.tres")
 
 func configure(source: UnitStats, team: int, point: Vector2, data: MapLayout, shared_navigation: MapNavigation = null, existing_state: UnitRuntimeState = null) -> void:
@@ -62,7 +63,7 @@ func stop() -> void:
 func _physics_process(delta: float) -> void:
 	velocity = Vector2.ZERO
 	if not paused and runtime.can_move():
-		var speed := runtime.movement_speed(balance)
+		var speed := runtime.movement_speed(balance) * movement_speed_multiplier
 		if not manual_direction.is_zero_approx():
 			stop()
 			velocity = manual_direction.normalized() * speed

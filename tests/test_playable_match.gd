@@ -169,6 +169,15 @@ func _test_match() -> void:
 	check(jungle_units.size() == 36, "Twelve camps spawn three neutral creeps each")
 	var jungle_info: Dictionary = main.entities[jungle_units[0]]
 	var jungle_actor: MapUnit = jungle_info.actor
+	jungle_actor.position = jungle_info.camp_center
+	jungle_actor.runtime.position = jungle_actor.position
+	player.position = jungle_info.camp_center + Vector2(120, 0)
+	player.runtime.position = player.position
+	main._drive_jungle_creep(jungle_info, main.combat.tick_count + 1)
+	check(jungle_actor.runtime.target_id.is_empty(), "Jungle creep stays passive when an unaggressive hero enters its camp")
+	main._arm_jungle_retaliation(jungle_actor.runtime.unit_id, player.runtime.unit_id)
+	main._drive_jungle_creep(jungle_info, main.combat.tick_count + 1)
+	check(jungle_actor.runtime.target_id == player.runtime.unit_id, "Jungle creep retaliates after the hero damages it")
 	jungle_actor.position = jungle_info.camp_center + Vector2(jungle_info.leash_range + 60.0, 0)
 	jungle_actor.runtime.position = jungle_actor.position
 	jungle_actor.runtime.target_id = "player"

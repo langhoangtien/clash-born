@@ -109,7 +109,9 @@ func _test_death() -> void:
 	hero.buy(MatchItemCatalog.items()[10])
 	var gold_before := hero.gold
 	var gear: Array[EquipmentData] = hero.equipment.items().duplicate()
-	var point: Vector2 = main.layout.cell_center(Vector2i(15, 24))
+	# Keep this fixture away from friendly tower protection so the bot's valid
+	# anti-dive logic does not replace the intended lethal hero target.
+	var point: Vector2 = main.layout.cell_center(Vector2i(30, 9))
 	main.player.position = point
 	main.player.runtime.position = point
 	main.player.runtime.current_hp = 1
@@ -117,6 +119,7 @@ func _test_death() -> void:
 	main.enemy_hero.runtime.position = main.enemy_hero.position
 	main.enemy_hero.runtime.stats.physical_damage = 10000
 	main.enemy_hero.runtime.stats.ranged_attacks = false
+	main.enemy_hero.runtime.target_id = main.player.runtime.unit_id
 	main.enemy_hero.runtime.next_attack_tick = main.combat.tick_count + 1
 	main.clock.step()
 	var death_tick: int = main.combat.tick_count

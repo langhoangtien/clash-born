@@ -124,7 +124,8 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	add_child(actor)
 	var route := PackedVector2Array()
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = actor.navigation.lane_path(actor.position, lane, state.team_id)
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep}
+	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3}
 	return actor
 
 func _nearest_lane(point: Vector2) -> String:
@@ -172,6 +173,8 @@ func spawn_jungle_camps() -> void:
 			info.neutral = true
 			info.camp_center = center
 			info.leash_range = 420.0
+			info.aggro_target = ""
+			info.aggro_expires_tick = 0
 
 func _physics_process(delta: float) -> void:
 	if player == null: return
@@ -217,33 +220,40 @@ func _tick(_index: int) -> void:
 			if not attack_mode.is_empty(): _drive_target(info, _player_target(), tick)
 			else: actor.runtime.target_id = ""
 		elif info.kind in ["tower", "core"]:
-			var target := _choose_target(info, ["creep", "hero"], actor.runtime.attack_range())
-			actor.runtime.target_id = target.runtime.unit_id if target != null else ""
+			var target := _current_target(actor)
+			if target == null or tick % 3 == info.ai_phase:
+				target = _choose_target(info, ["creep", "hero"], actor.runtime.attack_range())
+				actor.runtime.target_id = target.runtime.unit_id if target != null else ""
 		elif info.get("neutral", false):
-			_drive_jungle_creep(info, tick)
+			if tick % 3 == info.ai_phase: _drive_jungle_creep(info, tick)
 		else:
-			var target: MapUnit
-			if info.kind == "hero":
-				var categories: Array = ["hero", "creep", "tower", "core"]
-				if actor == enemy_hero and _unsafe_tower_dive(actor, player): categories = ["creep", "tower", "core"]
-				target = _choose_target(info, categories, settings.aggro_range)
-			else:
-				target = _choose_lane_creep_target(info)
-			_drive_target(info, target, tick)
+			var target := _current_target(actor)
+			if (target == null and actor.path.is_empty()) or tick % 3 == info.ai_phase:
+				if info.kind == "hero":
+					var categories: Array = ["hero", "creep", "tower", "core"]
+					if actor == enemy_hero and _unsafe_tower_dive(actor, player): categories = ["creep", "tower", "core"]
+					target = _choose_target(info, categories, settings.aggro_range)
+				else:
+					target = _choose_lane_creep_target(info)
+				_drive_target(info, target, tick)
 	_heal_fountains()
 	var events := combat.step()
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical, event.damage_type)
-			if event.applied_damage > 0: rewards.record_damage(event.target_unit_id, event.source_unit_id, combat.tick_count, progression)
+			if event.applied_damage > 0:
+				rewards.record_damage(event.target_unit_id, event.source_unit_id, combat.tick_count, progression)
+				_arm_jungle_retaliation(event.target_unit_id, event.source_unit_id)
 		elif event.kind == "miss" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_miss()
 		elif event.kind == "death": _on_death(event.target_unit_id, events)
-	_separate_mobile_units()
+	# Separation is visual/physical housekeeping. Running it at 10 Hz avoids a
+	# combat-tick O(n²) spike once lane waves and all jungle camps are alive.
+	if tick % 3 == 0: _separate_mobile_units()
 	for id in entities.keys().duplicate():
 		if entities[id].kind in ["creep", "tower"] and not entities[id].actor.runtime.alive:
 			var actor: MapUnit = entities[id].actor
-			combat.units.erase(actor.runtime)
+			combat.remove_unit(actor.runtime)
 			actor.queue_free()
 			entities.erase(id)
 	$World.units.assign(_actors())
@@ -273,6 +283,13 @@ func _visible(source: MapUnit, target: MapUnit) -> bool:
 	var query := PhysicsRayQueryParameters2D.create(source.position, target.position, 1)
 	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
+func _current_target(source: MapUnit) -> MapUnit:
+	var id := source.runtime.target_id
+	if id.is_empty() or not entities.has(id): return null
+	var target: MapUnit = entities[id].actor
+	if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id: return null
+	return target
+
 func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false) -> MapUnit:
 	var source: MapUnit = info.actor
 	var best: MapUnit
@@ -281,7 +298,9 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 	for candidate in entities.values():
 		var target: MapUnit = candidate.actor
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
-		if info.kind in ["tower", "core"] and candidate.get("neutral", false): continue
+		# Neutral camps never pull lane AI or auto-attack selection off route.
+		# Players can still attack one explicitly through locked_target.
+		if candidate.get("neutral", false): continue
 		if info.kind == "creep" and candidate.kind in ["creep", "tower"] and candidate.lane != info.lane: continue
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
@@ -326,6 +345,7 @@ func _player_target() -> MapUnit:
 func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var actor: MapUnit = info.actor
 	if target != null and (not target.runtime.alive or target.runtime.team_id == actor.runtime.team_id): target = null
+	actor.movement_speed_multiplier = 1.0 if target != null else float(info.get("travel_speed_multiplier", 1.0))
 	actor.runtime.target_id = target.runtime.unit_id if target != null and _visible(actor, target) else ""
 	if target != null:
 		if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range() and _visible(actor, target):
@@ -354,43 +374,74 @@ func _drive_jungle_creep(info: Dictionary, tick: int) -> void:
 	var leash: float = info.leash_range
 	if actor.position.distance_to(center) > leash:
 		actor.runtime.target_id = ""
+		info.aggro_target = ""
+		info.aggro_expires_tick = 0
 		if tick % 10 == 1 or actor.path.is_empty(): actor.go_to(center)
 		return
-	var target := _choose_target(info, ["hero"], 330.0)
-	if target != null and target.position.distance_to(center) <= leash:
+	var target: MapUnit
+	var target_id: String = info.get("aggro_target", "")
+	if not target_id.is_empty() and tick <= int(info.get("aggro_expires_tick", 0)) and entities.has(target_id):
+		target = entities[target_id].actor
+		if not target.runtime.alive or target.position.distance_to(center) > leash: target = null
+	if target != null:
 		_drive_target(info, target, tick)
-	elif actor.position.distance_to(center) > 35.0:
+	else:
+		info.aggro_target = ""
+		info.aggro_expires_tick = 0
+		actor.movement_speed_multiplier = 1.0
+	if target == null and actor.position.distance_to(center) > 35.0:
 		actor.runtime.target_id = ""
 		if tick % 10 == 1 or actor.path.is_empty(): actor.go_to(center)
-	else:
+	elif target == null:
 		actor.runtime.target_id = ""
 		actor.stop()
 
+func _arm_jungle_retaliation(target_id: String, source_id: String) -> void:
+	if not entities.has(target_id) or not entities.has(source_id): return
+	var info: Dictionary = entities[target_id]
+	if not info.get("neutral", false): return
+	var source: MapUnit = entities[source_id].actor
+	if source.runtime.team_id not in [0, 1] or not source.runtime.alive: return
+	info.aggro_target = source_id
+	info.aggro_expires_tick = combat.tick_count + 300
+
 func _separate_mobile_units() -> void:
-	var ids: Array = entities.keys()
+	var ids: Array = []
+	for id in entities:
+		var info: Dictionary = entities[id]
+		var actor: MapUnit = info.actor
+		if info.kind in ["tower", "core"] or not actor.runtime.alive: continue
+		if info.kind == "hero" and in_fountain(actor.runtime): continue
+		ids.append(id)
 	ids.sort()
-	for first_index in range(ids.size()):
-		var first_info: Dictionary = entities[ids[first_index]]
-		if first_info.kind in ["tower", "core"]: continue
-		var first: MapUnit = first_info.actor
-		if not first.runtime.alive: continue
-		if first_info.kind == "hero" and in_fountain(first.runtime): continue
-		for second_index in range(first_index + 1, ids.size()):
-			var second_info: Dictionary = entities[ids[second_index]]
-			if second_info.kind in ["tower", "core"]: continue
-			var second: MapUnit = second_info.actor
-			if not second.runtime.alive: continue
-			if second_info.kind == "hero" and in_fountain(second.runtime): continue
-			var minimum: float = first.runtime.stats.collision_radius + second.runtime.stats.collision_radius + 3.0
-			var offset := second.position - first.position
-			var distance := offset.length()
-			if distance >= minimum: continue
-			var direction := offset / distance if distance > 0.001 else Vector2.RIGHT.rotated(float(first_index + second_index))
-			var correction := direction * minf((minimum - distance) * 0.5, 12.0)
-			var first_next := first.position - correction
-			var second_next := second.position + correction
-			if first.navigation.point_is_clear(first_next): first.position = first_next; first.runtime.position = first_next
-			if second.navigation.point_is_clear(second_next): second.position = second_next; second.runtime.position = second_next
+	var order := {}
+	var buckets := {}
+	const BUCKET_SIZE := 128.0
+	for index in range(ids.size()):
+		var id: String = ids[index]
+		order[id] = index
+		var actor: MapUnit = entities[id].actor
+		var cell := Vector2i(floori(actor.position.x / BUCKET_SIZE), floori(actor.position.y / BUCKET_SIZE))
+		if not buckets.has(cell): buckets[cell] = []
+		buckets[cell].append(id)
+	for first_id in ids:
+		var first: MapUnit = entities[first_id].actor
+		var first_cell := Vector2i(floori(first.position.x / BUCKET_SIZE), floori(first.position.y / BUCKET_SIZE))
+		for y in range(first_cell.y - 1, first_cell.y + 2):
+			for x in range(first_cell.x - 1, first_cell.x + 2):
+				for second_id in buckets.get(Vector2i(x, y), []):
+					if order[second_id] <= order[first_id]: continue
+					var second: MapUnit = entities[second_id].actor
+					var minimum: float = first.runtime.stats.collision_radius + second.runtime.stats.collision_radius + 3.0
+					var offset := second.position - first.position
+					var distance := offset.length()
+					if distance >= minimum: continue
+					var direction := offset / distance if distance > 0.001 else Vector2.RIGHT.rotated(float(order[first_id] + order[second_id]))
+					var correction := direction * minf((minimum - distance) * 0.5, 12.0)
+					var first_next := first.position - correction
+					var second_next := second.position + correction
+					if first.navigation.point_is_clear(first_next): first.position = first_next; first.runtime.position = first_next
+					if second.navigation.point_is_clear(second_next): second.position = second_next; second.runtime.position = second_next
 
 func request_attack(category: String) -> void:
 	if match_over or paused or shop.visible or opponent_panel.visible or not player.runtime.alive: return
