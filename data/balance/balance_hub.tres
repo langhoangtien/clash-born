@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="BalanceHub" load_steps=26 format=3]
+
+[ext_resource type="Script" path="res://scripts/balance/balance_hub.gd" id="1"]
+[ext_resource type="Resource" path="res://data/match/default_match.tres" id="2"]
+[ext_resource type="Resource" path="res://data/balance/default_balance.tres" id="3"]
+[ext_resource type="Resource" path="res://data/units/archetypes/ranged_carry.tres" id="4"]
+[ext_resource type="Resource" path="res://data/units/archetypes/melee_carry.tres" id="5"]
+[ext_resource type="Resource" path="res://data/units/archetypes/mage.tres" id="6"]
+[ext_resource type="Resource" path="res://data/units/archetypes/physical_tank.tres" id="7"]
+[ext_resource type="Resource" path="res://data/units/archetypes/magic_tank.tres" id="8"]
+[ext_resource type="Resource" path="res://data/abilities/stun_strike.tres" id="9"]
+[ext_resource type="Resource" path="res://data/abilities/heavy_slow.tres" id="10"]
+[ext_resource type="Resource" path="res://data/abilities/armor_shatter.tres" id="11"]
+[ext_resource type="Resource" path="res://data/equipment/swift_gloves.tres" id="12"]
+[ext_resource type="Resource" path="res://data/equipment/heavy_sword.tres" id="13"]
+[ext_resource type="Resource" path="res://data/equipment/vitality_stone.tres" id="14"]
+[ext_resource type="Resource" path="res://data/equipment/iron_armor.tres" id="15"]
+[ext_resource type="Resource" path="res://data/equipment/mystic_cloak.tres" id="16"]
+[ext_resource type="Resource" path="res://data/equipment/precision_blade.tres" id="17"]
+[ext_resource type="Resource" path="res://data/equipment/critical_blade.tres" id="18"]
+[ext_resource type="Resource" path="res://data/equipment/evasion_blade.tres" id="19"]
+[ext_resource type="Resource" path="res://data/equipment/armor_breaker.tres" id="20"]
+[ext_resource type="Resource" path="res://data/equipment/arcane_staff.tres" id="21"]
+[ext_resource type="Resource" path="res://data/equipment/pure_blade.tres" id="22"]
+[ext_resource type="Resource" path="res://data/equipment/resolve_amulet.tres" id="23"]
+[ext_resource type="Resource" path="res://data/equipment/range_lens.tres" id="24"]
+[ext_resource type="Resource" path="res://data/equipment/cast_focus.tres" id="25"]
+
+[resource]
+script = ExtResource("1")
+match_settings = ExtResource("2")
+global_formulas = ExtResource("3")
+hero_archetypes = Array[ExtResource("2")]([ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7"), ExtResource("8")])
+abilities = Array[ExtResource("9")]([ExtResource("9"), ExtResource("10"), ExtResource("11")])
+item_resources = Array[ExtResource("12")]([ExtResource("12"), ExtResource("13"), ExtResource("14"), ExtResource("15"), ExtResource("16"), ExtResource("17"), ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResource("21"), ExtResource("22"), ExtResource("23"), ExtResource("24"), ExtResource("25")])
