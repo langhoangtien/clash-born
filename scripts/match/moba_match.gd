@@ -54,6 +54,7 @@ func _ready() -> void:
 	camera = $Camera
 	camera.map_size = layout.world_size()
 	combat.external_control = true
+	combat.damage_filter = Callable(self, "_can_apply_match_damage")
 	rewards = MatchRewards.new(settings)
 	combat.reset_scenario([
 		_entry("player", 0, settings.hero, layout.spawn_points(0)[0]),
@@ -83,18 +84,11 @@ func _ready() -> void:
 		var tower_id := "tower_%02d" % index
 		_spawn(tower_id, team, settings.tower, layout.cell_center(Vector2i(cell)), "tower")
 		var tower_info: Dictionary = entities[tower_id]
-		if index < 9:
-			tower_info.lane = ["TOP", "MID", "BOT"][index / 3]
-			tower_info.tower_tier = _lane_tier(team, tower_info.lane, layout.cell_center(Vector2i(cell)))
-		elif index >= 11 and index < 20:
-			tower_info.lane = ["TOP", "MID", "BOT"][(index - 11) / 3]
-			tower_info.tower_tier = _lane_tier(team, tower_info.lane, layout.cell_center(Vector2i(cell)))
-		else:
-			tower_info.lane = "BASE"
-			tower_info.tower_tier = 4
-		var semantic_id := _tower_semantic_id(team, tower_info.lane, int(tower_info.tower_tier), index)
-		tower_info.semantic_id = semantic_id
-		tower_registry[semantic_id] = tower_id
+		tower_info.lane = layout.tower_lanes[index]
+		tower_info.tower_tier = layout.tower_tiers[index]
+		tower_info.semantic_id = layout.tower_ids[index]
+		tower_info.prerequisites = _structure_prerequisites(tower_info.semantic_id, team, tower_info.lane, int(tower_info.tower_tier))
+		tower_registry[tower_info.semantic_id] = tower_id
 	var fountain_view := Node2D.new()
 	fountain_view.set_script(preload("res://scripts/match/fountain_view.gd"))
 	fountain_view.layout = layout
@@ -157,47 +151,24 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	var route := PackedVector2Array()
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
-	var tower_tier := _tower_tier(state.team_id, lane, state.position) if kind == "tower" else 0
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": tower_tier, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3}
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1}
 	return actor
 
-func _tower_tier(team: int, lane: String, point: Vector2) -> int:
-	if lane.is_empty(): return 0
-	var own_base := layout.spawn_points(team)[0]
-	var tier := 1
-	for index in range(layout.tower_cells.size()):
-		if layout.tower_team(index) != team: continue
-		var other := layout.cell_center(Vector2i(layout.tower_cells[index]))
-		if _nearest_lane(other) == lane and other.distance_to(own_base) < point.distance_to(own_base): tier += 1
-	return tier
-
-func _lane_tier(team: int, lane: String, point: Vector2) -> int:
-	var own_base := layout.spawn_points(team)[0]
-	var tier := 1
-	for index in range(layout.tower_cells.size()):
-		var other_team := layout.tower_team(index)
-		if other_team != team: continue
-		if team == 0 and index >= 9: continue
-		if team == 1 and (index < 11 or index >= 20): continue
-		var other := layout.cell_center(Vector2i(layout.tower_cells[index]))
-		var other_lane: String = ["TOP", "MID", "BOT"][(index if team == 0 else index - 11) / 3]
-		if other_lane == lane and other.distance_to(own_base) < point.distance_to(own_base): tier += 1
-	return tier
-
-func _tower_semantic_id(team: int, lane: String, tier: int, index: int) -> String:
+func _structure_prerequisites(_id: String, team: int, lane: String, tier: int) -> PackedStringArray:
 	var side := "blue" if team == 0 else "red"
-	if lane == "BASE": return "%s_base_guard_%d" % [side, index]
-	var names := ["outer", "inner", "base"]
-	return "%s_%s_%s" % [side, lane.to_lower(), names[clampi(tier - 1, 0, 2)]]
+	if lane == "BASE":
+		return PackedStringArray(["%s_top_t3" % side, "%s_mid_t3" % side, "%s_bot_t3" % side])
+	if tier <= 1: return PackedStringArray()
+	return PackedStringArray(["%s_%s_t%d" % [side, lane.to_lower(), tier - 1]])
 
 func get_outer_tower(team: int, lane: String) -> MapUnit:
-	var id := "%s_%s_outer" % ["blue" if team == 0 else "red", lane.to_lower()]
+	var id := "%s_%s_t1" % ["blue" if team == 0 else "red", lane.to_lower()]
 	return entities[tower_registry[id]].actor if tower_registry.has(id) and entities.has(tower_registry[id]) else null
 
 func get_next_attackable_structure(attacking_team: int, lane: String) -> MapUnit:
 	var owner := 1 - attacking_team
 	for tier in range(1, 4):
-		var id := "%s_%s_%s" % ["blue" if owner == 0 else "red", lane.to_lower(), ["outer", "inner", "base"][tier - 1]]
+		var id := "%s_%s_t%d" % ["blue" if owner == 0 else "red", lane.to_lower(), tier]
 		if tower_registry.has(id) and entities.has(tower_registry[id]):
 			var tower: MapUnit = entities[tower_registry[id]].actor
 			if tower.runtime.alive: return tower
@@ -216,15 +187,17 @@ func is_inside_enemy_tower_range(position: Vector2, team: int) -> bool:
 
 func _tower_is_unlocked(candidate: Dictionary) -> bool:
 	if candidate.kind != "tower": return true
-	var tier := int(candidate.get("tower_tier", 0))
-	if tier <= 1: return true
-	if candidate.lane == "BASE":
-		for other in entities.values():
-			if other.kind == "tower" and other.actor.runtime.team_id == candidate.actor.runtime.team_id and other.lane != "BASE" and other.actor.runtime.alive: return false
-		return true
-	for other in entities.values():
-		if other.kind == "tower" and other.actor.runtime.team_id == candidate.actor.runtime.team_id and other.lane == candidate.lane and int(other.get("tower_tier", 0)) < tier and other.actor.runtime.alive:
-			return false
+	for prerequisite in candidate.get("prerequisites", PackedStringArray()):
+		if not tower_registry.has(prerequisite): continue
+		var tower_id: String = tower_registry[prerequisite]
+		if entities.has(tower_id) and entities[tower_id].actor.runtime.alive: return false
+	return true
+
+func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, target: UnitRuntimeState) -> bool:
+	if target == null or not entities.has(target.unit_id): return true
+	var target_info: Dictionary = entities[target.unit_id]
+	if target_info.kind == "tower": return _tower_is_unlocked(target_info)
+	if target_info.kind == "core": return _core_is_unlocked(target.team_id)
 	return true
 
 func _core_is_unlocked(team: int) -> bool:
@@ -353,7 +326,7 @@ func _tick(_index: int) -> void:
 			else: actor.runtime.target_id = ""
 		elif info.kind in ["tower", "core"]:
 			var target := _current_target(actor)
-			if target == null or tick % 3 == info.ai_phase:
+			if target == null or actor.runtime.distance_to_unit(target.runtime) > actor.runtime.attack_range() or tick % 3 == info.ai_phase:
 				target = _choose_target(info, ["creep", "hero"], actor.runtime.attack_range())
 				actor.runtime.target_id = target.runtime.unit_id if target != null else ""
 		elif info.get("neutral", false):
@@ -362,16 +335,8 @@ func _tick(_index: int) -> void:
 			if tick % maxi(1, settings.bot_decision_ticks) == info.ai_phase or actor.position.distance_to(player.position) <= settings.bot_chase_range:
 				_drive_bot(info, _bot_target(info, tick), tick)
 		else:
-			var target := _current_target(actor)
-			if (target == null and actor.path.is_empty()) or tick % 3 == info.ai_phase or (info.kind == "hero" and actor.position.distance_to(player.position) <= settings.aggro_range):
-				if info.kind == "hero":
-					var categories: Array = ["hero", "creep", "tower", "core"]
-					if actor == enemy_hero and _unsafe_tower_dive(actor, player): categories = ["creep", "tower", "core"]
-					var hero_aggro := settings.aggro_range * 2.0 if actor == enemy_hero else settings.aggro_range
-					target = _choose_target(info, categories, hero_aggro)
-				else:
-					target = _choose_lane_creep_target(info)
-				_drive_target(info, target, tick)
+			if tick % maxi(1, settings.creep_target_scan_ticks) == info.ai_phase or _current_target(actor) == null:
+				_drive_lane_creep(info, _choose_lane_creep_target(info, tick), tick)
 	_heal_fountains()
 	var events := combat.step()
 	for event in events:
@@ -385,6 +350,7 @@ func _tick(_index: int) -> void:
 					last_hit_audio_tick = combat.tick_count
 				rewards.record_damage(event.target_unit_id, event.source_unit_id, combat.tick_count, progression)
 				_arm_jungle_retaliation(event.target_unit_id, event.source_unit_id)
+				_arm_lane_defenders(event)
 		elif event.kind == "miss" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_miss()
 		elif event.kind == "death":
@@ -392,6 +358,7 @@ func _tick(_index: int) -> void:
 			_on_death(event.target_unit_id, events)
 	for info in entities.values():
 		info.actor.runtime.current_tick = combat.tick_count
+		if info.kind == "tower": info.actor.view.structure_locked = not _tower_is_unlocked(info)
 	_update_vision()
 	# Separation is visual/physical housekeeping. Running it at 3 Hz avoids a
 	# combat-tick O(n²) spike once lane waves and all jungle camps are alive.
@@ -459,7 +426,10 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 	var best: MapUnit
 	var best_priority := 100
 	var best_distance := INF
-	for candidate in entities.values():
+	var ids: Array = entities.keys()
+	ids.sort()
+	for id in ids:
+		var candidate: Dictionary = entities[id]
 		var target: MapUnit = candidate.actor
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
 		if candidate.kind == "tower" and not _tower_is_unlocked(candidate): continue
@@ -473,7 +443,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		if require_vision and not _has_vision(source, target): continue
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
-		if distance > radius or priority > best_priority or (priority == best_priority and distance >= best_distance): continue
+		if distance > radius or priority > best_priority or (priority == best_priority and (distance > best_distance or (is_equal_approx(distance, best_distance) and target.runtime.unit_id > (best.runtime.unit_id if best != null else "")))): continue
 		if not _visible(source, target):
 			if not allow_approach or source.navigation.path(source.position, target.position).is_empty(): continue
 		best = target
@@ -489,13 +459,42 @@ func _tower_has_creep_cover(tower: MapUnit) -> bool:
 			return true
 	return false
 
-func _choose_lane_creep_target(info: Dictionary) -> MapUnit:
-	# A wave only swaps to another wave at close combat distance. Once it has
-	# reached a tower, newly spawned creeps at the enemy base cannot pull it away.
-	var target := _choose_target(info, ["creep"], 430.0)
-	if target == null: target = _choose_target(info, ["tower", "core"], settings.aggro_range)
-	if target == null: target = _choose_target(info, ["hero"], 430.0)
+func _choose_lane_creep_target(info: Dictionary, tick: int) -> MapUnit:
+	var actor: MapUnit = info.actor
+	var current := _current_target(actor)
+	if current != null:
+		var valid_target := actor.runtime.distance_to_unit(current.runtime) <= settings.creep_chase_limit
+		if valid_target:
+			info.creep_lost_since = -1
+			return current
+		if int(info.get("creep_lost_since", -1)) < 0: info.creep_lost_since = tick
+		if tick - int(info.creep_lost_since) < settings.creep_lost_target_ticks: return current
+		actor.runtime.target_id = ""
+		info.creep_reacquire_after = tick + settings.creep_reacquire_ticks
+		info.creep_state = "RETURN"
+	if tick < int(info.get("creep_reacquire_after", 0)): return null
+	# Creep and hero selection is lane-local and deterministic.  A tower is not
+	# scanned globally: only the next explicitly unlocked structure is eligible.
+	var target := _choose_target(info, ["creep"], settings.creep_detection_range, true, false, info.lane)
+	if target == null: target = _choose_target(info, ["hero"], settings.creep_detection_range, true)
+	if target == null:
+		var structure := get_next_attackable_structure(actor.runtime.team_id, info.lane)
+		if structure != null and actor.runtime.distance_to_unit(structure.runtime) <= settings.creep_detection_range:
+			target = structure
+	if target != null:
+		info.creep_state = "ATTACK" if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range() else "APPROACH"
+		info.creep_chase_origin = actor.position
+		info.creep_lost_since = -1
 	return target
+
+func _drive_lane_creep(info: Dictionary, target: MapUnit, tick: int) -> void:
+	var actor: MapUnit = info.actor
+	if target != null:
+		_drive_target(info, target, tick)
+		return
+	info.creep_state = "LANE" if info.get("creep_state", "") != "RETURN" else "RETURN"
+	actor.runtime.target_id = ""
+	_drive_target(info, null, tick)
 
 func _unsafe_tower_dive(source: MapUnit, target: MapUnit) -> bool:
 	if source == null or target == null: return false
@@ -709,13 +708,43 @@ func request_attack(category: String) -> void:
 
 func _clicked_entity(id: String) -> void:
 	if not entities.has(id): return
+	var clicked_info: Dictionary = entities[id]
 	var clicked: MapUnit = entities[id].actor
 	if clicked.runtime.team_id == player.runtime.team_id:
 		message.text = "Mục tiêu đồng minh · chỉ có thể đánh lính/tướng địch"
 		return
-	request_attack("hero" if entities[id].kind == "hero" else "creep")
+	if clicked_info.kind == "tower" and not _tower_is_unlocked(clicked_info):
+		message.text = "TRỤ ĐANG KHOÁ · phá trụ cùng lane phía ngoài trước"
+		return
+	if clicked_info.kind == "core" and not _core_is_unlocked(clicked.runtime.team_id):
+		message.text = "NHÀ CHÍNH ĐANG KHOÁ · phá toàn bộ trụ trước"
+		return
+	request_attack("hero" if clicked_info.kind == "hero" else "creep")
 	locked_target = id
 	if not _has_vision(player, clicked): message.text = "Mục tiêu ngoài tầm nhìn · chưa thể tấn công"
+
+func _arm_lane_defenders(event: Dictionary) -> void:
+	# Direct hero-vs-hero damage asks nearby allied creeps and towers to protect
+	# their hero on their next simulation decision.  Reflections are deliberately
+	# excluded because they are not an intentional attack command.
+	if event.get("reflected", false) or not entities.has(event.source_unit_id) or not entities.has(event.target_unit_id): return
+	var source_info: Dictionary = entities[event.source_unit_id]
+	var target_info: Dictionary = entities[event.target_unit_id]
+	if source_info.kind != "hero" or target_info.kind != "hero": return
+	var source: MapUnit = source_info.actor
+	var victim: MapUnit = target_info.actor
+	if source.runtime.team_id == victim.runtime.team_id: return
+	for info in entities.values():
+		var defender: MapUnit = info.actor
+		if not defender.runtime.alive or defender.runtime.team_id != victim.runtime.team_id: continue
+		if info.kind == "tower":
+			if defender.runtime.distance_to_unit(source.runtime) <= defender.runtime.attack_range() and defender.runtime.distance_to_unit(victim.runtime) <= settings.tower_protection_range:
+				defender.runtime.target_id = source.runtime.unit_id
+		elif info.kind == "creep" and not info.get("neutral", false) and info.lane == target_info.get("assigned_lane", target_info.lane):
+			if defender.runtime.distance_to_unit(source.runtime) <= settings.creep_hero_protection_range:
+				defender.runtime.target_id = source.runtime.unit_id
+				info.creep_state = "APPROACH"
+				info.creep_chase_origin = defender.position
 
 func _on_death(id: String, events: Array[Dictionary]) -> void:
 	if not entities.has(id): return

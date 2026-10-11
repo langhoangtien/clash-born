@@ -79,6 +79,9 @@ func _test_match() -> void:
 	check(bot.level == 2 and bot.passive_level == 2 and bot.skill_points == 0, "Enemy hero spends its new skill point automatically")
 	var player_home := player.position
 	var enemy_home := enemy.position
+	var enemy_info: Dictionary = main.entities.enemy_hero
+	main._drive_bot(enemy_info, null, main.combat.tick_count + 1)
+	check(not enemy.path.is_empty() and enemy.path[-1].distance_to(main.get_defensive_anchor(1, "MID")) < 1.0, "Enemy bot leaves its base toward the explicit MID defensive anchor")
 	var blue_tower: MapUnit = main.entities.tower_00.actor
 	player.position = blue_tower.position; player.runtime.position = player.position
 	enemy.position = player.position + Vector2(180, 0); enemy.runtime.position = enemy.position
@@ -192,7 +195,18 @@ func _test_match() -> void:
 	for unit in main.combat.units:
 		if timers.has(unit.unit_id): unit.next_attack_tick = timers[unit.unit_id]
 	# Tower picks a creep before a hero and deals damage through the same engine.
-	var tower: MapUnit = main.entities.tower_11.actor
+	var locked_tower: MapUnit = main.entities[main.tower_registry["red_mid_t2"]].actor
+	check(not main._tower_is_unlocked(main.entities[locked_tower.runtime.unit_id]), "Inner tower starts locked behind its own lane outer tower")
+	var tower: MapUnit = main.entities[main.tower_registry["red_mid_t1"]].actor
+	var lane_probe: MapUnit = main._spawn("lane_order_probe", 0, main.settings.melee_creep, locked_tower.position, "creep", "MID")
+	var probe_info: Dictionary = main.entities[lane_probe.runtime.unit_id]
+	check(main._choose_lane_creep_target(probe_info, main.combat.tick_count + 1) == null, "Creep cannot skip a living MID T1 to attack MID T2")
+	tower.runtime.alive = false
+	check(main._choose_lane_creep_target(probe_info, main.combat.tick_count + 2) == locked_tower, "Creep advances to MID T2 as soon as MID T1 is gone")
+	tower.runtime.alive = true
+	main.combat.remove_unit(lane_probe.runtime)
+	main.entities.erase(lane_probe.runtime.unit_id)
+	lane_probe.queue_free()
 	player.position = tower.position + Vector2(-180, 180)
 	player.runtime.position = player.position
 	creep = main._spawn("test_tower_creep", 0, main.settings.melee_creep, tower.position + Vector2(-230, 170), "creep", "MID")

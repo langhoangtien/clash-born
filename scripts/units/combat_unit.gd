@@ -14,6 +14,7 @@ var show_resource_bars: bool = true
 var structure_visual: bool = false
 var compact_visual: bool = false
 var siege_visual: bool = false
+var structure_locked: bool = false
 
 func _process(delta: float) -> void:
 	damage_flash = maxf(0, damage_flash - delta)
@@ -23,7 +24,7 @@ func _process(delta: float) -> void:
 	if runtime != null: position = runtime.position
 	# Compact creep bodies are static between hit notices. Avoid rebuilding every
 	# creep draw command each render frame during large lane fights.
-	if damage_flash > 0 or not hit_notices.is_empty() or selected or show_resource_bars or show_range_indicators: queue_redraw()
+	if damage_flash > 0 or not hit_notices.is_empty() or selected or show_resource_bars or show_range_indicators or structure_locked: queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and visual_data != null:
@@ -108,6 +109,9 @@ func _draw() -> void:
 		else:
 			draw_line(Vector2(-radius * 0.55, radius * 0.55), Vector2(radius * 0.55, -radius * 0.55), Color.WHITE, 3, true)
 	draw_circle(Vector2.ZERO, 5, Color(1, 1, 1, 0.7))
+	if structure_visual and structure_locked:
+		draw_arc(Vector2.ZERO, radius + 13, 0, TAU, 32, Color(0.42, 0.78, 1.0, 0.9), 3, true)
+		_center_text("KHOÁ", -radius - 26, 14, Color(0.55, 0.86, 1.0))
 	if not compact_visual: _center_text(visual_data.display_name, -radius - 12, 20)
 	if not compact_visual and runtime.alive:
 		_draw_unit_sign(radius)

@@ -358,3 +358,23 @@ and targeting. AI target/path refresh is staggered at 10 Hz while combat remains
 waves accumulate. The local 1v1 prototype caps living lane creeps at 36 (neutral
 camps are separate) so repeated waves cannot overwhelm rendering; this remains a
 configurable MatchSettings value for later 5v5 tuning.
+
+## Lane target order and structure prerequisites
+
+`data/maps/moba_foundation.tres` now owns the stable ID, lane and tier of every
+tower. For example, `red_mid_t1`, `red_mid_t2` and `red_mid_t3` explicitly define
+the MID order; gameplay never derives that order from tower placement or node
+ordering. T2 depends on T1 and T3 depends on T2. Base guards depend on all three
+lane T3 towers. Locked structures continue defending but reject all damage at the
+shared CombatEngine impact path, including a projectile launched before an unlock
+check. A pale blue shield ring and `KHOÁ` label identify a locked tower.
+
+Lane creeps retain a fixed team/lane route and only scan at the configurable
+`MatchSettings.creep_target_scan_ticks` cadence. They keep a valid target until it
+dies or exceeds the chase limit, then resume only a forward point on their own
+route. Their local priority is enemy creep, enemy hero, then that lane's next
+unlocked tower; they cannot select a deeper tower. Tower acquisition prioritizes
+creeps, retains targets inside range, and direct hero damage near a defended hero
+causes nearby allied creeps/towers to target the attacker for their next shot.
+Designer-facing distances and timers live in `data/match/default_match.tres`
+through `MatchSettings`, exposed from `data/balance/balance_hub.tres`.

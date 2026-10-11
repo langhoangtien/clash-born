@@ -51,6 +51,16 @@ extends Resource
 @export var bot_lost_target_ticks: int = 45
 @export var bot_decision_ticks: int = 6
 @export var bot_tower_safety_margin: float = 90.0
+## Lane creep target and return behavior, in world units / simulation ticks.
+@export var creep_detection_range: float = 600.0
+@export var creep_hero_protection_range: float = 600.0
+@export var creep_chase_limit: float = 850.0
+@export var creep_lost_target_ticks: int = 24
+@export var creep_unreachable_ticks: int = 90
+@export var creep_reacquire_ticks: int = 18
+@export var creep_target_scan_ticks: int = 6
+## Towers acquire hostile creeps before heroes inside these world-unit ranges.
+@export var tower_protection_range: float = 700.0
 @export var melee_creep: UnitStats
 @export var ranged_creep: UnitStats
 @export var siege_creep: UnitStats

@@ -11,6 +11,11 @@ extends Resource
 @export var base_areas: Array[Rect2i] = []
 @export var tower_cells: PackedVector2Array = []
 @export var tower_teams: PackedInt32Array = []
+## Explicit structure metadata.  These arrays intentionally share the tower_cells
+## index so gameplay never infers a lane or tier from a world position.
+@export var tower_ids: PackedStringArray = []
+@export var tower_lanes: PackedStringArray = []
+@export var tower_tiers: PackedInt32Array = []
 @export var jungle_camps: PackedVector2Array = []
 @export var fountain_cells: PackedVector2Array = []
 @export var throne_cells: PackedVector2Array = []
@@ -76,6 +81,16 @@ func validation_errors() -> PackedStringArray:
 		for point in spawns:
 			if not is_walkable(Vector2i(point)): errors.append("Blocked spawn")
 	if tower_teams.size() != tower_cells.size(): errors.append("Tower team count mismatch")
+	if tower_ids.size() != tower_cells.size(): errors.append("Tower id count mismatch")
+	if tower_lanes.size() != tower_cells.size(): errors.append("Tower lane count mismatch")
+	if tower_tiers.size() != tower_cells.size(): errors.append("Tower tier count mismatch")
+	var seen_tower_ids := {}
+	for index in range(tower_ids.size()):
+		var id := tower_ids[index]
+		if id.is_empty() or seen_tower_ids.has(id): errors.append("Invalid or duplicate tower id: " + id)
+		seen_tower_ids[id] = true
+		if tower_lanes[index] not in ["TOP", "MID", "BOT", "BASE"]: errors.append("Invalid tower lane: " + tower_lanes[index])
+		if tower_tiers[index] < 1: errors.append("Invalid tower tier: " + str(tower_tiers[index]))
 	for point in tower_cells:
 		if not is_walkable(Vector2i(point)): errors.append("Blocked tower")
 	for point in jungle_camps:

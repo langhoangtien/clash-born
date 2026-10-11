@@ -18,6 +18,9 @@ var _cast_requests: Array[Dictionary] = []
 var _commands: Array[Dictionary] = []
 ## Map match supplies movement/targets and decides victory; sandbox stays default.
 var external_control: bool = false
+## Optional match-level guard evaluated immediately before every pending impact.
+## The sandbox leaves this invalid, so its formulas retain their original behavior.
+var damage_filter: Callable = Callable()
 
 func _init(settings: BalanceSettings) -> void:
 	balance = settings
@@ -153,10 +156,15 @@ func step() -> Array[Dictionary]:
 	for damage in pending:
 		var target := get_unit(damage.target_unit_id)
 		if target == null or not target.alive: continue
+		var source := get_unit(damage.source_unit_id)
+		if damage_filter.is_valid() and not damage_filter.call(damage, source, target):
+			var blocked := _event("damage_blocked", damage.source_unit_id, target.unit_id)
+			blocked.damage_type = damage.get("damage_type", DamageCalculator.DamageType.PHYSICAL)
+			events.append(blocked)
+			continue
 		damage.applied_damage = minf(target.current_hp, damage.final_damage)
 		target.current_hp = maxf(0, target.current_hp - damage.final_damage)
 		events.append(damage)
-		var source := get_unit(damage.source_unit_id)
 		if damage.get("is_attack", false) and source != null and source.alive and not target.is_structure and damage.applied_damage > 0:
 			var lifesteal: float = source.stats.get("lifesteal", 0.0)
 			if lifesteal > 0:
