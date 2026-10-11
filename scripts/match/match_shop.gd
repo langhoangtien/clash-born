@@ -14,6 +14,13 @@ var hero_select: OptionButton
 var passive_select: OptionButton
 var passive_upgrade: Button
 var close_button: Button
+var shop_columns: HBoxContainer
+var draft_panel: VBoxContainer
+var draft_player_card: Label
+var draft_enemy_card: Label
+var draft_enemy_select: OptionButton
+var shop_note: Label
+var draft_confirm: Button
 var draft_enabled: bool = false
 var preview_progression: HeroProgression
 
@@ -40,10 +47,52 @@ func _ready() -> void:
 	close_button.pressed.connect(hide)
 	top.add_child(close_button)
 	var note := Label.new()
+	shop_note = note
 	note.text = "Click đồ lớn để mua thẳng nếu đủ vàng · nguyên liệu đang có tự trừ giá · Bán hoàn %.0f%%" % [progression.settings.sell_refund * 100]
+	note.add_theme_color_override("font_color", Color(0.62, 0.72, 0.82))
 	content.add_child(note)
+	draft_panel = VBoxContainer.new()
+	draft_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(draft_panel)
+	var draft_title := Label.new()
+	draft_title.text = "CHỌN ĐỘI HÌNH · BLUE VS RED"
+	draft_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	draft_title.add_theme_font_size_override("font_size", 28)
+	draft_title.add_theme_color_override("font_color", Color(0.45, 0.8, 1.0))
+	draft_panel.add_child(draft_title)
+	var draft_hint := Label.new()
+	draft_hint.text = "Chọn hero cho mỗi bên trước khi bắt đầu trận"
+	draft_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	draft_panel.add_child(draft_hint)
+	var draft_cards := HBoxContainer.new()
+	draft_cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	draft_panel.add_child(draft_cards)
+	draft_player_card = _make_draft_card("BLUE · HERO CỦA BẠN", Color(0.2, 0.65, 1.0))
+	draft_cards.add_child(draft_player_card)
+	draft_enemy_card = _make_draft_card("RED · HERO ĐỐI THỦ", Color(1.0, 0.35, 0.35))
+	draft_cards.add_child(draft_enemy_card)
+	var draft_selects := HBoxContainer.new()
+	draft_panel.add_child(draft_selects)
+	var blue_select := OptionButton.new()
+	blue_select.name = "BlueHeroSelect"
+	for profile in progression.settings.hero_profiles: blue_select.add_item("BLUE · " + profile.display_name)
+	blue_select.select(clampi(HeroProgression.selected_profile, 0, blue_select.item_count - 1))
+	blue_select.item_selected.connect(func(index: int): hero_select.select(index); _sync_hero_skill(); refresh())
+	draft_selects.add_child(blue_select)
+	draft_enemy_select = OptionButton.new()
+	for profile in progression.settings.hero_profiles: draft_enemy_select.add_item("RED · " + profile.display_name)
+	draft_enemy_select.select(clampi(HeroProgression.selected_enemy_profile, 0, draft_enemy_select.item_count - 1))
+	draft_enemy_select.item_selected.connect(func(_index: int): refresh())
+	draft_selects.add_child(draft_enemy_select)
+	draft_confirm = Button.new()
+	draft_confirm.text = "XÁC NHẬN ĐỘI HÌNH · BẮT ĐẦU TRẬN"
+	draft_confirm.custom_minimum_size.y = 52
+	draft_confirm.add_theme_font_size_override("font_size", 21)
+	draft_confirm.pressed.connect(func(): HeroProgression.draft_confirmed = true; HeroProgression.selected_enemy_profile = draft_enemy_select.selected; hero_requested.emit(hero_select.selected))
+	draft_panel.add_child(draft_confirm)
 	var columns := HBoxContainer.new()
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	shop_columns = columns
 	content.add_child(columns)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(720, 500)
@@ -98,10 +147,11 @@ func _ready() -> void:
 	var restart := Button.new()
 	restart.text = "Chọn hero & chơi trận mới"
 	restart.focus_mode = Control.FOCUS_NONE
-	restart.pressed.connect(func(): HeroProgression.draft_confirmed = true; hero_requested.emit(hero_select.selected))
+	restart.pressed.connect(func(): HeroProgression.draft_confirmed = true; HeroProgression.selected_enemy_profile = draft_enemy_select.selected; hero_requested.emit(hero_select.selected))
 	right.add_child(restart)
 	feedback = Label.new()
 	content.add_child(feedback)
+	draft_panel.hide()
 	hide()
 	refresh()
 
@@ -110,6 +160,20 @@ func set_draft_mode(enabled: bool) -> void:
 	if close_button != null: close_button.disabled = enabled
 	if enabled:
 		feedback.text = "Mỗi hero có bộ chỉ số, tăng trưởng và một kỹ năng riêng. Chọn hero rồi bắt đầu."
+	if draft_panel != null: draft_panel.visible = enabled
+	if shop_columns != null: shop_columns.visible = not enabled
+	if shop_note != null: shop_note.visible = not enabled
+
+func _make_draft_card(title: String, color: Color) -> Label:
+	var card := Label.new()
+	card.custom_minimum_size = Vector2(360, 190)
+	card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.add_theme_font_size_override("font_size", 21)
+	card.add_theme_color_override("font_color", color)
+	card.text = title + "\n\nChọn hero bên dưới"
+	return card
 
 func _sync_hero_skill() -> void:
 	if passive_select == null or hero_select == null or progression == null: return
@@ -130,6 +194,11 @@ func refresh() -> void:
 	header.text = "SHOP · %s · LV %d · %d vàng" % [shown.profile.display_name, shown.level, progression.gold]
 	var reduction := (1.0 - DamageCalculator.armor_multiplier(shown.unit.physical_armor(), shown.balance.armor_coefficient)) * 100.0
 	var passive := HeroPassiveCatalog.definition(shown.passive_id)
+	if draft_player_card != null:
+		draft_player_card.text = "BLUE · " + shown.profile.display_name + "\n\nHP %.0f · Dame %.0f\nSTR %.0f · AGI %.0f · INT %.0f\n%s" % [stats.max_hp, stats.physical_damage, stats.strength, stats.agility, stats.intelligence, shown.profile.growth_summary()]
+	if draft_enemy_card != null and draft_enemy_select != null and not progression.settings.hero_profiles.is_empty():
+		var enemy_profile: HeroGrowth = progression.settings.hero_profiles[clampi(draft_enemy_select.selected, 0, progression.settings.hero_profiles.size() - 1)]
+		draft_enemy_card.text = "RED · " + enemy_profile.display_name + "\n\nĐội hình máy\n%s\nKỹ năng: %s" % [enemy_profile.growth_summary(), HeroPassiveCatalog.definition(enemy_profile.passive_id).name]
 	stats_label.text = "KỸ NĂNG: %s · LV %d/5 · điểm %d\n%s\nTĂNG MỖI LV: %s\nSTR %.0f · AGI %.0f · INT %.0f\nHP %.0f · Mana %.0f · Regen %.1f\nDamage VL %.1f / Phép %.1f / Pure %.1f\nGiáp %.1f (giảm %.1f%% VL) · giáp phép %.1f\nNé/miss %.1f%% · chính xác %.1f%%\nCrit %.1f%% × %.2f · kháng %.1f%%\nTầm đánh %.0f · cast %.0f · chạy %.0f\nTốc đánh %.0f%% · %.2f đòn/s · BAT %.1fs\nTRANG BỊ · click để bán" % [passive.name, shown.passive_level, shown.skill_points, passive.description, shown.profile.growth_summary(), stats.strength, stats.agility, stats.intelligence, stats.max_hp, stats.max_mana, stats.hp_regen, stats.physical_damage, stats.magic_damage, stats.pure_damage, shown.unit.physical_armor(), reduction, stats.magic_armor, stats.evasion * 100, stats.accuracy * 100, stats.critical_chance * 100, stats.critical_multiplier, stats.status_resistance * 100, stats.attack_range, stats.cast_range, stats.movement_speed, stats.attack_speed / stats.base_attacks_per_second * 100, shown.unit.attack_speed(), stats.base_attack_time]
 	passive_upgrade.text = "Nâng kỹ năng (%d điểm còn lại)" % progression.skill_points
 	passive_upgrade.disabled = draft_enabled or progression.skill_points <= 0 or progression.passive_level >= 5

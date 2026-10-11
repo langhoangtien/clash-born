@@ -1,6 +1,7 @@
 class_name HeroProgression
 extends RefCounted
 static var selected_profile: int = 0
+static var selected_enemy_profile: int = 5
 static var selected_passive: int = 0
 static var draft_confirmed: bool = false
 var level: int = 1

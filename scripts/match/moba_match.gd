@@ -55,7 +55,7 @@ func _ready() -> void:
 	], 777)
 	if settings.hero_profiles.is_empty(): settings.hero_profiles.append(HeroGrowth.new())
 	var profile_index := clampi(HeroProgression.selected_profile, 0, settings.hero_profiles.size() - 1)
-	var enemy_profile_index := 5 if settings.hero_profiles.size() > 5 else 0
+	var enemy_profile_index := clampi(HeroProgression.selected_enemy_profile, 0, settings.hero_profiles.size() - 1)
 	progression.player = HeroProgression.new(combat.get_unit("player"), settings.hero, settings.hero_profiles[profile_index], settings, combat.balance)
 	progression.enemy_hero = HeroProgression.new(combat.get_unit("enemy_hero"), settings.hero, settings.hero_profiles[enemy_profile_index], settings, combat.balance)
 	progression.player.select_profile_skill()
