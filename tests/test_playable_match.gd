@@ -50,6 +50,12 @@ func _test_match() -> void:
 	check(main.entities.size() == 50, "Two heroes, twenty-two towers, two cores and first twenty-four-creep wave (actual %d)" % main.entities.size())
 	check(main.layout.tower_cells.size() == 22 and main.layout.tower_teams.count(0) == 11 and main.layout.tower_teams.count(1) == 11, "Each team has three towers per lane and two throne guards")
 	check(main.layout.fountain_point(0).distance_to(main.layout.throne_point(0)) > main.settings.fountain_radius and main.layout.fountain_point(1).distance_to(main.layout.throne_point(1)) > main.settings.fountain_radius, "Thrones stand outside both fountain healing zones")
+	check(main.layout.fountain_point(0).distance_to(main.layout.throne_point(0)) < main.layout.tile_size * 2.5 and main.layout.fountain_point(1).distance_to(main.layout.throne_point(1)) < main.layout.tile_size * 2.5, "Thrones stay compactly placed beside their fountains")
+	var blue_guard_a: Vector2 = main.layout.cell_center(Vector2i(main.layout.tower_cells[9]))
+	var blue_guard_b: Vector2 = main.layout.cell_center(Vector2i(main.layout.tower_cells[10]))
+	var red_guard_a: Vector2 = main.layout.cell_center(Vector2i(main.layout.tower_cells[20]))
+	var red_guard_b: Vector2 = main.layout.cell_center(Vector2i(main.layout.tower_cells[21]))
+	check(is_equal_approx(blue_guard_a.distance_to(main.layout.throne_point(0)), blue_guard_b.distance_to(main.layout.throne_point(0))) and is_equal_approx(red_guard_a.distance_to(main.layout.throne_point(1)), red_guard_b.distance_to(main.layout.throne_point(1))), "Two throne guards flank each throne at equal distance")
 	check(main.layout.jungle_camps.size() == 12, "Three authored jungle camps exist in each map quadrant")
 	check(main.player.runtime == main.combat.get_unit("player") and main.player.view.runtime == main.player.runtime, "Map/visual/combat share a single runtime state")
 	var lanes: Dictionary = {}
@@ -211,6 +217,7 @@ func _test_match() -> void:
 	player.runtime.stats.ranged_attacks = saved_player_ranged
 	# Wave timing is simulation time and bounded; paused clock does not spawn.
 	main.settings.wave_interval = 1
+	main.settings.maximum_live_creeps = 200
 	main.next_wave_tick = main.combat.tick_count + 1
 	var waves: int = main.wave_number
 	main.clock.step()

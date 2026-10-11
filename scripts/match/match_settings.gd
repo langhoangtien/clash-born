@@ -4,7 +4,7 @@ extends Resource
 @export var show_draft_on_start: bool = true
 @export var creeps_per_lane: int = 3
 @export var siege_wave_interval: int = 3
-@export var maximum_live_creeps: int = 108
+@export var maximum_live_creeps: int = 36
 @export var respawn_seconds: float = 8.0
 @export var respawn_seconds_per_level: float = 2.0
 @export var death_gold_per_level: int = 25
@@ -37,7 +37,7 @@ extends Resource
 @export var tower_xp: int = 150
 @export var tower_gold: int = 250
 @export var sell_refund: float = 0.5
-@export var fountain_radius: float = 300.0
+@export var fountain_radius: float = 250.0
 @export var fountain_hp_fraction_per_second: float = 0.20
 @export var fountain_mana_fraction_per_second: float = 0.25
 @export var melee_creep: UnitStats

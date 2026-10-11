@@ -21,7 +21,9 @@ func _process(delta: float) -> void:
 		hit_notices[index].time = float(hit_notices[index].time) - delta
 		if hit_notices[index].time <= 0: hit_notices.remove_at(index)
 	if runtime != null: position = runtime.position
-	queue_redraw()
+	# Compact creep bodies are static between hit notices. Avoid rebuilding every
+	# creep draw command each render frame during large lane fights.
+	if damage_flash > 0 or not hit_notices.is_empty() or selected or show_resource_bars or show_range_indicators: queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and visual_data != null:

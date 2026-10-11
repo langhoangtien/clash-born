@@ -6,6 +6,7 @@ var combat := CombatEngine.new(preload("res://data/balance/default_balance.tres"
 var clock := SimulationClock.new()
 var entities: Dictionary = {}
 var navigation_cache: Dictionary = {}
+var lane_route_cache: Dictionary = {}
 var player: MapUnit
 var enemy_hero: MapUnit
 var cores: Array[MapUnit] = []
@@ -106,6 +107,11 @@ func _navigation(radius: float) -> MapNavigation:
 	if not navigation_cache.has(radius): navigation_cache[radius] = MapNavigation.new(layout, radius)
 	return navigation_cache[radius]
 
+func _lane_route(actor: MapUnit, lane: String) -> PackedVector2Array:
+	var key := "%d|%s|%.1f|%.1f|%.1f" % [actor.runtime.team_id, lane, actor.runtime.stats.collision_radius, actor.position.x, actor.position.y]
+	if not lane_route_cache.has(key): lane_route_cache[key] = actor.navigation.lane_path(actor.position, lane, actor.runtime.team_id)
+	return PackedVector2Array(lane_route_cache[key])
+
 func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: String, siege: bool = false, ranged_creep: bool = false) -> MapUnit:
 	state.is_structure = kind in ["tower", "core"]
 	state.structure_damage_multiplier = settings.hero_structure_damage_multiplier if kind == "hero" else (settings.creep_structure_damage_multiplier if kind == "creep" else 1.0)
@@ -123,7 +129,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	actor.view.unit_selected.connect(_clicked_entity)
 	add_child(actor)
 	var route := PackedVector2Array()
-	if kind in ["creep", "hero"] and state.unit_id != "player": route = actor.navigation.lane_path(actor.position, lane, state.team_id)
+	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
 	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3}
 	return actor
@@ -247,9 +253,9 @@ func _tick(_index: int) -> void:
 		elif event.kind == "miss" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_miss()
 		elif event.kind == "death": _on_death(event.target_unit_id, events)
-	# Separation is visual/physical housekeeping. Running it at 10 Hz avoids a
+	# Separation is visual/physical housekeeping. Running it at 3 Hz avoids a
 	# combat-tick O(n²) spike once lane waves and all jungle camps are alive.
-	if tick % 3 == 0: _separate_mobile_units()
+	if tick % 10 == 0: _separate_mobile_units()
 	for id in entities.keys().duplicate():
 		if entities[id].kind in ["creep", "tower"] and not entities[id].actor.runtime.alive:
 			var actor: MapUnit = entities[id].actor
@@ -350,7 +356,9 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 	if target != null:
 		if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range() and _visible(actor, target):
 			actor.stop()
-		elif tick % 10 == 1 or actor.path.is_empty(): actor.go_to(target.position)
+		else:
+			var target_moved := not actor.path.is_empty() and actor.path[-1].distance_to(target.position) > 96.0
+			if actor.path.is_empty() or (target_moved and tick % 30 == info.ai_phase): actor.go_to(target.position)
 	elif info.actor != player:
 		var route: PackedVector2Array = info.route
 		# After chasing, resume at the nearest forward point through A*, never
@@ -427,6 +435,7 @@ func _separate_mobile_units() -> void:
 	for first_id in ids:
 		var first: MapUnit = entities[first_id].actor
 		var first_cell := Vector2i(floori(first.position.x / BUCKET_SIZE), floori(first.position.y / BUCKET_SIZE))
+		var resolved_neighbors := 0
 		for y in range(first_cell.y - 1, first_cell.y + 2):
 			for x in range(first_cell.x - 1, first_cell.x + 2):
 				for second_id in buckets.get(Vector2i(x, y), []):
@@ -442,6 +451,10 @@ func _separate_mobile_units() -> void:
 					var second_next := second.position + correction
 					if first.navigation.point_is_clear(first_next): first.position = first_next; first.runtime.position = first_next
 					if second.navigation.point_is_clear(second_next): second.position = second_next; second.runtime.position = second_next
+					resolved_neighbors += 1
+					if resolved_neighbors >= 4: break
+				if resolved_neighbors >= 4: break
+			if resolved_neighbors >= 4: break
 
 func request_attack(category: String) -> void:
 	if match_over or paused or shop.visible or opponent_panel.visible or not player.runtime.alive: return

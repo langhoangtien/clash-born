@@ -72,12 +72,12 @@ func _physics_process(delta: float) -> void:
 			if path_index < path.size():
 				var offset := path[path_index] - position
 				velocity = offset.normalized() * minf(speed, offset.length() / maxf(delta, 0.000001))
-	move_and_slide()
+	if not velocity.is_zero_approx(): move_and_slide()
 	runtime.position = position
 	if not path.is_empty() and path_index >= path.size():
 		stop()
 		arrived.emit()
-	queue_redraw()
+	if show_collision or (view != null and view.selected): queue_redraw()
 
 func _draw() -> void:
 	if view != null and view.selected:

@@ -2,9 +2,13 @@ extends Control
 signal map_clicked(point: Vector2)
 var layout: MapLayout
 var entities: Dictionary
+var redraw_elapsed: float = 0.0
 
-func _process(_delta: float) -> void:
-	queue_redraw()
+func _process(delta: float) -> void:
+	redraw_elapsed += delta
+	if redraw_elapsed >= 0.1:
+		redraw_elapsed = 0.0
+		queue_redraw()
 
 func _draw() -> void:
 	if layout == null: return

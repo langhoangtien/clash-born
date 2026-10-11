@@ -346,12 +346,15 @@ remain future work. See `docs/late_game_items_passives.md`.
 The match map now authors twelve jungle camps, twenty-two team-owned towers,
 separate fountain/throne points and rounded wall runs. Each team owns three towers
 on every lane plus two throne guards. Fountains sit in the deep base corners while
-the throne and guards stand forward of them. Jungle units use neutral team 2,
+the throne stands just outside its 250-unit healing radius and the two guards flank
+it symmetrically. Jungle units use neutral team 2,
 stay passive until damaged, remain within a 420-unit leash and return home after
 losing ten-second retaliation aggro. Lane and hero AI never auto-acquire neutrals.
 Lane creeps only swap to another wave at close distance, so a new spawn cannot
 pull a wave away from a nearby tower. Mobile actors receive deterministic
-spatial-bucket separation at 10 Hz; dead towers are removed from scene collision
+spatial-bucket separation at 3 Hz with bounded neighbor work; dead towers are removed from scene collision
 and targeting. AI target/path refresh is staggered at 10 Hz while combat remains
 30 Hz. CombatEngine keeps an ID index so target resolution stays constant-time as
-waves accumulate.
+waves accumulate. The local 1v1 prototype caps living lane creeps at 36 (neutral
+camps are separate) so repeated waves cannot overwhelm rendering; this remains a
+configurable MatchSettings value for later 5v5 tuning.

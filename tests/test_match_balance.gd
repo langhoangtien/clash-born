@@ -149,6 +149,7 @@ func _test_soak() -> void:
 	var stalled: Array[String] = []
 	for frame in range(60 * 181):
 		await physics_frame
+		if frame % 1800 == 0: print("Soak progress: tick=%d entities=%d" % [main.combat.tick_count, main.entities.size()])
 		if frame % 240 == 0:
 			for id in main.entities:
 				var info: Dictionary = main.entities[id]
