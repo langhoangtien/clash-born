@@ -1,4 +1,5 @@
 extends PanelContainer
+const MatchIconCatalogScript = preload("res://scripts/match/match_icon_catalog.gd")
 signal buy_requested(item: EquipmentData)
 signal sell_requested(slot: int)
 signal hero_requested(index: int)
@@ -75,12 +76,12 @@ func _ready() -> void:
 	draft_panel.add_child(draft_selects)
 	var blue_select := OptionButton.new()
 	blue_select.name = "BlueHeroSelect"
-	for profile in progression.settings.hero_profiles: blue_select.add_item("BLUE · " + profile.display_name)
+	for profile in progression.settings.hero_profiles: blue_select.add_icon_item(MatchIconCatalogScript.hero_icon(profile.passive_id), "BLUE · " + profile.display_name)
 	blue_select.select(clampi(HeroProgression.selected_profile, 0, blue_select.item_count - 1))
 	blue_select.item_selected.connect(func(index: int): hero_select.select(index); _sync_hero_skill(); refresh())
 	draft_selects.add_child(blue_select)
 	draft_enemy_select = OptionButton.new()
-	for profile in progression.settings.hero_profiles: draft_enemy_select.add_item("RED · " + profile.display_name)
+	for profile in progression.settings.hero_profiles: draft_enemy_select.add_icon_item(MatchIconCatalogScript.hero_icon(profile.passive_id), "RED · " + profile.display_name)
 	draft_enemy_select.select(clampi(HeroProgression.selected_enemy_profile, 0, draft_enemy_select.item_count - 1))
 	draft_enemy_select.item_selected.connect(func(_index: int): refresh())
 	draft_selects.add_child(draft_enemy_select)
@@ -131,7 +132,7 @@ func _ready() -> void:
 		slot_buttons.append(button)
 	hero_select = OptionButton.new()
 	hero_select.focus_mode = Control.FOCUS_NONE
-	for profile in progression.settings.hero_profiles: hero_select.add_item(profile.display_name)
+	for profile in progression.settings.hero_profiles: hero_select.add_icon_item(MatchIconCatalogScript.hero_icon(profile.passive_id), profile.display_name)
 	hero_select.select(clampi(HeroProgression.selected_profile, 0, hero_select.item_count - 1))
 	hero_select.item_selected.connect(func(_index: int): _sync_hero_skill(); refresh())
 	right.add_child(hero_select)
@@ -173,18 +174,33 @@ func _make_draft_card(title: String, color: Color) -> PanelContainer:
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(12)
 	card.add_theme_stylebox_override("panel", style)
+	var row := HBoxContainer.new()
+	card.add_child(row)
+	var portrait := TextureRect.new()
+	portrait.name = "Portrait"
+	portrait.custom_minimum_size = Vector2(112, 112)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(portrait)
 	var label := Label.new()
+	label.name = "Info"
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_font_size_override("font_size", 21)
 	label.add_theme_color_override("font_color", color)
 	label.text = title + "\n\nChọn hero bên dưới"
-	card.add_child(label)
+	row.add_child(label)
 	return card
 
 func _set_card_text(card: PanelContainer, value: String) -> void:
-	if card != null and card.get_child_count() > 0: card.get_child(0).text = value
+	var label := card.get_node_or_null("HBoxContainer/Info") as Label
+	if label != null: label.text = value
+
+func _set_card_icon(card: PanelContainer, passive_id: String) -> void:
+	var portrait := card.get_node_or_null("HBoxContainer/Portrait") as TextureRect
+	if portrait != null: portrait.texture = MatchIconCatalogScript.hero_icon(passive_id)
 
 func _role_icon(profile: HeroGrowth) -> String:
 	if not profile.ranged_attacks: return "⚔"
@@ -197,7 +213,7 @@ func _sync_hero_skill() -> void:
 	var index := clampi(hero_select.selected, 0, progression.settings.hero_profiles.size() - 1)
 	var profile: HeroGrowth = progression.settings.hero_profiles[index]
 	var passive := HeroPassiveCatalog.definition(profile.passive_id)
-	passive_select.add_item("Kỹ năng riêng: " + passive.name)
+	passive_select.add_icon_item(MatchIconCatalogScript.skill_icon(profile.passive_id), "Kỹ năng riêng: " + passive.name)
 	passive_select.set_item_tooltip(0, passive.description)
 	var preview_state := UnitRuntimeState.new("hero_preview", 0, Vector2.ZERO, progression.base, progression.balance)
 	preview_progression = HeroProgression.new(preview_state, progression.base, profile, progression.settings, progression.balance)
@@ -211,9 +227,11 @@ func refresh() -> void:
 	var reduction := (1.0 - DamageCalculator.armor_multiplier(shown.unit.physical_armor(), shown.balance.armor_coefficient)) * 100.0
 	var passive := HeroPassiveCatalog.definition(shown.passive_id)
 	if draft_player_card != null:
+		_set_card_icon(draft_player_card, shown.profile.passive_id)
 		_set_card_text(draft_player_card, "%s  BLUE · %s\n\nHP %.0f · Dame %.0f\nSTR %.0f · AGI %.0f · INT %.0f\n%s" % [_role_icon(shown.profile), shown.profile.display_name, stats.max_hp, stats.physical_damage, stats.strength, stats.agility, stats.intelligence, shown.profile.growth_summary()])
 	if draft_enemy_card != null and draft_enemy_select != null and not progression.settings.hero_profiles.is_empty():
 		var enemy_profile: HeroGrowth = progression.settings.hero_profiles[clampi(draft_enemy_select.selected, 0, progression.settings.hero_profiles.size() - 1)]
+		_set_card_icon(draft_enemy_card, enemy_profile.passive_id)
 		_set_card_text(draft_enemy_card, "%s  RED · %s\n\nĐội hình máy\n%s\nKỹ năng: %s" % [_role_icon(enemy_profile), enemy_profile.display_name, enemy_profile.growth_summary(), HeroPassiveCatalog.definition(enemy_profile.passive_id).name])
 	stats_label.text = "KỸ NĂNG: %s · LV %d/5 · điểm %d\n%s\nTĂNG MỖI LV: %s\nSTR %.0f · AGI %.0f · INT %.0f\nHP %.0f · Mana %.0f · Regen %.1f\nDamage VL %.1f / Phép %.1f / Pure %.1f\nGiáp %.1f (giảm %.1f%% VL) · giáp phép %.1f\nNé/miss %.1f%% · chính xác %.1f%%\nCrit %.1f%% × %.2f · kháng %.1f%%\nTầm đánh %.0f · cast %.0f · chạy %.0f\nTốc đánh %.0f%% · %.2f đòn/s · BAT %.1fs\nTRANG BỊ · click để bán" % [passive.name, shown.passive_level, shown.skill_points, passive.description, shown.profile.growth_summary(), stats.strength, stats.agility, stats.intelligence, stats.max_hp, stats.max_mana, stats.hp_regen, stats.physical_damage, stats.magic_damage, stats.pure_damage, shown.unit.physical_armor(), reduction, stats.magic_armor, stats.evasion * 100, stats.accuracy * 100, stats.critical_chance * 100, stats.critical_multiplier, stats.status_resistance * 100, stats.attack_range, stats.cast_range, stats.movement_speed, stats.attack_speed / stats.base_attacks_per_second * 100, shown.unit.attack_speed(), stats.base_attack_time]
 	passive_upgrade.text = "Nâng kỹ năng (%d điểm còn lại)" % progression.skill_points

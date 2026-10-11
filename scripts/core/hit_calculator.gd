@@ -9,7 +9,9 @@ static func combine_evasion(sources: Array[float], balance: BalanceSettings) -> 
 	return clampf(combined, 0, balance.evasion_cap)
 
 static func effective_evasion(evasion: float, accuracy: float, balance: BalanceSettings) -> float:
-	return clampf(evasion - accuracy, 0, balance.evasion_cap)
+	# Accuracy guarantees that portion of attacks. Only the remaining attacks
+	# roll against evasion: 60% accuracy versus 50% evasion => 20% miss/80% hit.
+	return clampf(clampf(evasion, 0, 1) * (1.0 - clampf(accuracy, 0, 1)), 0, balance.evasion_cap)
 
 static func resolve(source: Dictionary, target: Dictionary, rng: RandomNumberGenerator, balance: BalanceSettings) -> Dictionary:
 	var missed: bool = source.attacks_can_miss and rng.randf() < effective_evasion(target.evasion, source.accuracy, balance)

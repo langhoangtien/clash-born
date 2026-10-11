@@ -62,7 +62,7 @@ func _test_stats_and_hits() -> void:
 	balance.multiplicative_evasion = false
 	_near(HitCalculator.combine_evasion([0.3, 0.3], balance), 0.6, "Configurable additive evasion")
 	balance.multiplicative_evasion = true
-	_near(HitCalculator.effective_evasion(0.3, 0.2, balance), 0.1, "Accuracy subtracts percentage points")
+	_near(HitCalculator.effective_evasion(0.5, 0.6, balance), 0.2, "60 percent accuracy leaves 40 percent of 50 percent evasion")
 	_near(HitCalculator.effective_evasion(0.75, 1.0, balance), 0, "100 point accuracy removes ordinary evasion")
 	_near(DamageCalculator.effective_armor(30, 20, 0.5), 5, "Flat reduction before penetration")
 	_near(DamageCalculator.effective_armor(10, 20, 0.5), -5, "Negative armor follows same penetration order")
@@ -84,7 +84,7 @@ func _test_stats_and_hits() -> void:
 			_check(false, "A miss cannot critically strike")
 	_check(absf(misses / 10000.0 - 0.3) < 0.02, "Observed miss rate approaches 30 percent")
 	_check(absf(criticals / float(10000 - misses) - 0.25) < 0.02, "Critical probability measured only among hits")
-	attacker.accuracy = 0.3
+	attacker.accuracy = 1.0
 	misses = 0
 	for hit_index in range(1000):
 		if HitCalculator.resolve(attacker, defender, rng, balance).missed: misses += 1

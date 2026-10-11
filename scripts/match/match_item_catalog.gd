@@ -22,7 +22,9 @@ static func _generated_icon(kind: String) -> Texture2D:
 						if point.distance_to(Geometry2D.get_closest_point_to_segment(point, Vector2(14 + offset, 51), Vector2(25 + offset, 13))) < 3.0: painted = true
 				"blood":
 					painted = point.distance_to(Vector2(32, 40)) < 15.0 or (y >= 10 and y <= 40 and absf(x - 32) < (y - 8) * 0.42)
-			if painted: image.set_pixel(x, y, {"bow": Color("75d8ff"), "sickle": Color("f06b9d"), "hammer": Color("d7b078"), "claw": Color("ff755f"), "blood": Color("e83e64")}.get(kind, Color.WHITE))
+				"staff":
+					painted = point.distance_to(Geometry2D.get_closest_point_to_segment(point, Vector2(20, 55), Vector2(43, 12))) < 3.5 or point.distance_to(Vector2(45, 12)) < 11.0
+			if painted: image.set_pixel(x, y, {"bow": Color("75d8ff"), "sickle": Color("f06b9d"), "hammer": Color("d7b078"), "claw": Color("ff755f"), "blood": Color("e83e64"), "staff": Color("f5d76e")}.get(kind, Color.WHITE))
 	return ImageTexture.create_from_image(image)
 
 static func _item(id: String, name: String, price: int, modifiers: Dictionary, icon_name: String, components: PackedStringArray = [], recipe_cost: int = 0) -> EquipmentData:
@@ -51,6 +53,8 @@ static func items() -> Array[EquipmentData]:
 		_item("agility_blade", "Đao Nhanh Nhẹn", 850, {"agility": 20.0}, "evasion_blade"),
 		_item("wizard_staff", "Trượng Trí Tuệ", 850, {"intelligence": 20.0}, "arcane_staff"),
 		_item("precision_blade", "Kiếm Chính Xác", 950, {"physical_damage": 25.0, "accuracy": 0.20}, "precision_blade"),
+		_item("accuracy_staff_1", "Trượng Chính Xác I", 1800, {"physical_damage": 25.0, "accuracy": 0.40}, "generated:staff", ["precision_blade"], 850),
+		_item("accuracy_staff_2", "Trượng Chính Xác II", 3700, {"physical_damage": 40.0, "accuracy": 0.60}, "generated:staff", ["accuracy_staff_1", "heavy_sword"], 1200),
 		_item("range_lens", "Ống Ngắm", 900, {"attack_range": 140.0}, "range_lens"),
 		_item("cast_focus", "Tinh Thạch Phép", 900, {"magic_damage": 35.0, "cast_range": 160.0}, "cast_focus"),
 		_item("critical_blade", "Kiếm Crit I", 1600, {"physical_damage": 25.0, "critical_chance": 0.20, "critical_multiplier_override": 1.2}, "critical_blade", ["heavy_sword"], 900),
