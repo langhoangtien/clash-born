@@ -84,10 +84,10 @@ func _ready() -> void:
 		var tower_info: Dictionary = entities[tower_id]
 		if index < 9:
 			tower_info.lane = ["TOP", "MID", "BOT"][index / 3]
-			tower_info.tower_tier = index % 3 + 1
+			tower_info.tower_tier = _lane_tier(team, tower_info.lane, layout.cell_center(Vector2i(cell)))
 		elif index >= 11 and index < 20:
 			tower_info.lane = ["TOP", "MID", "BOT"][(index - 11) / 3]
-			tower_info.tower_tier = (index - 11) % 3 + 1
+			tower_info.tower_tier = _lane_tier(team, tower_info.lane, layout.cell_center(Vector2i(cell)))
 		else:
 			tower_info.lane = "BASE"
 			tower_info.tower_tier = 4
@@ -165,6 +165,19 @@ func _tower_tier(team: int, lane: String, point: Vector2) -> int:
 		if layout.tower_team(index) != team: continue
 		var other := layout.cell_center(Vector2i(layout.tower_cells[index]))
 		if _nearest_lane(other) == lane and other.distance_to(own_base) < point.distance_to(own_base): tier += 1
+	return tier
+
+func _lane_tier(team: int, lane: String, point: Vector2) -> int:
+	var own_base := layout.spawn_points(team)[0]
+	var tier := 1
+	for index in range(layout.tower_cells.size()):
+		var other_team := layout.tower_team(index)
+		if other_team != team: continue
+		if team == 0 and index >= 9: continue
+		if team == 1 and (index < 11 or index >= 20): continue
+		var other := layout.cell_center(Vector2i(layout.tower_cells[index]))
+		var other_lane: String = ["TOP", "MID", "BOT"][(index if team == 0 else index - 11) / 3]
+		if other_lane == lane and other.distance_to(own_base) < point.distance_to(own_base): tier += 1
 	return tier
 
 func _tower_is_unlocked(candidate: Dictionary) -> bool:
@@ -325,7 +338,9 @@ func _tick(_index: int) -> void:
 	var events := combat.step()
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
-			entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical, event.damage_type)
+			# Keep combat readable: only ordinary physical hits get floating numbers.
+			if not event.critical and event.damage_type == DamageCalculator.DamageType.PHYSICAL:
+				entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, false, event.damage_type)
 			if event.applied_damage > 0:
 				if audio_hit != null and combat.tick_count - last_hit_audio_tick >= 2:
 					audio_hit.play()
@@ -411,7 +426,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
 		if candidate.kind == "tower" and not _tower_is_unlocked(candidate): continue
 		if candidate.kind == "core" and not _core_is_unlocked(target.runtime.team_id): continue
-		if info.kind == "hero" and candidate.kind == "tower" and not _tower_has_creep_cover(candidate.actor): continue
+		if info.kind == "hero" and source.runtime.unit_id != "player" and candidate.kind == "tower" and not _tower_has_creep_cover(candidate.actor): continue
 		# Neutral camps never pull lane AI or bot auto-attack selection off route.
 		# The player's creep command may opt into neutral targets.
 		if candidate.get("neutral", false) and not allow_neutral: continue
@@ -469,9 +484,10 @@ func _player_target() -> MapUnit:
 	# Creep/structure attack is deliberately local. It cannot select a wave at
 	# the enemy base or a third tower merely because that target exists on the map.
 	var lane := _nearest_lane(player.position)
-	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, false, "", true)
+	# Structure commands take priority over a distant newly spawned wave.
+	var target := _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
 	if target == null:
-		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
+		target = _choose_target(entities.player, ["creep"], settings.player_target_range, true, false, "", true)
 	if target == null:
 		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true, false, "", true)
 	# If the lane is quiet, the same command can farm a nearby neutral camp.
