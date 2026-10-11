@@ -20,7 +20,19 @@ extends Resource
 @export var passive_gold_interval_seconds: float = 2.0
 @export var hero_structure_damage_multiplier: float = 0.5
 @export var creep_structure_damage_multiplier: float = 0.65
-@export var siege_structure_damage_multiplier: float = 1.0
+## Catapults are the lane's intended building breaker.
+@export var siege_structure_damage_multiplier: float = 1.25
+## Towers use this multiplier only when their target is a siege creep.
+@export_range(0.0, 1.0) var tower_damage_to_siege_multiplier: float = 0.55
+## Tier stats are applied to each spawned tower runtime. T1 is outer; T4 guards the throne.
+@export var tower_t1_hp: float = 3200.0
+@export var tower_t2_hp: float = 3500.0
+@export var tower_t3_hp: float = 3800.0
+@export var tower_t4_hp: float = 4200.0
+@export var tower_t1_damage: float = 155.0
+@export var tower_t2_damage: float = 195.0
+@export var tower_t3_damage: float = 235.0
+@export var tower_t4_damage: float = 275.0
 @export var maximum_level: int = 20
 @export var first_level_xp: int = 100
 @export var level_xp_increment: int = 50

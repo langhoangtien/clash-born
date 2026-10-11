@@ -375,7 +375,8 @@ func _resolve_attack(source_id: String, target: UnitRuntimeState, stats: Diction
 		var physical := DamageCalculator.effective_armor(target.physical_armor(), stats.armor_reduction, stats.physical_armor_penetration)
 		var magical := DamageCalculator.effective_armor(target.stats.magic_armor, stats.magic_armor_reduction)
 		damage.final_damage = DamageCalculator.calculate(damage.raw_damage, damage_type, physical, magical, balance)
-		if target.is_structure: damage.final_damage *= clampf(structure_multiplier, 0, 1)
+		# Values above one are valid for specialized siege attackers.
+		if target.is_structure: damage.final_damage *= maxf(0.0, structure_multiplier)
 		damage.is_attack = true
 		pending.append(damage)
 

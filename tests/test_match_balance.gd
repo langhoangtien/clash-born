@@ -63,7 +63,16 @@ func _test_match() -> void:
 	main.set_physics_process(false)
 	main.clock.set_running(false)
 	for info in main.entities.values(): info.actor.paused = true
-	check(main.settings.tower.base_hp == 5000 and main.settings.tower.physical_damage == 220, "Towers use the revised siege tuning")
+	check(main.settings.tower_t1_hp == 3200 and main.settings.tower_t4_hp == 4200 and main.settings.tower_t1_damage < main.settings.tower_t4_damage, "Tower durability is reduced while damage increases toward T4")
+	var red_guards := [main.entities[main.tower_registry["red_base_guard_left"]].actor, main.entities[main.tower_registry["red_base_guard_right"]].actor]
+	check(not main._core_is_unlocked(1), "Living T4 guards keep the red core locked")
+	for info in main.entities.values():
+		if info.kind == "tower" and info.actor not in red_guards: info.actor.runtime.alive = false
+	check(not main._core_is_unlocked(1), "Only the two T4 guards gate the core after lane towers fall")
+	red_guards[0].runtime.alive = false
+	check(not main._core_is_unlocked(1), "One remaining T4 guard still locks the core")
+	red_guards[1].runtime.alive = false
+	check(main._core_is_unlocked(1), "Destroying both T4 guards unlocks the core")
 	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage > 110 and main.progression.player.profile.display_name.begins_with("Aelira"), "Core durability and named hero skill applied")
 	check(main.progression.player.gold == 250, "Opening budget cannot buy a full damage item")
 	var original = preload("res://scripts/ui/equipment_panel.gd").CATALOG

@@ -131,7 +131,7 @@ func _test_scene() -> void:
 	for info in main.entities.values():
 		if info.get("siege", false):
 			siege += 1
-			check(info.actor.view.siege_visual and info.actor.runtime.structure_damage_multiplier == 1.0 and not info.route.is_empty(), "Siege shares view/runtime/navigation and has full siege multiplier")
+			check(info.actor.view.siege_visual and is_equal_approx(info.actor.runtime.structure_damage_multiplier, 1.25) and not info.route.is_empty(), "Siege shares view/runtime/navigation and has boosted building multiplier")
 	check(siege == 6 and main.wave_number == 1, "First wave adds one siege creep to each team/lane")
 	main.spawn_wave(); main.spawn_wave(); main.spawn_wave()
 	var total_siege := 0

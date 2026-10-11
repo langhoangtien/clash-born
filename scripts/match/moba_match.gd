@@ -93,6 +93,7 @@ func _ready() -> void:
 		tower_info.tower_tier = layout.tower_tiers[index]
 		tower_info.semantic_id = layout.tower_ids[index]
 		tower_info.prerequisites = layout.tower_prerequisites[index].duplicate()
+		_apply_tower_tier_stats(tower_info)
 		tower_registry[tower_info.semantic_id] = tower_id
 	var registry_errors := structure_registry_errors()
 	for error in registry_errors: push_error("STRUCTURE REGISTRY: " + error)
@@ -218,6 +219,15 @@ func _tower_is_unlocked(candidate: Dictionary) -> bool:
 		if entities.has(tower_id) and entities[tower_id].actor.runtime.alive: return false
 	return true
 
+func _apply_tower_tier_stats(info: Dictionary) -> void:
+	var tower: MapUnit = info.actor
+	var tier: int = int(info.get("tower_tier", 1))
+	var hp_by_tier := {1: settings.tower_t1_hp, 2: settings.tower_t2_hp, 3: settings.tower_t3_hp, 4: settings.tower_t4_hp}
+	var damage_by_tier := {1: settings.tower_t1_damage, 2: settings.tower_t2_damage, 3: settings.tower_t3_damage, 4: settings.tower_t4_damage}
+	tower.runtime.stats.max_hp = float(hp_by_tier.get(tier, settings.tower_t1_hp))
+	tower.runtime.current_hp = tower.runtime.stats.max_hp
+	tower.runtime.stats.physical_damage = float(damage_by_tier.get(tier, settings.tower_t1_damage))
+
 func structure_runtime_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	for index in range(layout.tower_cells.size()):
@@ -336,13 +346,23 @@ func _issue_ai_move(info: Dictionary, destination: Vector2, source: String, tick
 func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, target: UnitRuntimeState) -> bool:
 	if target == null or not entities.has(target.unit_id): return true
 	var target_info: Dictionary = entities[target.unit_id]
+	var source_info: Dictionary = entities.get(_source.unit_id, {})
+	if source_info.get("kind", "") == "tower" and target_info.get("siege", false):
+		_damage.final_damage *= settings.tower_damage_to_siege_multiplier
 	if target_info.kind == "tower": return _tower_is_unlocked(target_info)
 	if target_info.kind == "core": return _core_is_unlocked(target.team_id)
 	return true
 
 func _core_is_unlocked(team: int) -> bool:
-	for info in entities.values():
-		if info.kind == "tower" and info.actor.runtime.team_id == team and info.actor.runtime.alive: return false
+	# Lane towers gate their T4 guards through authored prerequisites. The core
+	# itself is gated only by both guards.
+	var side := "blue" if team == 0 else "red"
+	for guard in [side + "_base_guard_left", side + "_base_guard_right"]:
+		if not tower_registry.has(guard):
+			push_error("Missing required throne guard registry entry: " + guard)
+			return false
+		var runtime_id: String = tower_registry[guard]
+		if entities.has(runtime_id) and entities[runtime_id].actor.runtime.alive: return false
 	return true
 
 func _lane_push_buff_active(team: int, lane: String) -> bool:

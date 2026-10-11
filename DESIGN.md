@@ -273,12 +273,15 @@ settings are in the existing match scripts; tests in `tests/test_fountain.gd`.
 
 ## Match balance and lane recovery
 
-Match towers now have 5000 HP, 16 physical/12 magic armor and 220 physical damage;
-cores have 10000 HP, 25/15 armor and 150 damage. Runtime structures are flagged
-explicitly. Source siege multipliers default to one; only map heroes use 0.50, regular
-creeps 0.65 and catapults 1.0. Engine attacks apply this multiplier after mitigation for every
-component. Projectiles snapshot it at launch and still resolve at impact, including
-shots whose source died. Sandbox default rules and existing formulas remain intact.
+Match tower tiers are configured in `data/match/default_match.tres`: T1 is
+3200 HP/155 damage, T2 3500/195, T3 3800/235 and T4 4200/275. Thus structures
+are less durable than the prior 5000-HP tower but increasingly dangerous toward
+the throne. Cores have 10000 HP, 25/15 armor and 150 damage. Runtime structures
+are flagged explicitly. Map heroes deal 0.50 structure damage, regular creeps 0.65,
+catapults 1.25; towers deal 55% damage to catapults. Engine attacks apply these
+multipliers after mitigation for every component. Projectiles snapshot them at launch
+and still resolve at impact, including shots whose source died. Sandbox default rules
+and existing formulas remain intact.
 
 The match catalog has useful components and substantially stronger late-game recipes.
 Icon SVGs are reused from the established item set. Hero opening damage
@@ -364,8 +367,9 @@ configurable MatchSettings value for later 5v5 tuning.
 `data/maps/moba_foundation.tres` now owns the stable ID, lane and tier of every
 tower. For example, `red_mid_t1`, `red_mid_t2` and `red_mid_t3` explicitly define
 the MID order; gameplay never derives that order from tower placement or node
-ordering. T2 depends on T1 and T3 depends on T2. Base guards depend on all three
-lane T3 towers. Locked structures continue defending but reject all damage at the
+ordering. T2 depends on T1 and T3 depends on T2. Both T4 base guards depend on all
+three lane T3 towers; the core unlocks only when both T4 guards are destroyed.
+Locked structures continue defending but reject all damage at the
 shared CombatEngine impact path, including a projectile launched before an unlock
 check. A pale blue shield ring and `KHOÁ` label identify a locked tower.
 
