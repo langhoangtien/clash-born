@@ -38,6 +38,11 @@ var bot_build_index: int = 0
 var jungle_spawned: bool = false
 ## Combat mode hides hostile units outside the selected hero's vision.
 var full_map_mode: bool = false
+var ui_elapsed: float = 0.0
+var audio_hit: AudioStreamPlayer
+var audio_death: AudioStreamPlayer
+var audio_wave: AudioStreamPlayer
+var last_hit_audio_tick: int = -1000
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -74,7 +79,18 @@ func _ready() -> void:
 	for index in range(layout.tower_cells.size()):
 		var cell: Vector2 = layout.tower_cells[index]
 		var team := layout.tower_team(index)
-		_spawn("tower_%02d" % index, team, settings.tower, layout.cell_center(Vector2i(cell)), "tower")
+		var tower_id := "tower_%02d" % index
+		_spawn(tower_id, team, settings.tower, layout.cell_center(Vector2i(cell)), "tower")
+		var tower_info: Dictionary = entities[tower_id]
+		if index < 9:
+			tower_info.lane = ["TOP", "MID", "BOT"][index / 3]
+			tower_info.tower_tier = index % 3 + 1
+		elif index >= 11 and index < 20:
+			tower_info.lane = ["TOP", "MID", "BOT"][(index - 11) / 3]
+			tower_info.tower_tier = (index - 11) % 3 + 1
+		else:
+			tower_info.lane = "BASE"
+			tower_info.tower_tier = 4
 	var fountain_view := Node2D.new()
 	fountain_view.set_script(preload("res://scripts/match/fountain_view.gd"))
 	fountain_view.layout = layout
@@ -86,6 +102,9 @@ func _ready() -> void:
 	projectile_view.combat = combat
 	projectile_view.z_index = 100
 	add_child(projectile_view)
+	audio_hit = _make_audio_player("res://assets/audio/hit.wav")
+	audio_death = _make_audio_player("res://assets/audio/death.wav")
+	audio_wave = _make_audio_player("res://assets/audio/wave.wav")
 	_build_ui()
 	clock.ticked.connect(_tick)
 	clock.set_running(true)
@@ -152,6 +171,10 @@ func _tower_is_unlocked(candidate: Dictionary) -> bool:
 	if candidate.kind != "tower": return true
 	var tier := int(candidate.get("tower_tier", 0))
 	if tier <= 1: return true
+	if candidate.lane == "BASE":
+		for other in entities.values():
+			if other.kind == "tower" and other.actor.runtime.team_id == candidate.actor.runtime.team_id and other.lane != "BASE" and other.actor.runtime.alive: return false
+		return true
 	for other in entities.values():
 		if other.kind == "tower" and other.actor.runtime.team_id == candidate.actor.runtime.team_id and other.lane == candidate.lane and int(other.get("tower_tier", 0)) < tier and other.actor.runtime.alive:
 			return false
@@ -239,9 +262,12 @@ func _physics_process(delta: float) -> void:
 		attack_mode = ""
 		locked_target = ""
 		player.runtime.target_id = ""
-	_update_vision()
+	ui_elapsed += delta
+	if ui_elapsed >= 0.1:
+		ui_elapsed = 0.0
+		_update_vision()
+		_refresh_hud()
 	clock.advance(delta)
-	_refresh_hud()
 
 func _tick(_index: int) -> void:
 	if match_over: return
@@ -257,6 +283,7 @@ func _tick(_index: int) -> void:
 			if item != null and bot.buy(item): bot_build_index += 1
 	if tick >= next_wave_tick:
 		spawn_wave()
+		if audio_wave != null: audio_wave.play()
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
 	if not jungle_spawned and tick >= 30:
 		spawn_jungle_camps()
@@ -300,11 +327,16 @@ func _tick(_index: int) -> void:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical, event.damage_type)
 			if event.applied_damage > 0:
+				if audio_hit != null and combat.tick_count - last_hit_audio_tick >= 2:
+					audio_hit.play()
+					last_hit_audio_tick = combat.tick_count
 				rewards.record_damage(event.target_unit_id, event.source_unit_id, combat.tick_count, progression)
 				_arm_jungle_retaliation(event.target_unit_id, event.source_unit_id)
 		elif event.kind == "miss" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_miss()
-		elif event.kind == "death": _on_death(event.target_unit_id, events)
+		elif event.kind == "death":
+			if audio_death != null: audio_death.play()
+			_on_death(event.target_unit_id, events)
 	for info in entities.values():
 		info.actor.runtime.current_tick = combat.tick_count
 	_update_vision()
@@ -769,6 +801,13 @@ func _build_ui() -> void:
 	content.add_child(result_label)
 	_button(content, "Chơi trận mới", func(): get_tree().reload_current_scene())
 	result_panel.hide()
+
+func _make_audio_player(path: String) -> AudioStreamPlayer:
+	var player_audio := AudioStreamPlayer.new()
+	player_audio.stream = load(path)
+	player_audio.volume_db = -9.0
+	add_child(player_audio)
+	return player_audio
 
 func _button(parent: Node, text: String, callback: Callable) -> void:
 	var button := Button.new()
