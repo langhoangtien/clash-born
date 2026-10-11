@@ -35,6 +35,8 @@ var death_gold_losses: Dictionary = {}
 var draft_mode: bool = false
 var bot_build_index: int = 0
 var jungle_spawned: bool = false
+## Combat mode hides hostile units outside the selected hero's vision.
+var full_map_mode: bool = false
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -191,6 +193,7 @@ func _physics_process(delta: float) -> void:
 		attack_mode = ""
 		locked_target = ""
 		player.runtime.target_id = ""
+	_update_vision()
 	clock.advance(delta)
 	_refresh_hud()
 
@@ -256,6 +259,9 @@ func _tick(_index: int) -> void:
 		elif event.kind == "miss" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_miss()
 		elif event.kind == "death": _on_death(event.target_unit_id, events)
+	for info in entities.values():
+		info.actor.runtime.current_tick = combat.tick_count
+	_update_vision()
 	# Separation is visual/physical housekeeping. Running it at 3 Hz avoids a
 	# combat-tick O(n²) spike once lane waves and all jungle camps are alive.
 	if tick % 10 == 0: _separate_mobile_units()
@@ -292,6 +298,24 @@ func _visible(source: MapUnit, target: MapUnit) -> bool:
 	var query := PhysicsRayQueryParameters2D.create(source.position, target.position, 1)
 	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
+func _has_vision(source: MapUnit, target: MapUnit) -> bool:
+	if source == null or target == null: return false
+	if full_map_mode or source.runtime.team_id == target.runtime.team_id: return true
+	var vision := float(source.runtime.stats.get("vision_range", 1200.0))
+	# Vision is a deterministic radial rule. Navigation/terrain visibility still
+	# controls whether an actor can approach, but does not make UI targetability
+	# depend on physics-ray timing.
+	return source.position.distance_to(target.position) <= vision
+
+func _update_vision() -> void:
+	if player == null: return
+	for info in entities.values():
+		var actor: MapUnit = info.actor
+		if actor == player or actor.runtime.team_id == player.runtime.team_id or full_map_mode:
+			actor.view.visible = true
+		else:
+			actor.view.visible = actor.runtime.alive and _has_vision(player, actor)
+
 func _current_target(source: MapUnit) -> MapUnit:
 	var id := source.runtime.target_id
 	if id.is_empty() or not entities.has(id): return null
@@ -299,7 +323,7 @@ func _current_target(source: MapUnit) -> MapUnit:
 	if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id: return null
 	return target
 
-func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false, lane_filter: String = "") -> MapUnit:
+func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false, lane_filter: String = "", require_vision: bool = false) -> MapUnit:
 	var source: MapUnit = info.actor
 	var best: MapUnit
 	var best_priority := 100
@@ -312,6 +336,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		if candidate.get("neutral", false) and not allow_neutral: continue
 		if not lane_filter.is_empty() and candidate.kind in ["creep", "tower"] and candidate.lane != lane_filter: continue
 		if info.kind == "creep" and candidate.kind in ["creep", "tower"] and candidate.lane != info.lane: continue
+		if require_vision and not _has_vision(source, target): continue
 		var distance := source.runtime.distance_to_unit(target.runtime)
 		var priority := categories.find(candidate.kind)
 		if distance > radius or priority > best_priority or (priority == best_priority and distance >= best_distance): continue
@@ -348,21 +373,21 @@ func _player_target() -> MapUnit:
 	if entities.has(locked_target):
 		var target: MapUnit = entities[locked_target].actor
 		var leash := settings.hero_acquisition_range if attack_mode == "hero" else settings.player_target_leash
-		if target.runtime.alive and target.runtime.team_id != player.runtime.team_id and player.runtime.distance_to_unit(target.runtime) <= leash: return target
+		if target.runtime.alive and target.runtime.team_id != player.runtime.team_id and player.runtime.distance_to_unit(target.runtime) <= leash and _has_vision(player, target): return target
 	locked_target = ""
 	if attack_mode == "hero":
-		return _choose_target(entities.player, ["hero"], settings.hero_acquisition_range, true)
+		return _choose_target(entities.player, ["hero"], settings.hero_acquisition_range, true, false, "", true)
 	# Creep/structure attack is deliberately local. It cannot select a wave at
 	# the enemy base or a third tower merely because that target exists on the map.
 	var lane := _nearest_lane(player.position)
-	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, false)
+	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, false, "", true)
 	if target == null:
-		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane)
+		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
 	if target == null:
-		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true)
+		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true, false, "", true)
 	# If the lane is quiet, the same command can farm a nearby neutral camp.
 	if target == null:
-		target = _choose_target(entities.player, ["creep"], settings.player_target_range, true, true)
+		target = _choose_target(entities.player, ["creep"], settings.player_target_range, true, true, "", true)
 	return target
 
 func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
@@ -482,11 +507,13 @@ func request_attack(category: String) -> void:
 
 func _clicked_entity(id: String) -> void:
 	if not entities.has(id): return
-	if entities[id].actor.runtime.team_id == player.runtime.team_id:
+	var clicked: MapUnit = entities[id].actor
+	if clicked.runtime.team_id == player.runtime.team_id:
 		message.text = "Mục tiêu đồng minh · chỉ có thể đánh lính/tướng địch"
 		return
 	request_attack("hero" if entities[id].kind == "hero" else "creep")
 	locked_target = id
+	if not _has_vision(player, clicked): message.text = "Mục tiêu ngoài tầm nhìn · chưa thể tấn công"
 
 func _on_death(id: String, events: Array[Dictionary]) -> void:
 	if not entities.has(id): return
@@ -626,6 +653,7 @@ func _build_ui() -> void:
 	row = HBoxContainer.new()
 	content.add_child(row)
 	_button(row, "Trang bị hai đội [Tab]", toggle_opponents)
+	_button(row, "Tầm nhìn: Giao tranh [V]", func(): set_full_map_mode(not full_map_mode))
 	controls = Control.new()
 	controls.set_script(preload("res://scripts/match/battle_controls.gd"))
 	controls.position = Vector2(0, 720)
@@ -650,6 +678,8 @@ func _build_ui() -> void:
 	minimap.size = Vector2(215, 215)
 	minimap.layout = layout
 	minimap.entities = entities
+	minimap.player = player
+	minimap.full_map_mode = full_map_mode
 	minimap.map_clicked.connect(func(point: Vector2): camera.follow_enabled = false; camera.position = point; camera.clamp_to_map())
 	layer.add_child(minimap)
 	shop = PanelContainer.new()
@@ -724,6 +754,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_F: camera.follow_enabled = true
 			KEY_B: toggle_shop()
 			KEY_TAB: toggle_opponents()
+			KEY_V: set_full_map_mode(not full_map_mode)
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT and player.runtime.alive and not paused and not match_over and not shop.visible and not opponent_panel.visible:
 		_stop_player()
 		player.go_to(get_global_transform_with_canvas().affine_inverse() * event.position)
+
+func set_full_map_mode(value: bool) -> void:
+	full_map_mode = value
+	_update_vision()
+	if minimap != null: minimap.full_map_mode = full_map_mode
+	if message != null:
+		message.text = "TOÀN MAP · nhìn và chọn mọi mục tiêu" if full_map_mode else "GIAO TRANH · chỉ thấy mục tiêu trong tầm nhìn"

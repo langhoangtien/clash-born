@@ -34,6 +34,8 @@ enum PrimaryAttribute { NONE, STRENGTH, AGILITY, INTELLIGENCE }
 @export var base_attacks_per_second: float = 1.0
 @export var attack_speed_bonus: float = 0.0
 @export var movement_speed: float = 300.0
+## Hero vision radius in world units. Equipment/effects can be extended later.
+@export var vision_range: float = 1200.0
 @export var evasion: float = 0.0
 @export var evasion_sources: Array[float] = []
 @export var accuracy: float = 0.0

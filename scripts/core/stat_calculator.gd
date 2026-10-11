@@ -47,6 +47,7 @@ static func calculate(source: UnitStats, balance: BalanceSettings, equipment: Ar
 		"base_attacks_per_second": source.base_attacks_per_second,
 		"base_attack_time": 1.0 / maxf(source.base_attacks_per_second, 0.001),
 		"movement_speed": maxf(balance.minimum_movement_speed, source.movement_speed + bonuses.get("movement_speed", 0.0)),
+		"vision_range": maxf(0.0, source.vision_range),
 		"evasion": HitCalculator.combine_evasion(evasion_sources, balance),
 		"accuracy": maxf(0.0, source.accuracy + bonuses.get("accuracy", 0.0)),
 		"critical_chance": clampf(source.critical_chance + bonuses.get("critical_chance", 0.0), 0, 1),

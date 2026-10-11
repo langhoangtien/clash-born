@@ -64,6 +64,23 @@ func status_labels() -> PackedStringArray:
 	if not runtime.casting.is_empty(): statuses.append("ĐANG NIỆM")
 	return statuses
 
+func status_badges() -> Array[Dictionary]:
+	var badges: Array[Dictionary] = []
+	if runtime == null: return badges
+	var definitions := [
+		{"tag": "CHOÁNG", "icon": "B", "color": Color(1.0, 0.72, 0.2)},
+		{"tag": "CHẬM", "icon": "S", "color": Color(0.35, 0.7, 1.0)},
+		{"tag": "TRỪ GIÁP", "icon": "A", "color": Color(0.95, 0.4, 0.35)},
+		{"tag": "TẦM ĐÁNH", "icon": "R", "color": Color(0.45, 0.95, 0.55)},
+		{"tag": "TẦM PHÉP", "icon": "C", "color": Color(0.7, 0.55, 1.0)},
+		{"tag": "CHẬM ĐÁNH", "icon": "AS", "color": Color(0.9, 0.5, 0.75)},
+	]
+	for effect in runtime.effects.active:
+		var badge: Dictionary = definitions[effect.kind].duplicate()
+		badge["seconds"] = effect.remaining_seconds(runtime.current_tick)
+		badges.append(badge)
+	return badges
+
 func _draw() -> void:
 	if visual_data == null or runtime == null: return
 	var radius: float = runtime.stats.collision_radius
@@ -92,12 +109,13 @@ func _draw() -> void:
 			draw_line(Vector2(-radius * 0.55, radius * 0.55), Vector2(radius * 0.55, -radius * 0.55), Color.WHITE, 3, true)
 	draw_circle(Vector2.ZERO, 5, Color(1, 1, 1, 0.7))
 	if not compact_visual: _center_text(visual_data.display_name, -radius - 12, 20)
+	if not compact_visual and runtime.alive:
+		_draw_unit_sign(radius)
+		_draw_status_bar(radius)
 	if show_resource_bars:
 		_draw_bar(32 if compact_visual else 44, runtime.current_hp / runtime.stats.max_hp, Color(0.25, 0.8, 0.42))
 		if not compact_visual: _draw_bar(56, runtime.current_mana / runtime.stats.max_mana if runtime.stats.max_mana > 0 else 0, Color(0.25, 0.55, 0.95))
 		if selected: _center_text("%.0f / %.0f" % [runtime.current_hp, runtime.stats.max_hp], 82, 20)
-	var statuses := status_labels()
-	if not statuses.is_empty() and runtime.alive: _center_text(" ".join(statuses), 8, 18, Color(0.07, 0.08, 0.1))
 	if not runtime.alive: _center_text("DEAD", 8, 18)
 	else:
 		for index in range(hit_notices.size()):
@@ -108,6 +126,27 @@ func _draw_bar(y: float, ratio: float, color: Color) -> void:
 	var width := 50.0 if compact_visual else 90.0
 	draw_rect(Rect2(Vector2(-width / 2, y), Vector2(width, 8)), Color(0.02, 0.03, 0.04))
 	draw_rect(Rect2(Vector2(-width / 2, y), Vector2(width * clampf(ratio, 0, 1), 8)), color)
+
+func _draw_unit_sign(radius: float) -> void:
+	var sign_color := visual_data.team_color.lightened(0.15)
+	var center := Vector2(0, -radius - 34)
+	draw_colored_polygon(PackedVector2Array([center + Vector2(0, -10), center + Vector2(10, 0), center + Vector2(0, 10), center + Vector2(-10, 0)]), sign_color)
+	var initial := visual_data.display_name.substr(0, 1).to_upper()
+	_center_text(initial, center.y + 6, 13, Color.WHITE)
+
+func _draw_status_bar(radius: float) -> void:
+	var badges := status_badges()
+	if badges.is_empty(): return
+	var total_width := badges.size() * 34.0 - 4.0
+	var start_x := -total_width * 0.5
+	for index in range(badges.size()):
+		var badge: Dictionary = badges[index]
+		var x := start_x + index * 34.0
+		var center := Vector2(x + 15, -radius - 65)
+		draw_circle(center, 14, Color(0.03, 0.04, 0.06, 0.92))
+		draw_arc(center, 14, 0, TAU, 20, badge.color, 2, true)
+		_center_text(str(badge.icon), center.y + 5, 10, badge.color)
+		_center_text("%.1f" % float(badge.seconds), center.y + 25, 10, Color.WHITE)
 
 func _draw_hero(radius: float, color: Color) -> void:
 	# Small flat-vector silhouette: cape, body, head and weapon remain legible
