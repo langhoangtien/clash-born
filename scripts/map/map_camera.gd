@@ -48,8 +48,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			dragging = event.pressed
 			if dragging: follow_enabled = false
 			get_viewport().set_input_as_handled()
+		# Match camera zoom is fixed for consistent vision and targeting.
 		elif event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-			set_zoom_level(zoom.x * (1.15 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1 / 1.15))
 			get_viewport().set_input_as_handled()
 	elif event is InputEventMouseMotion and dragging:
 		pan_by(-event.relative / zoom)

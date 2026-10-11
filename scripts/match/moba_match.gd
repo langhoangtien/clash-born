@@ -492,9 +492,11 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 			if actor.path.is_empty() or (target_moved and tick % 30 == info.ai_phase): actor.go_to(target.position)
 	elif info.actor != player:
 		if info.kind == "hero":
-			actor.stop()
-			actor.runtime.target_id = ""
-			return
+			var home := layout.spawn_points(actor.runtime.team_id)[0]
+			if actor.position.distance_to(home) > 1600.0:
+				actor.stop()
+				actor.runtime.target_id = ""
+				return
 		var route: PackedVector2Array = info.route
 		# After chasing, resume at the nearest forward point through A*, never
 		# shortcut directly across jungle terrain to a stale lane point.
