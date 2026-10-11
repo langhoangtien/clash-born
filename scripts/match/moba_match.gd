@@ -464,7 +464,7 @@ func _tick(_index: int) -> void:
 			if item != null and bot.buy(item): bot_build_index += 1
 	if tick >= next_wave_tick:
 		spawn_wave()
-		if audio_router != null: audio_router.play_wave(tick)
+		if audio_router != null: audio_router.play_wave(tick, PackedVector2Array([layout.spawn_points(0)[0], layout.spawn_points(1)[0]]), _audio_listener_position(), _audio_listener_radius())
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
 	if not jungle_spawned and tick >= 30:
 		spawn_jungle_camps()
@@ -500,7 +500,7 @@ func _tick(_index: int) -> void:
 				_drive_lane_creep(info, _choose_lane_creep_target(info, tick), tick)
 	_heal_fountains()
 	var events := combat.step()
-	if audio_router != null: audio_router.consume(events, entities, combat.tick_count)
+	if audio_router != null: audio_router.consume(events, entities, combat.tick_count, _audio_listener_position(), _audio_listener_radius())
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
 			# Keep combat readable: ordinary physical hits stay silent. Special hits remain visible.
@@ -573,6 +573,15 @@ func _update_vision() -> void:
 			actor.view.visible = true
 		else:
 			actor.view.visible = actor.runtime.alive and _has_vision(player, actor)
+
+func _audio_listener_position() -> Vector2:
+	if camera == null or camera.follow_enabled: return player.position
+	return camera.position
+
+func _audio_listener_radius() -> float:
+	if camera == null or camera.follow_enabled: return float(player.runtime.stats.get("vision_range", 1200.0))
+	# A detached map camera can listen inside its current local viewing area.
+	return 1200.0
 
 func _current_target(source: MapUnit) -> MapUnit:
 	var id := source.runtime.target_id

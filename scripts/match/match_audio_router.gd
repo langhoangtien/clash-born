@@ -32,9 +32,10 @@ func _ready() -> void:
 		add_child(voice)
 		voices.append(voice)
 
-func consume(events: Array[Dictionary], entities: Dictionary, tick: int) -> void:
+func consume(events: Array[Dictionary], entities: Dictionary, tick: int, listener_position: Vector2, listener_radius: float) -> void:
 	if not enabled: return
 	for event in events:
+		if not can_hear(_event_position(event, entities), listener_position, listener_radius): continue
 		match event.get("kind", ""):
 			"attack": _play(_attack_sound(event.get("source_unit_id", ""), entities), tick)
 			"damage":
@@ -42,8 +43,21 @@ func consume(events: Array[Dictionary], entities: Dictionary, tick: int) -> void
 			"death": _play("death", tick)
 			"heal": _play("heal", tick)
 
-func play_wave(tick: int) -> void:
-	_play("wave", tick)
+func play_wave(tick: int, spawn_points: PackedVector2Array, listener_position: Vector2, listener_radius: float) -> void:
+	for point in spawn_points:
+		if can_hear(point, listener_position, listener_radius):
+			_play("wave", tick)
+			return
+
+func can_hear(sound_position: Vector2, listener_position: Vector2, listener_radius: float) -> bool:
+	return sound_position.distance_squared_to(listener_position) <= listener_radius * listener_radius
+
+func _event_position(event: Dictionary, entities: Dictionary) -> Vector2:
+	var source: Dictionary = entities.get(event.get("source_unit_id", ""), {})
+	if not source.is_empty(): return source.actor.position
+	var target: Dictionary = entities.get(event.get("target_unit_id", ""), {})
+	if not target.is_empty(): return target.actor.position
+	return Vector2.INF
 
 func _attack_sound(source_id: String, entities: Dictionary) -> String:
 	var info: Dictionary = entities.get(source_id, {})

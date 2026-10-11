@@ -15,6 +15,8 @@ func _run() -> void:
 	quit(0 if failures == 0 else 1)
 
 func _test_siege() -> void:
+	var audio_router = preload("res://scripts/match/match_audio_router.gd").new()
+	check(audio_router.can_hear(Vector2(900, 0), Vector2.ZERO, 1000) and not audio_router.can_hear(Vector2(1001, 0), Vector2.ZERO, 1000), "Combat audio is limited to the active listener radius")
 	var source := UnitStats.new()
 	source.physical_damage = 100
 	source.magic_damage = 50
