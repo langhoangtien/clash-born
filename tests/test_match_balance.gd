@@ -8,7 +8,8 @@ func check(value: bool, label: String) -> void:
 func _run() -> void:
 	_test_siege()
 	await _test_match()
-	if "--soak" in OS.get_cmdline_user_args(): await _test_soak()
+	if "--controlled-soak" in OS.get_cmdline_user_args(): await _test_controlled_soak()
+	elif "--soak" in OS.get_cmdline_user_args(): await _test_soak()
 	print("Match balance/navigation: %d checks, %d failures" % [checks, failures])
 	quit(0 if failures == 0 else 1)
 
@@ -125,6 +126,14 @@ func _test_match() -> void:
 	wrong_lane.actor.position = top.actor.position + Vector2(20, 0)
 	wrong_lane.actor.runtime.position = wrong_lane.actor.position
 	check(main._choose_target(top, ["creep"], 25) != wrong_lane.actor, "Creeps do not abandon their lane to acquire other-lane creeps")
+	# A level-six bot has an unspent point after its only five-rank skill is full.
+	# The AI must leave that point for future skills instead of retrying forever.
+	var bot: HeroProgression = main.progression.enemy_hero
+	bot.passive_level = 5
+	bot.skill_points = 1
+	var before_skill_tick: int = main.combat.tick_count
+	main.clock.step()
+	check(main.combat.tick_count == before_skill_tick + 1 and bot.skill_points == 1, "Bot with a max-rank skill cannot freeze the match tick")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		main.toggle_opponents()
 		await process_frame
@@ -147,9 +156,16 @@ func _test_soak() -> void:
 	var lane_damage: Dictionary = {"TOP": 0.0, "MID": 0.0, "BOT": 0.0}
 	var samples: Dictionary = {}
 	var stalled: Array[String] = []
-	for frame in range(60 * 181):
+	var target_ticks := 10800 if "--long-soak" in OS.get_cmdline_user_args() else 5400
+	var frame_budget := 60 * (361 if target_ticks > 5400 else 181)
+	var last_report_usec := Time.get_ticks_usec()
+	for frame in range(frame_budget):
 		await physics_frame
-		if frame % 1800 == 0: print("Soak progress: tick=%d entities=%d" % [main.combat.tick_count, main.entities.size()])
+		if frame % 600 == 0:
+			var now := Time.get_ticks_usec()
+			var load := _runtime_load(main)
+			print("Soak progress: tick=%d entities=%d projectiles=%d metrics=%d effects=%d paths=%d notices=%d memory=%.1fMB nodes=%d wall=%.2fs" % [main.combat.tick_count, main.entities.size(), main.combat.projectiles.size(), main.combat.metrics.by_unit.size(), load.effects, load.paths, load.notices, Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), (now - last_report_usec) / 1000000.0])
+			last_report_usec = now
 		if frame % 240 == 0:
 			for id in main.entities:
 				var info: Dictionary = main.entities[id]
@@ -160,13 +176,66 @@ func _test_soak() -> void:
 				var idle: int = old.idle + 1 if navigating and actor.position.distance_to(old.point) < 2 else 0
 				samples[id] = {"point": actor.position, "idle": idle}
 				if idle >= 3 and id not in stalled: stalled.append(id)
-		if main.match_over or main.combat.tick_count >= 5400: break
+		if main.match_over or main.combat.tick_count >= target_ticks: break
 	for id in main.combat.metrics.by_unit:
 		for lane in lane_damage:
 			if ("_" + lane + "_") in id: lane_damage[lane] += main.combat.metrics.by_unit[id].damage_dealt
-	check(not main.match_over and main.combat.tick_count >= 5400, "Default autonomous match remains playable after three simulation minutes")
+	check(not main.match_over and main.combat.tick_count >= target_ticks, "Default autonomous match remains playable through the soak duration")
 	for lane in lane_damage: check(lane_damage[lane] > 0, "Live creep combat occurs on " + lane)
 	check(stalled.is_empty(), "No creep stalls without a target for eight simulation seconds: " + str(stalled))
-	print("Three-minute soak: tick=%d waves=%d cores=%.0f/%.0f lane_damage=%s" % [main.combat.tick_count, main.wave_number, main.cores[0].runtime.current_hp, main.cores[1].runtime.current_hp, str(lane_damage)])
+	print("Match soak: tick=%d waves=%d cores=%.0f/%.0f lane_damage=%s" % [main.combat.tick_count, main.wave_number, main.cores[0].runtime.current_hp, main.cores[1].runtime.current_hp, str(lane_damage)])
 	main.queue_free()
 	await process_frame
+
+func _test_controlled_soak() -> void:
+	var main = load("res://scenes/match/moba_match.tscn").instantiate()
+	main.settings = main.settings.duplicate(true)
+	main.settings.show_draft_on_start = false
+	root.add_child(main)
+	var target_ticks := 10800
+	var last_report_usec := Time.get_ticks_usec()
+	var directions := [Vector2.RIGHT, Vector2.UP, Vector2.LEFT, Vector2.DOWN]
+	var movement_origin: Vector2 = main.player.position
+	var moved_with_controls := false
+	var creep_command_accepted := false
+	var hero_command_accepted := false
+	for frame in range(60 * 361):
+		await physics_frame
+		var phase := frame % 480
+		if phase == 0:
+			main.controls.direction = directions[int(frame / 480) % directions.size()]
+			movement_origin = main.player.position
+		elif phase == 120:
+			moved_with_controls = moved_with_controls or main.player.position.distance_to(movement_origin) > 20.0
+			main.controls.direction = Vector2.ZERO
+			main.request_attack("creep")
+			creep_command_accepted = creep_command_accepted or main.attack_mode == "creep"
+		elif phase == 240:
+			main.request_attack("hero")
+			hero_command_accepted = hero_command_accepted or main.attack_mode == "hero"
+		elif phase == 360:
+			main._stop_player()
+			main.camera.follow_enabled = not main.camera.follow_enabled
+		if frame % 600 == 0:
+			var now := Time.get_ticks_usec()
+			var load := _runtime_load(main)
+			print("Controlled soak: tick=%d entities=%d projectiles=%d metrics=%d effects=%d paths=%d notices=%d memory=%.1fMB nodes=%d wall=%.2fs" % [main.combat.tick_count, main.entities.size(), main.combat.projectiles.size(), main.combat.metrics.by_unit.size(), load.effects, load.paths, load.notices, Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), (now - last_report_usec) / 1000000.0])
+			last_report_usec = now
+		if main.match_over or main.combat.tick_count >= target_ticks: break
+	main.controls.direction = Vector2.ZERO
+	check(not main.match_over and main.combat.tick_count >= target_ticks, "Controlled match remains responsive for six simulation minutes")
+	check(moved_with_controls, "Four-direction controls move the player during the soak")
+	check(creep_command_accepted and hero_command_accepted, "Creep/structure and hero attack controls remain responsive")
+	print("Controlled soak complete: tick=%d waves=%d entities=%d" % [main.combat.tick_count, main.wave_number, main.entities.size()])
+	main.queue_free()
+	await process_frame
+
+func _runtime_load(main) -> Dictionary:
+	var effects := 0
+	var paths := 0
+	var notices := 0
+	for info in main.entities.values():
+		effects += info.actor.runtime.effects.active.size()
+		paths += info.actor.path.size()
+		notices += info.actor.view.hit_notices.size()
+	return {"effects": effects, "paths": paths, "notices": notices}

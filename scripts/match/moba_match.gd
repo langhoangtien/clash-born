@@ -213,7 +213,10 @@ func _tick(_index: int) -> void:
 		spawn_jungle_camps()
 		jungle_spawned = true
 	var bot_progression: HeroProgression = progression.enemy_hero
-	while bot_progression.skill_points > 0: bot_progression.upgrade_passive()
+	# The current prototype has one five-rank skill. Past rank five the bot keeps
+	# earning points for future skills, so stop when no further upgrade is valid.
+	while bot_progression.skill_points > 0:
+		if not bot_progression.upgrade_passive(): break
 	for id in respawns.keys():
 		if tick >= respawns[id]:
 			_revive(id)

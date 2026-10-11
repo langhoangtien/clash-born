@@ -87,3 +87,16 @@ skill slots or multiplayer. Next useful validation is player testing builds and
 passive combinations in a full match.
 
 Current siege/reward verification and modified files: `docs/siege_rewards.md`.
+
+## Controlled-match stability regression
+
+The bot stops spending skill points when its current skill reaches rank five.
+Later levels intentionally retain points for future skills; the AI must not keep
+retrying the rejected upgrade in the same simulation tick. The match-balance
+suite covers this case directly.
+
+`--controlled-soak` runs six simulation minutes while cycling the player's four
+movement directions, creep/structure attack command, hero attack command, stop,
+and camera follow. It also samples entities, projectiles, effects, navigation
+paths, hit notices, memory, and scene-node count so long-session stalls can be
+distinguished from normal wave activity.

@@ -134,6 +134,7 @@ foreach ($phase in 1..6) {
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_progression_shop.gd
 & $godotExe --headless --path 'D:\Clashborn' --script res://tests/test_fountain.gd
 & $godotExe --headless --fixed-fps 60 --path 'D:\Clashborn' --script res://tests/test_match_balance.gd -- --soak
+& $godotExe --headless --fixed-fps 600 --path 'D:\Clashborn' --script res://tests/test_match_balance.gd -- --controlled-soak
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase5.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_range_projectiles.gd -- --capture
 & $godotExe --path 'D:\Clashborn' --script res://tests/test_phase6.gd -- --capture
