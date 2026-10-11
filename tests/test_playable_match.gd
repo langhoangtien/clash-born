@@ -32,6 +32,8 @@ func _test_engine_bridge() -> void:
 	var extra := engine.add_unit({"id": "creep", "team": 0, "source": source, "position": Vector2(3100, 3000), "ai": false})
 	check(extra != null and engine.units.size() == 3 and engine.metrics.by_unit.has("creep"), "Dynamic spawning registers runtime and metrics")
 	check(engine.add_unit({"id": "creep", "team": 0, "source": source}) == null, "Duplicate dynamic IDs rejected")
+	engine.remove_unit(extra, true)
+	check(not engine.metrics.by_unit.has("creep"), "Disposable wave metrics are released when the unit is removed")
 	check(engine.add_unit({"id": "bad", "team": 9, "source": source}) == null, "Invalid dynamic team rejected")
 	for unit in engine.units:
 		if unit.team_id == 1: unit.alive = false

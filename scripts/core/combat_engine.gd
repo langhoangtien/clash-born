@@ -79,10 +79,11 @@ func add_unit(entry: Dictionary) -> UnitRuntimeState:
 func get_unit(id: String) -> UnitRuntimeState:
 	return _units_by_id.get(id)
 
-func remove_unit(unit: UnitRuntimeState) -> void:
+func remove_unit(unit: UnitRuntimeState, discard_metrics: bool = false) -> void:
 	if unit == null: return
 	units.erase(unit)
 	if _units_by_id.get(unit.unit_id) == unit: _units_by_id.erase(unit.unit_id)
+	if discard_metrics: metrics.forget_unit(unit.unit_id)
 
 ## Debug command, intentionally bypasses ability cost/cast rules.
 func queue_effect(source_id: String, target_id: String, kind: StatusEffect.Kind, duration: float, magnitude: float, instance_id: String) -> void:

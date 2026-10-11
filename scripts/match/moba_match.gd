@@ -1,5 +1,6 @@
 extends Node2D
 ## Local playable match. The existing engine alone resolves damage/projectiles.
+const MatchAudioRouterScript = preload("res://scripts/match/match_audio_router.gd")
 @export var layout: MapLayout
 @export var settings: MatchSettings
 var combat := CombatEngine.new(preload("res://data/balance/default_balance.tres"))
@@ -39,10 +40,7 @@ var jungle_spawned: bool = false
 ## Combat mode hides hostile units outside the selected hero's vision.
 var full_map_mode: bool = false
 var ui_elapsed: float = 0.0
-var audio_hit: AudioStreamPlayer
-var audio_death: AudioStreamPlayer
-var audio_wave: AudioStreamPlayer
-var last_hit_audio_tick: int = -1000
+var audio_router: Node
 var tower_registry: Dictionary = {}
 @export_group("AI Debug")
 @export var debug_mid_lane_only: bool = false
@@ -108,9 +106,8 @@ func _ready() -> void:
 	projectile_view.combat = combat
 	projectile_view.z_index = 100
 	add_child(projectile_view)
-	audio_hit = _make_audio_player("res://assets/audio/hit.wav")
-	audio_death = _make_audio_player("res://assets/audio/death.wav")
-	audio_wave = _make_audio_player("res://assets/audio/wave.wav")
+	audio_router = MatchAudioRouterScript.new()
+	add_child(audio_router)
 	_build_ui()
 	clock.ticked.connect(_tick)
 	clock.set_running(true)
@@ -467,7 +464,7 @@ func _tick(_index: int) -> void:
 			if item != null and bot.buy(item): bot_build_index += 1
 	if tick >= next_wave_tick:
 		spawn_wave()
-		if audio_wave != null: audio_wave.play()
+		if audio_router != null: audio_router.play_wave(tick)
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
 	if not jungle_spawned and tick >= 30:
 		spawn_jungle_camps()
@@ -503,22 +500,19 @@ func _tick(_index: int) -> void:
 				_drive_lane_creep(info, _choose_lane_creep_target(info, tick), tick)
 	_heal_fountains()
 	var events := combat.step()
+	if audio_router != null: audio_router.consume(events, entities, combat.tick_count)
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
 			# Keep combat readable: ordinary physical hits stay silent. Special hits remain visible.
 			if event.critical or event.damage_type != DamageCalculator.DamageType.PHYSICAL:
 				entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical, event.damage_type)
 			if event.applied_damage > 0:
-				if audio_hit != null and combat.tick_count - last_hit_audio_tick >= 2:
-					audio_hit.play()
-					last_hit_audio_tick = combat.tick_count
 				rewards.record_damage(event.target_unit_id, event.source_unit_id, combat.tick_count, progression)
 				_arm_jungle_retaliation(event.target_unit_id, event.source_unit_id)
 				_arm_lane_defenders(event)
 		elif event.kind == "miss" and entities.has(event.target_unit_id):
 			entities[event.target_unit_id].actor.view.show_miss()
 		elif event.kind == "death":
-			if audio_death != null: audio_death.play()
 			_on_death(event.target_unit_id, events)
 	for info in entities.values():
 		info.actor.runtime.current_tick = combat.tick_count
@@ -530,7 +524,9 @@ func _tick(_index: int) -> void:
 	for id in entities.keys().duplicate():
 		if entities[id].kind in ["creep", "tower"] and not entities[id].actor.runtime.alive:
 			var actor: MapUnit = entities[id].actor
-			combat.remove_unit(actor.runtime)
+			# Wave entities have no post-death UI. Drop their metrics too so a long
+			# match does not retain one Dictionary per historical creep.
+			combat.remove_unit(actor.runtime, true)
 			actor.queue_free()
 			entities.erase(id)
 	$World.units.assign(_actors())
@@ -1178,13 +1174,6 @@ func _build_ui() -> void:
 	content.add_child(result_label)
 	_button(content, "Chơi trận mới", func(): get_tree().reload_current_scene())
 	result_panel.hide()
-
-func _make_audio_player(path: String) -> AudioStreamPlayer:
-	var player_audio := AudioStreamPlayer.new()
-	player_audio.stream = load(path)
-	player_audio.volume_db = -9.0
-	add_child(player_audio)
-	return player_audio
 
 func _button(parent: Node, text: String, callback: Callable) -> void:
 	var button := Button.new()
