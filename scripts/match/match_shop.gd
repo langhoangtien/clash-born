@@ -16,8 +16,8 @@ var passive_upgrade: Button
 var close_button: Button
 var shop_columns: HBoxContainer
 var draft_panel: VBoxContainer
-var draft_player_card: Label
-var draft_enemy_card: Label
+var draft_player_card: PanelContainer
+var draft_enemy_card: PanelContainer
 var draft_enemy_select: OptionButton
 var shop_note: Label
 var draft_confirm: Button
@@ -164,16 +164,32 @@ func set_draft_mode(enabled: bool) -> void:
 	if shop_columns != null: shop_columns.visible = not enabled
 	if shop_note != null: shop_note.visible = not enabled
 
-func _make_draft_card(title: String, color: Color) -> Label:
-	var card := Label.new()
+func _make_draft_card(title: String, color: Color) -> PanelContainer:
+	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(360, 190)
-	card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	card.add_theme_font_size_override("font_size", 21)
-	card.add_theme_color_override("font_color", color)
-	card.text = title + "\n\nChọn hero bên dưới"
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.035, 0.07, 0.12, 0.96)
+	style.border_color = color
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(12)
+	card.add_theme_stylebox_override("panel", style)
+	var label := Label.new()
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_font_size_override("font_size", 21)
+	label.add_theme_color_override("font_color", color)
+	label.text = title + "\n\nChọn hero bên dưới"
+	card.add_child(label)
 	return card
+
+func _set_card_text(card: PanelContainer, value: String) -> void:
+	if card != null and card.get_child_count() > 0: card.get_child(0).text = value
+
+func _role_icon(profile: HeroGrowth) -> String:
+	if not profile.ranged_attacks: return "⚔"
+	if profile.primary_attribute == UnitStats.PrimaryAttribute.INTELLIGENCE: return "✦"
+	return "➶"
 
 func _sync_hero_skill() -> void:
 	if passive_select == null or hero_select == null or progression == null: return
@@ -195,10 +211,10 @@ func refresh() -> void:
 	var reduction := (1.0 - DamageCalculator.armor_multiplier(shown.unit.physical_armor(), shown.balance.armor_coefficient)) * 100.0
 	var passive := HeroPassiveCatalog.definition(shown.passive_id)
 	if draft_player_card != null:
-		draft_player_card.text = "BLUE · " + shown.profile.display_name + "\n\nHP %.0f · Dame %.0f\nSTR %.0f · AGI %.0f · INT %.0f\n%s" % [stats.max_hp, stats.physical_damage, stats.strength, stats.agility, stats.intelligence, shown.profile.growth_summary()]
+		_set_card_text(draft_player_card, "%s  BLUE · %s\n\nHP %.0f · Dame %.0f\nSTR %.0f · AGI %.0f · INT %.0f\n%s" % [_role_icon(shown.profile), shown.profile.display_name, stats.max_hp, stats.physical_damage, stats.strength, stats.agility, stats.intelligence, shown.profile.growth_summary()])
 	if draft_enemy_card != null and draft_enemy_select != null and not progression.settings.hero_profiles.is_empty():
 		var enemy_profile: HeroGrowth = progression.settings.hero_profiles[clampi(draft_enemy_select.selected, 0, progression.settings.hero_profiles.size() - 1)]
-		draft_enemy_card.text = "RED · " + enemy_profile.display_name + "\n\nĐội hình máy\n%s\nKỹ năng: %s" % [enemy_profile.growth_summary(), HeroPassiveCatalog.definition(enemy_profile.passive_id).name]
+		_set_card_text(draft_enemy_card, "%s  RED · %s\n\nĐội hình máy\n%s\nKỹ năng: %s" % [_role_icon(enemy_profile), enemy_profile.display_name, enemy_profile.growth_summary(), HeroPassiveCatalog.definition(enemy_profile.passive_id).name])
 	stats_label.text = "KỸ NĂNG: %s · LV %d/5 · điểm %d\n%s\nTĂNG MỖI LV: %s\nSTR %.0f · AGI %.0f · INT %.0f\nHP %.0f · Mana %.0f · Regen %.1f\nDamage VL %.1f / Phép %.1f / Pure %.1f\nGiáp %.1f (giảm %.1f%% VL) · giáp phép %.1f\nNé/miss %.1f%% · chính xác %.1f%%\nCrit %.1f%% × %.2f · kháng %.1f%%\nTầm đánh %.0f · cast %.0f · chạy %.0f\nTốc đánh %.0f%% · %.2f đòn/s · BAT %.1fs\nTRANG BỊ · click để bán" % [passive.name, shown.passive_level, shown.skill_points, passive.description, shown.profile.growth_summary(), stats.strength, stats.agility, stats.intelligence, stats.max_hp, stats.max_mana, stats.hp_regen, stats.physical_damage, stats.magic_damage, stats.pure_damage, shown.unit.physical_armor(), reduction, stats.magic_armor, stats.evasion * 100, stats.accuracy * 100, stats.critical_chance * 100, stats.critical_multiplier, stats.status_resistance * 100, stats.attack_range, stats.cast_range, stats.movement_speed, stats.attack_speed / stats.base_attacks_per_second * 100, shown.unit.attack_speed(), stats.base_attack_time]
 	passive_upgrade.text = "Nâng kỹ năng (%d điểm còn lại)" % progression.skill_points
 	passive_upgrade.disabled = draft_enabled or progression.skill_points <= 0 or progression.passive_level >= 5

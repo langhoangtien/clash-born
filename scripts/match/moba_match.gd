@@ -411,6 +411,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
 		if candidate.kind == "tower" and not _tower_is_unlocked(candidate): continue
 		if candidate.kind == "core" and not _core_is_unlocked(target.runtime.team_id): continue
+		if info.kind == "hero" and candidate.kind == "tower" and not _tower_has_creep_cover(candidate.actor): continue
 		# Neutral camps never pull lane AI or bot auto-attack selection off route.
 		# The player's creep command may opt into neutral targets.
 		if candidate.get("neutral", false) and not allow_neutral: continue
@@ -426,6 +427,14 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 		best_priority = priority
 		best_distance = distance
 	return best
+
+func _tower_has_creep_cover(tower: MapUnit) -> bool:
+	for info in entities.values():
+		if info.kind != "creep" or info.get("neutral", false): continue
+		var creep: MapUnit = info.actor
+		if creep.runtime.alive and creep.runtime.team_id == tower.runtime.team_id and creep.runtime.distance_to_unit(tower.runtime) <= tower.runtime.attack_range() + 180.0:
+			return true
+	return false
 
 func _choose_lane_creep_target(info: Dictionary) -> MapUnit:
 	# A wave only swaps to another wave at close combat distance. Once it has
@@ -482,6 +491,10 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 			var target_moved := not actor.path.is_empty() and actor.path[-1].distance_to(target.position) > 96.0
 			if actor.path.is_empty() or (target_moved and tick % 30 == info.ai_phase): actor.go_to(target.position)
 	elif info.actor != player:
+		if info.kind == "hero":
+			actor.stop()
+			actor.runtime.target_id = ""
+			return
 		var route: PackedVector2Array = info.route
 		# After chasing, resume at the nearest forward point through A*, never
 		# shortcut directly across jungle terrain to a stale lane point.
