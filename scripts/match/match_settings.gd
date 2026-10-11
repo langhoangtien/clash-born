@@ -81,6 +81,9 @@ extends Resource
 @export var creep_unreachable_ticks: int = 90
 @export var creep_reacquire_ticks: int = 18
 @export var creep_target_scan_ticks: int = 6
+## Jungle camps appear promptly, then respawn as a complete camp after a clear.
+@export var jungle_initial_spawn_seconds: float = 1.0
+@export var jungle_respawn_seconds: float = 15.0
 ## Towers acquire hostile creeps before heroes inside these world-unit ranges.
 @export var tower_protection_range: float = 700.0
 @export var melee_creep: UnitStats

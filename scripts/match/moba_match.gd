@@ -37,6 +37,7 @@ var death_gold_losses: Dictionary = {}
 var draft_mode: bool = false
 var bot_build_index: int = 0
 var jungle_spawned: bool = false
+var jungle_camp_respawn_ticks: Dictionary = {}
 ## Combat mode hides hostile units outside the selected hero's vision.
 var full_map_mode: bool = false
 var ui_elapsed: float = 0.0
@@ -189,6 +190,18 @@ func get_next_attackable_structure(attacking_team: int, lane: String) -> MapUnit
 			push_error("Structure chain is inconsistent; next living tower is locked: " + id)
 			return null
 		return tower
+	# T4 guards are shared base structures. They become the next legal target
+	# only after all lane T3 prerequisites have fallen; select one deterministically
+	# so creeps, heroes and bots use the same structure chain.
+	var side := "blue" if owner == 0 else "red"
+	for guard in [side + "_base_guard_left", side + "_base_guard_right"]:
+		if not tower_registry.has(guard):
+			push_error("Missing required throne guard registry entry: " + guard)
+			return null
+		var guard_runtime_id: String = tower_registry[guard]
+		if not entities.has(guard_runtime_id): continue
+		var guard_info: Dictionary = entities[guard_runtime_id]
+		if guard_info.actor.runtime.alive and _tower_is_unlocked(guard_info): return guard_info.actor
 	return null
 
 func _structure_chain_configured(attacking_team: int, lane: String) -> bool:
@@ -457,20 +470,44 @@ func spawn_wave() -> void:
 				if _lane_push_buff_active(1 - team, lane): _buff_lane_creep(creep, entities[creep.runtime.unit_id])
 
 func spawn_jungle_camps() -> void:
+	for camp_index in range(layout.jungle_camps.size()): spawn_jungle_camp(camp_index)
+
+func spawn_jungle_camp(camp_index: int) -> void:
+	var center := layout.cell_center(Vector2i(layout.jungle_camps[camp_index]))
+	for slot in range(3):
+		var id := "jungle_%02d_%d" % [camp_index, slot]
+		if entities.has(id) and entities[id].actor.runtime.alive: continue
+		var source := settings.melee_creep if slot < 2 else settings.ranged_creep
+		var point := center + Vector2((slot - 1) * 34, -18 if slot % 2 == 0 else 20)
+		var actor := _spawn(id, 2, source, point, "creep", "JUNGLE", false, slot == 2)
+		actor.view.visual_data.display_name = "QUÁI RỪNG"
+		actor.view.visual_data.team_color = Color(0.85, 0.58, 0.18)
+		var info: Dictionary = entities[actor.runtime.unit_id]
+		info.neutral = true
+		info.camp_index = camp_index
+		info.camp_center = center
+		info.leash_range = 420.0
+		info.aggro_target = ""
+		info.aggro_expires_tick = 0
+		_persist_entity_info(info)
+
+func _schedule_cleared_jungle_camps(tick: int) -> void:
+	if not jungle_spawned: return
 	for camp_index in range(layout.jungle_camps.size()):
-		var center := layout.cell_center(Vector2i(layout.jungle_camps[camp_index]))
-		for slot in range(3):
-			var source := settings.melee_creep if slot < 2 else settings.ranged_creep
-			var point := center + Vector2((slot - 1) * 34, -18 if slot % 2 == 0 else 20)
-			var actor := _spawn("jungle_%02d_%d" % [camp_index, slot], 2, source, point, "creep", "JUNGLE", false, slot == 2)
-			actor.view.visual_data.display_name = "QUÁI RỪNG"
-			actor.view.visual_data.team_color = Color(0.85, 0.58, 0.18)
-			var info: Dictionary = entities[actor.runtime.unit_id]
-			info.neutral = true
-			info.camp_center = center
-			info.leash_range = 420.0
-			info.aggro_target = ""
-			info.aggro_expires_tick = 0
+		if jungle_camp_respawn_ticks.has(camp_index): continue
+		var camp_alive := false
+		for info in entities.values():
+			if info.get("neutral", false) and int(info.get("camp_index", -1)) == camp_index and info.actor.runtime.alive:
+				camp_alive = true
+				break
+		if not camp_alive:
+			jungle_camp_respawn_ticks[camp_index] = tick + maxi(1, ceili(settings.jungle_respawn_seconds * SimulationClock.TICKS_PER_SECOND))
+
+func _respawn_jungle_camps(tick: int) -> void:
+	for camp_index in jungle_camp_respawn_ticks.keys().duplicate():
+		if tick < int(jungle_camp_respawn_ticks[camp_index]): continue
+		spawn_jungle_camp(int(camp_index))
+		jungle_camp_respawn_ticks.erase(camp_index)
 
 func _physics_process(delta: float) -> void:
 	if player == null: return
@@ -504,7 +541,7 @@ func _tick(_index: int) -> void:
 		spawn_wave()
 		if audio_router != null: audio_router.play_wave(tick, PackedVector2Array([layout.spawn_points(0)[0], layout.spawn_points(1)[0]]), _audio_listener_position(), _audio_listener_radius())
 		next_wave_tick = tick + maxi(1, ceili(settings.wave_interval * SimulationClock.TICKS_PER_SECOND))
-	if not jungle_spawned and tick >= 30:
+	if not jungle_spawned and tick >= maxi(1, ceili(settings.jungle_initial_spawn_seconds * SimulationClock.TICKS_PER_SECOND)):
 		spawn_jungle_camps()
 		jungle_spawned = true
 	var bot_progression: HeroProgression = progression.enemy_hero
@@ -571,6 +608,8 @@ func _tick(_index: int) -> void:
 			combat.remove_unit(actor.runtime, true)
 			actor.queue_free()
 			entities.erase(id)
+	_schedule_cleared_jungle_camps(tick)
+	_respawn_jungle_camps(tick)
 	$World.units.assign(_actors())
 	for team in range(2):
 		if not cores[team].runtime.alive:
@@ -791,6 +830,8 @@ func _player_target() -> MapUnit:
 	# because that target exists elsewhere on the map.
 	var lane := _nearest_lane(player.position)
 	target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
+	if target == null:
+		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, "BASE", true)
 	if target == null:
 		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true, false, "", true)
 	return target

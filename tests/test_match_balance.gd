@@ -156,6 +156,15 @@ func _test_match() -> void:
 	check(not main._core_is_unlocked(1), "Only the two T4 guards gate the core after lane towers fall")
 	red_guards[0].runtime.alive = false
 	check(not main._core_is_unlocked(1), "One remaining T4 guard still locks the core")
+	# Once all three lane chains are gone, the shared T4 guards are the next
+	# attackable structures for every lane rather than an unreachable dead end.
+	var t4_target: MapUnit = main.get_next_attackable_structure(0, "MID")
+	check(t4_target == red_guards[1], "T4 guard becomes the next legal structure after all lane T3 towers fall")
+	main.player.position = red_guards[1].position + Vector2(100, 0)
+	main.player.runtime.position = main.player.position
+	main.request_attack("creep")
+	main.locked_target = red_guards[1].runtime.unit_id
+	check(main._player_target() == red_guards[1], "Player structure command can acquire an unlocked T4 guard")
 	red_guards[1].runtime.alive = false
 	check(main._core_is_unlocked(1), "Destroying both T4 guards unlocks the core")
 	# J at a jungle camp must farm the nearby neutral before a lane creep/trụ.
@@ -171,6 +180,20 @@ func _test_match() -> void:
 	main.request_attack("creep")
 	var camp_target: MapUnit = main._player_target()
 	check(camp_target != null and main.entities[camp_target.runtime.unit_id].get("neutral", false), "J attack selection prioritizes a nearby jungle camp over lane creep and tower")
+	# A fully cleared camp gets one short configurable respawn timer and returns
+	# as a complete three-unit camp, rather than disappearing for the whole match.
+	main.settings.jungle_respawn_seconds = 0.1
+	for slot in range(3):
+		var camp_id := "jungle_11_%d" % slot
+		if not main.entities.has(camp_id): continue
+		var camp_actor: MapUnit = main.entities[camp_id].actor
+		main.combat.remove_unit(camp_actor.runtime, true)
+		camp_actor.queue_free()
+		main.entities.erase(camp_id)
+	main._schedule_cleared_jungle_camps(main.combat.tick_count)
+	var camp_respawn_tick: int = int(main.jungle_camp_respawn_ticks.get(11, -1))
+	main._respawn_jungle_camps(camp_respawn_tick)
+	check(main.entities.has("jungle_11_0") and main.entities.has("jungle_11_1") and main.entities.has("jungle_11_2"), "A cleared jungle camp respawns its complete camp on the configured timer")
 	check(main.settings.core.base_hp == 10000 and main.player.runtime.stats.physical_damage > 110 and main.progression.player.profile.display_name.begins_with("Aelira"), "Core durability and named hero skill applied")
 	check(main.progression.player.gold == 250, "Opening budget cannot buy a full damage item")
 	var original = preload("res://scripts/ui/equipment_panel.gd").CATALOG
