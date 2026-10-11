@@ -330,7 +330,8 @@ func _tick(_index: int) -> void:
 				if info.kind == "hero":
 					var categories: Array = ["hero", "creep", "tower", "core"]
 					if actor == enemy_hero and _unsafe_tower_dive(actor, player): categories = ["creep", "tower", "core"]
-					target = _choose_target(info, categories, settings.aggro_range)
+					var hero_aggro := settings.aggro_range * 2.0 if actor == enemy_hero else settings.aggro_range
+					target = _choose_target(info, categories, hero_aggro)
 				else:
 					target = _choose_lane_creep_target(info)
 				_drive_target(info, target, tick)
@@ -338,9 +339,9 @@ func _tick(_index: int) -> void:
 	var events := combat.step()
 	for event in events:
 		if event.kind == "damage" and entities.has(event.target_unit_id):
-			# Keep combat readable: only ordinary physical hits get floating numbers.
-			if not event.critical and event.damage_type == DamageCalculator.DamageType.PHYSICAL:
-				entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, false, event.damage_type)
+			# Keep combat readable: ordinary physical hits stay silent. Special hits remain visible.
+			if event.critical or event.damage_type != DamageCalculator.DamageType.PHYSICAL:
+				entities[event.target_unit_id].actor.view.show_damage(event.applied_damage, event.critical, event.damage_type)
 			if event.applied_damage > 0:
 				if audio_hit != null and combat.tick_count - last_hit_audio_tick >= 2:
 					audio_hit.play()
@@ -509,7 +510,7 @@ func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
 	elif info.actor != player:
 		if info.kind == "hero":
 			var home := layout.spawn_points(actor.runtime.team_id)[0]
-			if actor.position.distance_to(home) > 1600.0:
+			if actor.position.distance_to(home) > 900.0:
 				actor.stop()
 				actor.runtime.target_id = ""
 				return
