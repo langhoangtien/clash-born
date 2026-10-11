@@ -247,6 +247,12 @@ func _test_match() -> void:
 	check(main.wave_number == waves, "Live-creep cap prevents unbounded spawning")
 	# A real lethal damage event triggers respawn; do not fake a view-only death.
 	main._revive("enemy_hero")
+	# Run the combat assertion outside every tower's range; the bot now correctly
+	# breaks off when an enemy tower has it targeted.
+	for tower_info in main.entities.values():
+		if tower_info.kind == "tower": tower_info.actor.runtime.alive = false
+	player.position = main.layout.cell_center(Vector2i(20, 10))
+	player.runtime.position = player.position
 	enemy.position = player.position + Vector2(100, 0)
 	enemy.runtime.position = enemy.position
 	var saved_damage: float = enemy.runtime.stats.physical_damage

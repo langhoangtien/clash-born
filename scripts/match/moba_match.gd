@@ -146,7 +146,8 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	actor.configure(source, state.team_id, state.position, layout, _navigation(state.stats.collision_radius), state)
 	actor.view.visual_data.unit_id = state.unit_id
 	actor.view.visual_data.display_name = "BẠN" if state.unit_id == "player" else ("BOT ĐỎ" if kind == "hero" else {"creep": "LÍNH", "tower": "TRỤ", "core": "NHÀ CHÍNH"}[kind])
-	actor.view.show_resource_bars = kind != "creep"
+	# Small compact bars keep last-hit health readable without hero-sized labels.
+	actor.view.show_resource_bars = true
 	actor.view.compact_visual = kind == "creep"
 	actor.view.siege_visual = siege
 	actor.view.structure_visual = kind in ["tower", "core"]
@@ -209,6 +210,18 @@ func is_inside_enemy_tower_range(position: Vector2, team: int) -> bool:
 		if info.kind != "tower" or info.actor.runtime.team_id == team or not info.actor.runtime.alive: continue
 		if info.actor.position.distance_to(position) <= info.actor.runtime.attack_range() + settings.bot_tower_safety_margin: return true
 	return false
+
+func _tower_targeting_unit(actor: MapUnit) -> MapUnit:
+	for info in entities.values():
+		if info.kind != "tower": continue
+		var tower: MapUnit = info.actor
+		if tower.runtime.alive and tower.runtime.team_id != actor.runtime.team_id and tower.runtime.target_id == actor.runtime.unit_id:
+			return tower
+	return null
+
+func _tower_escape_point(actor: MapUnit, tower: MapUnit) -> Vector2:
+	var retreat_direction := (layout.spawn_points(actor.runtime.team_id)[0] - tower.position).normalized()
+	return tower.position + retreat_direction * (tower.runtime.attack_range() + settings.bot_tower_safety_margin + 120.0)
 
 func _tower_is_unlocked(candidate: Dictionary) -> bool:
 	if candidate.kind != "tower": return true
@@ -594,7 +607,15 @@ func _update_vision() -> void:
 		if actor == player or actor.runtime.team_id == player.runtime.team_id or full_map_mode:
 			actor.view.visible = true
 		else:
-			actor.view.visible = actor.runtime.alive and _has_vision(player, actor)
+			actor.view.visible = actor.runtime.alive and _team_has_vision(player.runtime.team_id, actor)
+
+func _team_has_vision(team: int, target: MapUnit) -> bool:
+	for info in entities.values():
+		var observer: MapUnit = info.actor
+		if not observer.runtime.alive or observer.runtime.team_id != team: continue
+		if info.kind not in ["hero", "creep", "tower", "core"]: continue
+		if _has_vision(observer, target): return true
+	return false
 
 func _audio_listener_position() -> Vector2:
 	if camera == null or camera.follow_enabled: return player.position
@@ -736,23 +757,16 @@ func _player_target() -> MapUnit:
 	locked_target = ""
 	if attack_mode == "hero":
 		return _choose_target(entities.player, ["hero"], settings.hero_acquisition_range, true, false, "", true)
-	# J is a farming command. A nearby jungle camp always wins over lane targets,
-	# so a player standing at a camp can never be pulled across the map by a lane.
-	var jungle_target := _choose_target(entities.player, ["creep"], minf(settings.player_target_range, 700.0), true, true, "", true, true)
-	if jungle_target != null: return jungle_target
-	# Creep/structure attack is deliberately local. It cannot select a wave at
-	# the enemy base or a third tower merely because that target exists on the map.
+	# J attacks the closest creep of any kind: lane, ranged, siege, or jungle.
+	# Once no creep remains in the command radius, it falls back to a structure.
+	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, true, "", true)
+	if target != null: return target
+	# Structure targeting remains local: it cannot select a third tower merely
+	# because that target exists elsewhere on the map.
 	var lane := _nearest_lane(player.position)
-	# J means attack nearby creeps first. A tower is the fallback only after no
-	# visible enemy creep is in the command radius.
-	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, false, "", true)
-	if target == null:
-		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
+	target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
 	if target == null:
 		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true, false, "", true)
-	# If the lane is quiet, the same command can still farm a nearby neutral camp.
-	if target == null:
-		target = _choose_target(entities.player, ["creep"], settings.player_target_range, true, true, "", true)
 	return target
 
 func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:
@@ -816,12 +830,24 @@ func _bot_target(info: Dictionary, tick: int) -> MapUnit:
 	var actor: MapUnit = info.actor
 	var lane: String = info.get("assigned_lane", "MID")
 	if info.get("ai_state", "") == "RETREAT":
-		if in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction:
+		if info.get("retreat_to_fountain", false) and in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction:
+			info.retreat_to_fountain = false
 			_set_bot_state(info, "GO_TO_LANE", tick, "recovered")
-		else:
+		elif info.get("retreat_to_fountain", false):
 			return null
+		elif _tower_targeting_unit(actor) != null:
+			return null
+		else:
+			_set_bot_state(info, "GO_TO_LANE", tick, "outside-tower-range")
 	if actor.runtime.current_hp <= actor.runtime.stats.max_hp * settings.bot_retreat_hp_fraction:
+		info.retreat_to_fountain = true
 		_set_bot_state(info, "RETREAT", tick, "hp-below-retreat-threshold")
+		return null
+	var attacking_tower := _tower_targeting_unit(actor)
+	if attacking_tower != null:
+		info.retreat_to_fountain = false
+		info.retreat_tower_id = attacking_tower.runtime.unit_id
+		_set_bot_state(info, "RETREAT", tick, "enemy-tower-targeting-hero")
 		return null
 	var player_distance := actor.position.distance_to(player.position)
 	if player.runtime.alive and player_distance <= settings.bot_chase_range and not is_inside_enemy_tower_range(player.position, actor.runtime.team_id):
@@ -845,8 +871,11 @@ func _bot_target(info: Dictionary, tick: int) -> MapUnit:
 func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
 	var actor: MapUnit = info.actor
 	if info.ai_state == "RETREAT":
-		if not (in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction):
+		if info.get("retreat_to_fountain", false) and not (in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction):
 			_issue_ai_move(info, layout.fountain_point(actor.runtime.team_id), "retreat-fountain", tick)
+		elif not info.get("retreat_to_fountain", false):
+			var tower_id: String = info.get("retreat_tower_id", "")
+			if entities.has(tower_id): _issue_ai_move(info, _tower_escape_point(actor, entities[tower_id].actor), "tower-range-escape", tick)
 		return
 	if target != null:
 		_drive_target(info, target, tick)
@@ -867,6 +896,11 @@ func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
 		# an attacking creep wave.
 		destination = candidate
 		source = "frontline-rally"
+	else:
+		var next_tower := get_next_attackable_structure(actor.runtime.team_id, lane)
+		if next_tower != null:
+			destination = _tower_escape_point(actor, next_tower)
+			source = "lane-push-rally"
 	_trace_ai(info, "BOT", "state=%s lane=%s anchor=%s frontline=%s destination=%s source=%s hp=%.0f/%.0f in_fountain=%s" % [info.ai_state, lane, str(anchor), frontline_text, str(destination), source, actor.runtime.current_hp, actor.runtime.stats.max_hp, str(in_fountain(actor.runtime))])
 	if actor.position.distance_to(destination) > 80.0:
 		_issue_ai_move(info, destination, source, tick)

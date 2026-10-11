@@ -80,6 +80,16 @@ func _test_match() -> void:
 	main.player.position = brush_point
 	main.player.runtime.position = main.player.position
 	check(main._has_vision(main.player, brush_enemy), "Player entering brush reveals enemy in the same brush")
+	# Keep this vision-only fixture out of later farming/AI target selection.
+	brush_enemy.position = brush_point + Vector2(3000, 0)
+	brush_enemy.runtime.position = brush_enemy.position
+	var allied_observer: MapUnit = main._spawn("vision_creep", 0, main.settings.melee_creep, Vector2(3800, 1100), "creep", "TOP")
+	brush_enemy.position = allied_observer.position + Vector2(300, 0)
+	brush_enemy.runtime.position = brush_enemy.position
+	main.player.position = main.layout.cell_center(Vector2i(4, 35))
+	main.player.runtime.position = main.player.position
+	main._update_vision()
+	check(brush_enemy.view.visible, "Allied creep vision reveals nearby enemies outside the player's personal sight")
 	# A healthy bot must continue behind a winning allied wave instead of falling
 	# back to its tower after the opposing wave has been cleared.
 	var bot_info: Dictionary = main.entities.enemy_hero

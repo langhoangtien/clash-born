@@ -21,9 +21,7 @@ func _draw() -> void:
 	for info in entities.values():
 		var state: UnitRuntimeState = info.actor.runtime
 		if not state.alive: continue
-		if player != null and state.team_id != player.runtime.team_id and not full_map_mode:
-			var vision := float(player.runtime.stats.get("vision_range", 1200.0))
-			if player.position.distance_to(state.position) > vision: continue
+		if player != null and state.team_id != player.runtime.team_id and not full_map_mode and not info.actor.view.visible: continue
 		var point := state.position / layout.world_size() * size
 		var color := Color(0.3, 0.7, 1) if state.team_id == 0 else Color(1, 0.35, 0.3)
 		if info.kind == "hero": draw_circle(point, 5, color)
