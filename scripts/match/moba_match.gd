@@ -38,6 +38,8 @@ var draft_mode: bool = false
 var bot_build_index: int = 0
 var jungle_spawned: bool = false
 var jungle_camp_respawn_ticks: Dictionary = {}
+var lane_creep_ai = preload("res://scripts/match/lane_creep_ai.gd").new()
+var enemy_bot_ai = preload("res://scripts/match/enemy_bot_ai.gd").new()
 ## Combat mode hides hostile units outside the selected hero's vision.
 var full_map_mode: bool = false
 var ui_elapsed: float = 0.0
@@ -730,91 +732,10 @@ func _tower_has_attacking_creep_cover(tower: MapUnit, attacking_team: int) -> bo
 	return false
 
 func _choose_lane_creep_target(info: Dictionary, tick: int) -> MapUnit:
-	var actor: MapUnit = info.actor
-	var old_target_id: String = actor.runtime.target_id
-	# Damage events only record a bounded retaliation fact. This decision is the
-	# only place a lane creep turns that fact into an actual combat target.
-	var retaliation_id: String = info.get("retaliation_target_id", "")
-	if not retaliation_id.is_empty() and entities.has(retaliation_id):
-		var retaliation_target: MapUnit = entities[retaliation_id].actor
-		var origin: Vector2 = info.get("creep_chase_origin", actor.position)
-		if retaliation_target.runtime.alive and retaliation_target.runtime.team_id != actor.runtime.team_id and tick <= int(info.get("hero_aggro_until", 0)) and actor.position.distance_to(origin) <= settings.creep_hero_leash_range and actor.runtime.distance_to_unit(retaliation_target.runtime) <= settings.creep_hero_leash_range:
-			info.creep_state = "HERO_RETALIATE"
-			_persist_entity_info(info)
-			return retaliation_target
-	info.retaliation_target_id = ""
-	info.hero_aggro_until = 0
-	var current := _current_target(actor)
-	if current != null:
-		var current_info: Dictionary = entities[current.runtime.unit_id]
-		var valid_target: bool = current_info.kind == "creep" and not current_info.get("neutral", false) and current_info.lane == info.lane and actor.runtime.distance_to_unit(current.runtime) <= settings.creep_chase_limit
-		if current_info.kind == "tower": valid_target = current == get_next_attackable_structure(actor.runtime.team_id, info.lane) and actor.runtime.distance_to_unit(current.runtime) <= settings.creep_chase_limit
-		if valid_target:
-			info.creep_state = "LANE_COMBAT" if current_info.kind == "creep" else "STRUCTURE_SIEGE"
-			_persist_entity_info(info)
-			return current
-		actor.runtime.target_id = ""
-		info.creep_state = "RETURN_TO_LANE"
-	if not _structure_chain_configured(actor.runtime.team_id, info.lane):
-		info.creep_config_error = true
-		info.creep_state = "CONFIG_ERROR"
-		_trace_ai(info, "STUCK", "missing structure chain team=%d lane=%s; movement stopped safely" % [actor.runtime.team_id, info.lane])
-		_persist_entity_info(info)
-		return null
-	info.creep_config_error = false
-	# Lane acquisition is deterministic and local. Hero is deliberately absent:
-	# only the retaliation fact above may select one.
-	var target := _choose_target(info, ["creep"], settings.creep_detection_range, true, false, info.lane)
-	if target == null:
-		var structure := get_next_attackable_structure(actor.runtime.team_id, info.lane)
-		if structure != null and actor.runtime.distance_to_unit(structure.runtime) <= settings.creep_detection_range:
-			target = structure
-	if target != null:
-		info.creep_state = "LANE_COMBAT" if entities[target.runtime.unit_id].kind == "creep" else "STRUCTURE_SIEGE"
-	else:
-		info.creep_state = "LANE_ADVANCE"
-	var new_target_id := target.runtime.unit_id if target != null else ""
-	if new_target_id != old_target_id:
-		var target_kind: String = entities[new_target_id].kind if entities.has(new_target_id) else "none"
-		var distance := actor.runtime.distance_to_unit(target.runtime) if target != null else -1.0
-		_trace_ai(info, "TARGET", "state=%s team=%d lane=%s waypoint=%d old=%s new=%s kind=%s distance=%.1f structures=[%s]" % [info.creep_state, actor.runtime.team_id, info.lane, int(info.route_index), old_target_id, new_target_id, target_kind, distance, _structure_candidate_report(actor.runtime.team_id, info.lane)])
-	_persist_entity_info(info)
-	return target
+	return lane_creep_ai.choose(self, info, tick)
 
 func _drive_lane_creep(info: Dictionary, target: MapUnit, tick: int) -> void:
-	var actor: MapUnit = info.actor
-	if info.get("creep_config_error", false):
-		actor.runtime.target_id = ""
-		actor.stop()
-		_persist_entity_info(info)
-		return
-	if target != null:
-		actor.movement_speed_multiplier = 1.0
-		actor.runtime.target_id = target.runtime.unit_id
-		if actor.runtime.distance_to_unit(target.runtime) <= actor.runtime.attack_range():
-			actor.stop()
-		else:
-			var target_moved := not actor.path.is_empty() and actor.path[-1].distance_to(target.position) > 96.0
-			if actor.path.is_empty() or (target_moved and tick % 30 == info.ai_phase): _issue_ai_move(info, target.position, "lane-target:" + target.runtime.unit_id, tick)
-		_persist_entity_info(info)
-		return
-	info.creep_state = "LANE_ADVANCE" if info.get("creep_state", "") != "RETURN_TO_LANE" else "RETURN_TO_LANE"
-	actor.runtime.target_id = ""
-	actor.movement_speed_multiplier = float(info.get("travel_speed_multiplier", 1.0))
-	var route: PackedVector2Array = info.route
-	var closest := INF
-	for index in range(info.route_index, route.size()):
-		var distance := actor.position.distance_to(route[index])
-		if distance < closest:
-			closest = distance
-			info.route_index = index
-	while info.route_index < route.size() and actor.position.distance_to(route[info.route_index]) < 8.0: info.route_index += 1
-	if info.route_index < route.size():
-		var waypoint := route[info.route_index]
-		if actor.path.is_empty() or actor.path[-1].distance_to(waypoint) > 0.1: _issue_ai_move(info, waypoint, "lane-waypoint", tick)
-	else:
-		actor.stop()
-	_persist_entity_info(info)
+	lane_creep_ai.drive(self, info, target, tick)
 
 func _unsafe_tower_dive(source: MapUnit, target: MapUnit) -> bool:
 	if source == null or target == null: return false
@@ -912,48 +833,7 @@ func _set_bot_state(info: Dictionary, state: String, tick: int, reason: String =
 	_trace_ai(info, "STATE", "%s->%s reason=%s lane=%s hp=%.0f/%.0f" % [previous, state, reason, info.get("assigned_lane", ""), actor.runtime.current_hp, actor.runtime.stats.max_hp])
 
 func _bot_target(info: Dictionary, tick: int) -> MapUnit:
-	var actor: MapUnit = info.actor
-	var lane: String = info.get("assigned_lane", "MID")
-	if info.get("ai_state", "") == "FOUNTAIN_RECOVER":
-		if not (in_fountain(actor.runtime) and actor.runtime.current_hp >= actor.runtime.stats.max_hp * settings.bot_recover_hp_fraction): return null
-		_set_bot_state(info, "RALLY", tick, "recovered")
-	if info.get("ai_state", "") == "EXIT_TOWER_RANGE":
-		if _tower_targeting_unit(actor) != null: return null
-		_set_bot_state(info, "RALLY", tick, "outside-tower-range")
-	if actor.runtime.current_hp <= actor.runtime.stats.max_hp * settings.bot_retreat_hp_fraction:
-		_set_bot_state(info, "FOUNTAIN_RECOVER", tick, "hp-below-retreat-threshold")
-		return null
-	var attacking_tower := _tower_targeting_unit(actor)
-	if attacking_tower != null:
-		info.tower_threat_id = attacking_tower.runtime.unit_id
-		_set_bot_state(info, "EXIT_TOWER_RANGE", tick, "enemy-tower-targeting-hero")
-		return null
-	var base_intruder := _bot_base_intruder(info, lane)
-	if base_intruder != null:
-		_set_bot_state(info, "DEFEND_BASE", tick, "hostile-lane-creep-near-fountain")
-		info.ai_last_target_tick = tick
-		_persist_entity_info(info)
-		return base_intruder
-	var creep_target := _choose_target(info, ["creep"], settings.bot_chase_range, true, false, lane)
-	if creep_target != null:
-		_set_bot_state(info, "LANE_FIGHT", tick, "enemy-lane-creep-in-range")
-		info.ai_last_target_tick = tick
-		_persist_entity_info(info)
-		return creep_target
-	var player_distance := actor.position.distance_to(player.position)
-	if player.runtime.alive and player_distance <= settings.bot_chase_range and not is_inside_enemy_tower_range(player.position, actor.runtime.team_id):
-		var hero_target := _choose_target(info, ["hero"], settings.bot_chase_range, true, false, "", true)
-		if hero_target != null:
-			_set_bot_state(info, "HERO_FIGHT", tick, "enemy-hero-in-safe-chase-range")
-			info.ai_last_target_tick = tick
-			_persist_entity_info(info)
-			return hero_target
-	var tower := get_next_attackable_structure(actor.runtime.team_id, lane)
-	if tower != null and _tower_has_attacking_creep_cover(tower, actor.runtime.team_id) and actor.position.distance_to(tower.position) <= settings.bot_chase_range:
-		_set_bot_state(info, "SIEGE", tick, "allied-creep-cover")
-		return tower
-	_set_bot_state(info, "RALLY", tick, "no-local-combat-target")
-	return null
+	return enemy_bot_ai.choose(self, info, tick)
 
 func _bot_base_intruder(info: Dictionary, lane: String) -> MapUnit:
 	var actor: MapUnit = info.actor
@@ -972,47 +852,7 @@ func _bot_base_intruder(info: Dictionary, lane: String) -> MapUnit:
 	return best
 
 func _drive_bot(info: Dictionary, target: MapUnit, tick: int) -> void:
-	var actor: MapUnit = info.actor
-	if info.ai_state == "FOUNTAIN_RECOVER":
-		if not in_fountain(actor.runtime):
-			_issue_ai_move(info, layout.fountain_point(actor.runtime.team_id), "retreat-fountain", tick)
-		else:
-			actor.stop()
-		return
-	if info.ai_state == "EXIT_TOWER_RANGE":
-		var tower_id: String = info.get("tower_threat_id", "")
-		if entities.has(tower_id): _issue_ai_move(info, _tower_escape_point(actor, entities[tower_id].actor), "tower-range-escape", tick)
-		else: actor.stop()
-		return
-	if target != null:
-		_drive_target(info, target, tick)
-		return
-	var anchor := get_defensive_anchor(actor.runtime.team_id, info.get("assigned_lane", "MID"))
-	var frontline := _bot_frontline(actor.runtime.team_id, info.get("assigned_lane", "MID"))
-	var frontline_text := "none" if frontline == null else frontline.runtime.unit_id
-	var lane: String = info.get("assigned_lane", "MID")
-	var destination := anchor
-	var source := "defensive-anchor"
-	if frontline != null:
-		# Trail on the lane itself instead of lerping toward the fountain. The old
-		# base lerp was the root cause of bots retreating far behind a winning wave.
-		var candidate := _lane_point_at_progress(lane, actor.runtime.team_id, _lane_progress(frontline.position, lane, actor.runtime.team_id) - settings.bot_frontline_trail_distance)
-		# Moving with the wave and attacking a protected tower are separate rules.
-		# Do not send the bot back to its own tower merely because its rally point
-		# touches enemy tower range; _bot_target still refuses the tower without
-		# an attacking creep wave.
-		destination = candidate
-		source = "frontline-rally"
-	else:
-		var next_tower := get_next_attackable_structure(actor.runtime.team_id, lane)
-		if next_tower != null:
-			destination = _tower_escape_point(actor, next_tower)
-			source = "lane-push-rally"
-	_trace_ai(info, "BOT", "state=%s lane=%s anchor=%s frontline=%s destination=%s source=%s hp=%.0f/%.0f in_fountain=%s" % [info.ai_state, lane, str(anchor), frontline_text, str(destination), source, actor.runtime.current_hp, actor.runtime.stats.max_hp, str(in_fountain(actor.runtime))])
-	if actor.position.distance_to(destination) > 80.0:
-		_issue_ai_move(info, destination, source, tick)
-	else:
-		actor.stop()
+	enemy_bot_ai.drive(self, info, target, tick)
 
 func _bot_frontline(team: int, lane: String) -> MapUnit:
 	var best: MapUnit

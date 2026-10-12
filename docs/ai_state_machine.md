@@ -77,6 +77,9 @@ below the retreat threshold.
 
 ## Implementation boundaries
 
+- `scripts/match/lane_creep_ai.gd` exclusively decides and drives lane creeps and catapults.
+- `scripts/match/enemy_bot_ai.gd` exclusively decides and drives enemy hero bots.
+- `moba_match.gd` is the world adapter: it dispatches by entity kind, supplies world queries, and applies the one resulting movement command.
 - `decide_*` functions may choose a state and target, but cannot move an actor.
 - `drive_*` functions may issue movement and set `runtime.target_id` only for the
   state decision they receive.

@@ -98,10 +98,10 @@ func _run() -> void:
 	var red_t2: MapUnit = live.entities[_runtime_id(live, "red_mid_t2")].actor
 	for _frame in range(180):
 		await physics_frame
-		if live.ai_debug_events.any(func(line: String): return "enemy_hero STATE" in line and "->FIGHT" in line): break
+		if live.ai_debug_events.any(func(line: String): return "enemy_hero STATE" in line and "->LANE_FIGHT" in line): break
 	check(bot_info.assigned_lane == "MID" and anchor.distance_to(red_fountain) > live.settings.fountain_radius and anchor.distance_to(red_t1.position) < anchor.distance_to(red_t2.position), "Red bot anchor is outside fountain and stays nearer MID T1 than T2")
 	check(bot.position.distance_to(red_fountain) > live.settings.fountain_radius, "Red bot physically leaves base during the controlled lane run")
-	check(live.ai_debug_events.any(func(line: String): return "enemy_hero STATE" in line and "->FIGHT" in line), "Bot reaches lane and changes to FIGHT from an actual nearby wave")
+	check(live.ai_debug_events.any(func(line: String): return "enemy_hero STATE" in line and "->LANE_FIGHT" in line), "Bot reaches lane and changes to FIGHT from an actual nearby wave")
 	# Exercise retreat, recovery and return while MID T1 still exists.
 	bot.runtime.current_hp = bot.runtime.stats.max_hp * 0.2
 	for _frame in range(600):
