@@ -73,6 +73,22 @@ func _test_match() -> void:
 	main._separate_mobile_units()
 	check(overlap_pair[0].position.distance_to(overlap_pair[1].position) > 0, "Mobile unit separation resolves exact hero/creep-style overlap deterministically")
 	for index in range(2): overlap_pair[index].position = saved_overlap_positions[index]; overlap_pair[index].runtime.position = saved_overlap_positions[index]
+	# A real opposing lane pair must leave lane advance as soon as it enters the
+	# local detection/attack area, then exchange engine-resolved damage.
+	var duel_point: Vector2 = main.layout.cell_center(Vector2i(20, 22))
+	var blue_lane_probe: MapUnit = main._spawn("blue_lane_duel", 0, main.settings.melee_creep, duel_point + Vector2(-60, 0), "creep", "MID")
+	var red_lane_probe: MapUnit = main._spawn("red_lane_duel", 1, main.settings.melee_creep, duel_point + Vector2(60, 0), "creep", "MID")
+	var blue_lane_info: Dictionary = main.entities[blue_lane_probe.runtime.unit_id]
+	var red_lane_info: Dictionary = main.entities[red_lane_probe.runtime.unit_id]
+	var blue_target: MapUnit = main._choose_lane_creep_target(blue_lane_info, main.combat.tick_count + 1)
+	var red_target: MapUnit = main._choose_lane_creep_target(red_lane_info, main.combat.tick_count + 1)
+	main._drive_lane_creep(main.entities[blue_lane_probe.runtime.unit_id], blue_target, main.combat.tick_count + 1)
+	main._drive_lane_creep(main.entities[red_lane_probe.runtime.unit_id], red_target, main.combat.tick_count + 1)
+	check(blue_target == red_lane_probe and red_target == blue_lane_probe and blue_lane_probe.runtime.target_id == red_lane_probe.runtime.unit_id and red_lane_probe.runtime.target_id == blue_lane_probe.runtime.unit_id, "Opposing lane creeps acquire one another before advancing")
+	var blue_duel_hp := blue_lane_probe.runtime.current_hp
+	var red_duel_hp := red_lane_probe.runtime.current_hp
+	for tick in range(100): main.clock.step()
+	check(blue_lane_probe.runtime.current_hp < blue_duel_hp and red_lane_probe.runtime.current_hp < red_duel_hp, "Opposing lane creeps exchange actual combat damage after acquisition")
 	var player: MapUnit = main.player
 	var enemy: MapUnit = main.enemy_hero
 	var bot: HeroProgression = main.progression.enemy_hero
