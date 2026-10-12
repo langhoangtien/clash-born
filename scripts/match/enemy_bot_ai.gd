@@ -18,6 +18,16 @@ func choose(host: Node, info: Dictionary, tick: int) -> MapUnit:
 		info.tower_threat_id = attacking_tower.runtime.unit_id
 		host._set_bot_state(info, "EXIT_TOWER_RANGE", tick, "enemy-tower-targeting-hero")
 		return null
+	var retaliation_id: String = info.get("retaliation_target_id", "")
+	if not retaliation_id.is_empty() and tick <= int(info.get("retaliation_expires_tick", 0)) and host.entities.has(retaliation_id):
+		var retaliation_target: MapUnit = host.entities[retaliation_id].actor
+		if retaliation_target.runtime.alive and retaliation_target.runtime.team_id != actor.runtime.team_id and actor.runtime.distance_to_unit(retaliation_target.runtime) <= host.settings.bot_hero_retaliation_range and not host._unsafe_tower_dive(actor, retaliation_target):
+			host._set_bot_state(info, "HERO_RETALIATE", tick, "direct-hero-damage")
+			info.ai_last_target_tick = tick
+			host._persist_entity_info(info)
+			return retaliation_target
+	info.retaliation_target_id = ""
+	info.retaliation_expires_tick = 0
 	var base_intruder: MapUnit = host._bot_base_intruder(info, lane)
 	if base_intruder != null:
 		host._set_bot_state(info, "DEFEND_BASE", tick, "hostile-lane-creep-near-fountain")

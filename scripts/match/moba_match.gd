@@ -595,7 +595,7 @@ func _tick(_index: int) -> void:
 		elif info.get("neutral", false):
 			if tick % 3 == info.ai_phase: _drive_jungle_creep(info, tick)
 		elif info.kind == "hero":
-			if tick % maxi(1, settings.bot_decision_ticks) == info.ai_phase or actor.position.distance_to(player.position) <= settings.bot_chase_range:
+			if tick % maxi(1, settings.bot_decision_ticks) == info.ai_phase:
 				var bot_target := _bot_target(info, tick)
 				# Target selection persists state at its decision site. Re-read it so a
 				# movement order never overwrites that state with this loop's old copy.
@@ -1017,6 +1017,13 @@ func _arm_lane_defenders(event: Dictionary) -> void:
 	var source: MapUnit = source_info.actor
 	var victim: MapUnit = target_info.actor
 	if source.runtime.team_id == victim.runtime.team_id: return
+	# A bot is allowed one bounded, explicit hero retaliation intent. This is a
+	# fact from combat, not a movement command; enemy_bot_ai owns the resulting
+	# state and route on its next decision update.
+	if target_info.kind == "hero" and victim.runtime.unit_id == "enemy_hero":
+		target_info.retaliation_target_id = source.runtime.unit_id
+		target_info.retaliation_expires_tick = combat.tick_count + maxi(1, settings.bot_hero_retaliation_ticks)
+		_persist_entity_info(target_info)
 	for info in entities.values():
 		var defender: MapUnit = info.actor
 		if not defender.runtime.alive or defender.runtime.team_id != victim.runtime.team_id: continue

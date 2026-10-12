@@ -71,6 +71,9 @@ extends Resource
 @export var bot_lost_target_ticks: int = 45
 @export var bot_decision_ticks: int = 6
 @export var bot_tower_safety_margin: float = 90.0
+## Direct hero damage gives the bot a bounded retaliation intent before farm/siege.
+@export var bot_hero_retaliation_range: float = 750.0
+@export var bot_hero_retaliation_ticks: int = 120
 ## Lane creep target and return behavior, in world units / simulation ticks.
 @export var creep_detection_range: float = 600.0
 @export var creep_hero_protection_range: float = 600.0

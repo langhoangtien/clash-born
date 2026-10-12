@@ -95,6 +95,16 @@ func _test_match() -> void:
 	bot.award(100)
 	main.clock.step()
 	check(bot.level == 2 and bot.passive_level == 2 and bot.skill_points == 0, "Enemy hero spends its new skill point automatically")
+	# Direct hero damage takes priority over farming/siege when neither hero is
+	# protected by a tower. This exercises the actual bot state controller.
+	var retaliation_point := Vector2(2060, 2080)
+	player.position = retaliation_point
+	player.runtime.position = retaliation_point
+	enemy.position = retaliation_point + Vector2(180, 0)
+	enemy.runtime.position = enemy.position
+	main._arm_lane_defenders({"source_unit_id": "player", "target_unit_id": "enemy_hero", "reflected": false})
+	var retaliation_target: MapUnit = main._bot_target(main.entities.enemy_hero, main.combat.tick_count + 1)
+	check(retaliation_target == player and main.entities.enemy_hero.ai_state == "HERO_RETALIATE", "Enemy bot retaliates against direct hero damage before farming creeps or structures")
 	var player_home := player.position
 	var enemy_home := enemy.position
 	var blue_tower: MapUnit = main.entities.tower_00.actor

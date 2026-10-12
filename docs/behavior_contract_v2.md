@@ -123,9 +123,9 @@ The simulation is deterministic and must remain stable as waves meet.
 ## Delivery sequence
 
 1. Add intent data, local command radii, and runtime instrumentation without
-   changing priorities.
+   changing priorities. **Completed.**
 2. Introduce the spatial index and migrate vision/target queries; compare
-   deterministic replay results before and after.
+   deterministic replay results before and after. **Completed.**
 3. Implement the priority tables above in the lane, jungle, tower, and bot
    controllers, with one controlled regression scene per table.
 4. Re-tune camp placement and all world-unit radii against the fixed viewport.
