@@ -9,9 +9,10 @@ It is the central index for the match balance resources:
 - `abilities`: the current stun, slow and armor-shatter definitions.
 - `item_resources`: the editable equipment Resources already stored in `data/equipment`.
 
-`match_settings` also exposes the player targeting limits: `player_target_range`
-for nearby creep farming, `player_structure_target_range` for tower/core
-approach, and `player_target_leash` for an explicitly locked target. These keep
+`match_settings` also exposes player command limits:
+`player_creep_command_radius` for nearby creep farming,
+`player_structure_command_radius` for tower/core approach, and
+`player_hero_command_radius` for hero commands. These keep
 the attack button local to the current lane/camp instead of selecting a wave at
 the enemy base.
 

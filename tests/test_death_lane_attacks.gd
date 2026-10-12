@@ -18,7 +18,9 @@ func _test_lane_attacks() -> void:
 	main.settings.maximum_live_creeps = 0
 	# This fixture isolates pathing to a creep; corrected tower tiers place a real
 	# MID outer tower near the BOT bend, so exclude structures from this test.
-	main.settings.player_structure_target_range = 0
+	main.settings.player_structure_command_radius = 0
+	# This is a navigation fixture across a lane bend, not a local-command test.
+	main.settings.player_creep_command_radius = 5000
 	root.add_child(main)
 	await process_frame
 	await physics_frame

@@ -275,7 +275,7 @@ func _test_match() -> void:
 	var camp_info: Dictionary = main.entities["jungle_00_0"]
 	main.player.position = camp_info.camp_center
 	main.player.runtime.position = main.player.position
-	main.settings.hero_acquisition_range = 300.0
+	main.settings.player_hero_command_radius = 300.0
 	for candidate in main.entities.values():
 		if candidate.get("neutral", false) or candidate.actor == main.player: continue
 		candidate.actor.position = camp_info.camp_center + Vector2(3000, 0)

@@ -9,9 +9,11 @@ extends Resource
 @export var respawn_seconds_per_level: float = 2.0
 @export var death_gold_per_level: int = 25
 @export var aggro_range: float = 750.0
-@export var hero_acquisition_range: float = 1400.0
-@export var player_target_range: float = 1200.0
-@export var player_structure_target_range: float = 1200.0
+## Player commands are local to the fixed gameplay viewport. Combat range itself
+## remains a unit stat and is not changed by these command radii.
+@export var player_hero_command_radius: float = 650.0
+@export var player_creep_command_radius: float = 650.0
+@export var player_structure_command_radius: float = 700.0
 @export var player_target_leash: float = 1000.0
 @export var hero: UnitStats
 @export var hero_profiles: Array[HeroGrowth] = []

@@ -40,6 +40,7 @@ var jungle_spawned: bool = false
 var jungle_camp_respawn_ticks: Dictionary = {}
 var lane_creep_ai = preload("res://scripts/match/lane_creep_ai.gd").new()
 var enemy_bot_ai = preload("res://scripts/match/enemy_bot_ai.gd").new()
+var runtime_profiler = preload("res://scripts/match/match_runtime_profiler.gd").new()
 ## Combat mode hides hostile units outside the selected hero's vision.
 var full_map_mode: bool = false
 var ui_elapsed: float = 0.0
@@ -160,7 +161,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	var route := PackedVector2Array()
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1}
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1, "intent_state": "", "intent_target_id": "", "intent_destination": state.position, "intent_expiry_tick": -1}
 	return actor
 
 func get_outer_tower(team: int, lane: String) -> MapUnit:
@@ -373,6 +374,7 @@ func _issue_ai_move(info: Dictionary, destination: Vector2, source: String, tick
 	if not actor.path.is_empty() and info.get("movement_source", "") == source and Vector2(info.get("movement_destination", Vector2.INF)).distance_to(destination) <= 1.0:
 		return true
 	var previous_source: String = info.get("movement_source", "")
+	runtime_profiler.record_path_request()
 	var valid := actor.go_to(destination)
 	info.movement_source = source
 	info.movement_destination = destination
@@ -390,6 +392,19 @@ func _persist_entity_info(info: Dictionary) -> void:
 	# metadata when deciding, rather than relying on a stale outer-loop copy.
 	var actor: MapUnit = info.get("actor", null)
 	if actor != null and entities.has(actor.runtime.unit_id): entities[actor.runtime.unit_id] = info
+
+func _sync_intent(info: Dictionary, tick: int) -> void:
+	# Phase-one intent telemetry mirrors the live order without changing behavior.
+	# Later controllers will construct this data before movement is applied.
+	var actor: MapUnit = info.actor
+	info.intent_state = info.get("ai_state", "") if info.kind == "hero" else info.get("creep_state", "")
+	info.intent_target_id = actor.runtime.target_id
+	info.intent_destination = info.get("movement_destination", actor.position)
+	info.intent_expiry_tick = tick + maxi(1, settings.bot_decision_ticks if info.kind == "hero" else settings.creep_target_scan_ticks)
+	_persist_entity_info(info)
+
+func runtime_profile_snapshot() -> Dictionary:
+	return runtime_profiler.snapshot()
 
 func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, target: UnitRuntimeState) -> bool:
 	if target == null or not entities.has(target.unit_id): return true
@@ -530,6 +545,7 @@ func _physics_process(delta: float) -> void:
 func _tick(_index: int) -> void:
 	if match_over: return
 	var tick := combat.tick_count + 1
+	runtime_profiler.begin(tick, entities.size())
 	var income_interval := maxi(1, ceili(settings.passive_gold_interval_seconds * SimulationClock.TICKS_PER_SECOND))
 	if tick % income_interval == 0:
 		for hero in progression.values(): hero.award(0, settings.passive_gold_amount)
@@ -598,6 +614,7 @@ func _tick(_index: int) -> void:
 	for info in entities.values():
 		info.actor.runtime.current_tick = combat.tick_count
 		if info.kind == "tower": info.actor.view.structure_locked = not _tower_is_unlocked(info)
+		_sync_intent(info, tick)
 	_update_vision()
 	# Separation is visual/physical housekeeping. Running it at 3 Hz avoids a
 	# combat-tick O(n²) spike once lane waves and all jungle camps are alive.
@@ -617,6 +634,7 @@ func _tick(_index: int) -> void:
 		if not cores[team].runtime.alive:
 			_end_match(1 - team)
 			break
+	runtime_profiler.finish()
 
 func in_fountain(unit: UnitRuntimeState) -> bool:
 	return unit.alive and unit.team_id in [0, 1] and unit.position.distance_to(layout.fountain_point(unit.team_id)) <= settings.fountain_radius
@@ -640,6 +658,7 @@ func _visible(source: MapUnit, target: MapUnit) -> bool:
 	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 func _has_vision(source: MapUnit, target: MapUnit) -> bool:
+	runtime_profiler.record_vision_check()
 	if source == null or target == null: return false
 	if full_map_mode or source.runtime.team_id == target.runtime.team_id: return true
 	# Brush hides only opposing playable teams. Neutral camps remain discoverable;
@@ -662,6 +681,7 @@ func _update_vision() -> void:
 
 func _team_has_vision(team: int, target: MapUnit) -> bool:
 	for info in entities.values():
+		runtime_profiler.record_vision_observer()
 		var observer: MapUnit = info.actor
 		if not observer.runtime.alive or observer.runtime.team_id != team: continue
 		if info.kind not in ["hero", "creep", "tower", "core"]: continue
@@ -685,6 +705,7 @@ func _current_target(source: MapUnit) -> MapUnit:
 	return target
 
 func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false, lane_filter: String = "", require_vision: bool = false, neutral_only: bool = false) -> MapUnit:
+	runtime_profiler.record_target_query()
 	var source: MapUnit = info.actor
 	var best: MapUnit
 	var best_priority := 100
@@ -692,6 +713,7 @@ func _choose_target(info: Dictionary, categories: Array, radius: float, allow_ap
 	var ids: Array = entities.keys()
 	ids.sort()
 	for id in ids:
+		runtime_profiler.record_target_candidate()
 		var candidate: Dictionary = entities[id]
 		var target: MapUnit = candidate.actor
 		if not target.runtime.alive or target.runtime.team_id == source.runtime.team_id or candidate.kind not in categories: continue
@@ -754,23 +776,23 @@ func _unsafe_tower_dive(source: MapUnit, target: MapUnit) -> bool:
 func _player_target() -> MapUnit:
 	if entities.has(locked_target):
 		var target: MapUnit = entities[locked_target].actor
-		var leash := settings.hero_acquisition_range if attack_mode == "hero" else settings.player_target_leash
+		var leash := settings.player_hero_command_radius if attack_mode == "hero" else settings.player_creep_command_radius
 		if target.runtime.alive and target.runtime.team_id != player.runtime.team_id and player.runtime.distance_to_unit(target.runtime) <= leash and _has_vision(player, target): return target
 	locked_target = ""
 	if attack_mode == "hero":
-		return _choose_target(entities.player, ["hero"], settings.hero_acquisition_range, true, false, "", true)
+		return _choose_target(entities.player, ["hero"], settings.player_hero_command_radius, true, false, "", true)
 	# J attacks the closest creep of any kind: lane, ranged, siege, or jungle.
 	# Once no creep remains in the command radius, it falls back to a structure.
-	var target := _choose_target(entities.player, ["creep"], settings.player_target_range, true, true, "", true)
+	var target := _choose_target(entities.player, ["creep"], settings.player_creep_command_radius, true, true, "", true)
 	if target != null: return target
 	# Structure targeting remains local: it cannot select a third tower merely
 	# because that target exists elsewhere on the map.
 	var lane := _nearest_lane(player.position)
-	target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, lane, true)
+	target = _choose_target(entities.player, ["tower"], settings.player_structure_command_radius, true, false, lane, true)
 	if target == null:
-		target = _choose_target(entities.player, ["tower"], settings.player_structure_target_range, true, false, "BASE", true)
+		target = _choose_target(entities.player, ["tower"], settings.player_structure_command_radius, true, false, "BASE", true)
 	if target == null:
-		target = _choose_target(entities.player, ["core"], settings.player_structure_target_range, true, false, "", true)
+		target = _choose_target(entities.player, ["core"], settings.player_structure_command_radius, true, false, "", true)
 	return target
 
 func _drive_target(info: Dictionary, target: MapUnit, tick: int) -> void:

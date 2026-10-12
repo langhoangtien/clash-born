@@ -161,6 +161,10 @@ func _test_match() -> void:
 	check(main._player_target() == enemy, "Hero button ignores a closer enemy creep")
 	main.request_attack("creep")
 	check(main._player_target() == creep, "Creep button ignores enemy hero")
+	main.settings.player_creep_command_radius = 50.0
+	var local_creep_target: MapUnit = main._player_target()
+	check(local_creep_target == null or player.runtime.distance_to_unit(local_creep_target.runtime) <= 50.0, "Creep command stays local instead of selecting a distant target")
+	main.settings.player_creep_command_radius = 650.0
 	main.controls.attack_buttons.hero.pressed.emit()
 	check(main.attack_mode == "hero", "On-screen hero attack button connects to match")
 	main.controls.attack_buttons.creep.pressed.emit()
@@ -170,6 +174,8 @@ func _test_match() -> void:
 	main.request_attack("hero")
 	var hp_before := enemy.runtime.current_hp
 	main.clock.step()
+	var profile: Dictionary = main.runtime_profile_snapshot()
+	check(int(profile.get("entities", 0)) > 0 and int(profile.get("target_queries", -1)) >= 0 and int(profile.get("vision_checks", -1)) >= 0 and int(profile.get("tick_usec", 0)) >= 0, "Runtime profiler records entity, targeting, vision, and tick-cost counters")
 	check(enemy.runtime.current_hp == hp_before and not main.combat.projectiles.is_empty(), "Player launches projectile without immediate damage")
 	for tick in range(15): main.clock.step()
 	check(enemy.runtime.current_hp < hp_before, "Player hero button actually damages enemy hero at impact")
