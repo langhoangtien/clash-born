@@ -16,6 +16,8 @@ func begin(tick: int, entity_count: int) -> void:
 		"target_candidates": 0,
 		"vision_checks": 0,
 		"vision_observers": 0,
+		"spatial_queries": 0,
+		"spatial_candidates": 0,
 		"path_requests": 0,
 	}
 
@@ -30,6 +32,10 @@ func record_vision_check() -> void:
 
 func record_vision_observer() -> void:
 	_current.vision_observers = int(_current.get("vision_observers", 0)) + 1
+
+func record_spatial_query(candidate_count: int) -> void:
+	_current.spatial_queries = int(_current.get("spatial_queries", 0)) + 1
+	_current.spatial_candidates = int(_current.get("spatial_candidates", 0)) + candidate_count
 
 func record_path_request() -> void:
 	_current.path_requests = int(_current.get("path_requests", 0)) + 1

@@ -41,6 +41,7 @@ var jungle_camp_respawn_ticks: Dictionary = {}
 var lane_creep_ai = preload("res://scripts/match/lane_creep_ai.gd").new()
 var enemy_bot_ai = preload("res://scripts/match/enemy_bot_ai.gd").new()
 var runtime_profiler = preload("res://scripts/match/match_runtime_profiler.gd").new()
+var spatial_index = preload("res://scripts/match/match_spatial_index.gd").new()
 ## Combat mode hides hostile units outside the selected hero's vision.
 var full_map_mode: bool = false
 var ui_elapsed: float = 0.0
@@ -162,6 +163,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
 	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1, "intent_state": "", "intent_target_id": "", "intent_destination": state.position, "intent_expiry_tick": -1}
+	spatial_index.invalidate()
 	return actor
 
 func get_outer_tower(team: int, lane: String) -> MapUnit:
@@ -406,6 +408,12 @@ func _sync_intent(info: Dictionary, tick: int) -> void:
 func runtime_profile_snapshot() -> Dictionary:
 	return runtime_profiler.snapshot()
 
+func _ensure_spatial_index() -> void:
+	# Spawns can occur between simulation ticks (including controlled regression
+	# scenes). Rebuild only for a membership change; normal movement is refreshed
+	# once at the start of each tick and vision update.
+	if spatial_index.is_dirty() or spatial_index.entity_count() != entities.size(): spatial_index.rebuild(entities)
+
 func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, target: UnitRuntimeState) -> bool:
 	if target == null or not entities.has(target.unit_id): return true
 	var target_info: Dictionary = entities[target.unit_id]
@@ -546,6 +554,7 @@ func _tick(_index: int) -> void:
 	if match_over: return
 	var tick := combat.tick_count + 1
 	runtime_profiler.begin(tick, entities.size())
+	spatial_index.rebuild(entities)
 	var income_interval := maxi(1, ceili(settings.passive_gold_interval_seconds * SimulationClock.TICKS_PER_SECOND))
 	if tick % income_interval == 0:
 		for hero in progression.values(): hero.award(0, settings.passive_gold_amount)
@@ -672,6 +681,7 @@ func _has_vision(source: MapUnit, target: MapUnit) -> bool:
 
 func _update_vision() -> void:
 	if player == null: return
+	spatial_index.rebuild(entities)
 	for info in entities.values():
 		var actor: MapUnit = info.actor
 		if actor == player or actor.runtime.team_id == player.runtime.team_id or full_map_mode:
@@ -680,8 +690,13 @@ func _update_vision() -> void:
 			actor.view.visible = actor.runtime.alive and _team_has_vision(player.runtime.team_id, actor)
 
 func _team_has_vision(team: int, target: MapUnit) -> bool:
-	for info in entities.values():
+	_ensure_spatial_index()
+	var observer_ids: Array[String] = spatial_index.query_circle(target.position, spatial_index.max_vision_range())
+	runtime_profiler.record_spatial_query(observer_ids.size())
+	for id in observer_ids:
 		runtime_profiler.record_vision_observer()
+		if not entities.has(id): continue
+		var info: Dictionary = entities[id]
 		var observer: MapUnit = info.actor
 		if not observer.runtime.alive or observer.runtime.team_id != team: continue
 		if info.kind not in ["hero", "creep", "tower", "core"]: continue
@@ -706,12 +721,13 @@ func _current_target(source: MapUnit) -> MapUnit:
 
 func _choose_target(info: Dictionary, categories: Array, radius: float, allow_approach: bool = false, allow_neutral: bool = false, lane_filter: String = "", require_vision: bool = false, neutral_only: bool = false) -> MapUnit:
 	runtime_profiler.record_target_query()
+	_ensure_spatial_index()
 	var source: MapUnit = info.actor
 	var best: MapUnit
 	var best_priority := 100
 	var best_distance := INF
-	var ids: Array = entities.keys()
-	ids.sort()
+	var ids: Array[String] = spatial_index.query_circle(source.position, radius)
+	runtime_profiler.record_spatial_query(ids.size())
 	for id in ids:
 		runtime_profiler.record_target_candidate()
 		var candidate: Dictionary = entities[id]
