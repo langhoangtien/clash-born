@@ -42,6 +42,7 @@ var lane_creep_ai = preload("res://scripts/match/lane_creep_ai.gd").new()
 var enemy_bot_ai = preload("res://scripts/match/enemy_bot_ai.gd").new()
 var runtime_profiler = preload("res://scripts/match/match_runtime_profiler.gd").new()
 var spatial_index = preload("res://scripts/match/match_spatial_index.gd").new()
+var tower_ai = preload("res://scripts/match/tower_ai.gd").new()
 ## Combat mode hides hostile units outside the selected hero's vision.
 var full_map_mode: bool = false
 var ui_elapsed: float = 0.0
@@ -162,7 +163,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	var route := PackedVector2Array()
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
-	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1, "intent_state": "", "intent_target_id": "", "intent_destination": state.position, "intent_expiry_tick": -1}
+	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "tower_state": "IDLE", "tower_target_locked_until": 0, "protection_target_id": "", "protection_expires_tick": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1, "intent_state": "", "intent_target_id": "", "intent_destination": state.position, "intent_expiry_tick": -1}
 	spatial_index.invalidate()
 	return actor
 
@@ -587,15 +588,20 @@ func _tick(_index: int) -> void:
 		if id == "player":
 			if not attack_mode.is_empty(): _drive_target(info, _player_target(), tick)
 			else: actor.runtime.target_id = ""
-		elif info.kind in ["tower", "core"]:
-			var target := _current_target(actor)
-			if target == null or actor.runtime.distance_to_unit(target.runtime) > actor.runtime.attack_range() or tick % 3 == info.ai_phase:
-				target = _choose_target(info, ["creep", "hero"], actor.runtime.attack_range())
-				actor.runtime.target_id = target.runtime.unit_id if target != null else ""
+		elif info.kind == "tower":
+			var tower_target: MapUnit = tower_ai.choose(self, info, tick)
+			actor.runtime.target_id = tower_target.runtime.unit_id if tower_target != null else ""
+		elif info.kind == "core":
+			var core_target := _current_target(actor)
+			if core_target == null or actor.runtime.distance_to_unit(core_target.runtime) > actor.runtime.attack_range() or tick % 3 == info.ai_phase:
+				core_target = _choose_target(info, ["creep", "hero"], actor.runtime.attack_range())
+				actor.runtime.target_id = core_target.runtime.unit_id if core_target != null else ""
 		elif info.get("neutral", false):
 			if tick % 3 == info.ai_phase: _drive_jungle_creep(info, tick)
 		elif info.kind == "hero":
-			if tick % maxi(1, settings.bot_decision_ticks) == info.ai_phase:
+			# Normal bot scans are staggered. A hero already inside actual attack
+			# range is urgent combat, not a costly map-scale chase query.
+			if tick % maxi(1, settings.bot_decision_ticks) == info.ai_phase or actor.runtime.distance_to_unit(player.runtime) <= actor.runtime.attack_range():
 				var bot_target := _bot_target(info, tick)
 				# Target selection persists state at its decision site. Re-read it so a
 				# movement order never overwrites that state with this loop's old copy.
@@ -1029,7 +1035,9 @@ func _arm_lane_defenders(event: Dictionary) -> void:
 		if not defender.runtime.alive or defender.runtime.team_id != victim.runtime.team_id: continue
 		if info.kind == "tower":
 			if defender.runtime.distance_to_unit(source.runtime) <= defender.runtime.attack_range() and defender.runtime.distance_to_unit(victim.runtime) <= settings.tower_protection_range:
-				defender.runtime.target_id = source.runtime.unit_id
+				info.protection_target_id = source.runtime.unit_id
+				info.protection_expires_tick = combat.tick_count + maxi(1, settings.tower_protection_ticks)
+				_persist_entity_info(info)
 		elif info.kind == "creep" and not info.get("neutral", false) and info.lane == target_info.get("assigned_lane", target_info.lane):
 			if defender.runtime.distance_to_unit(source.runtime) <= settings.creep_hero_protection_range:
 				# Retaliation is a fact for the lane-creep decision state machine, not

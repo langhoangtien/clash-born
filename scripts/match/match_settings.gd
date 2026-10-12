@@ -91,6 +91,8 @@ extends Resource
 @export var jungle_respawn_seconds: float = 15.0
 ## Towers acquire hostile creeps before heroes inside these world-unit ranges.
 @export var tower_protection_range: float = 700.0
+@export var tower_target_lock_ticks: int = 15
+@export var tower_protection_ticks: int = 120
 @export var melee_creep: UnitStats
 @export var ranged_creep: UnitStats
 @export var siege_creep: UnitStats
