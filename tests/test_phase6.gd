@@ -209,9 +209,10 @@ func _test_scene() -> void:
 		main.overlay_controls.walkability.button_pressed = true
 		main.overlay_controls.collision.button_pressed = true
 		main.overlay_controls.paths.button_pressed = true
+		main.world.set_debug_enabled(true)
 		await process_frame
 		await RenderingServer.frame_post_draw
-		check(root.get_texture().get_image().save_png("res://.local/phase6-map-navigation.png") == OK, "Map closeup captured with renderer")
+		check(root.get_texture().get_image().save_png("res://.local/phase6-map-debug-overlay.png") == OK, "Map debug overlay captured with renderer")
 	main.queue_free()
 	await process_frame
 	var sandbox = load("res://scenes/main.tscn").instantiate()

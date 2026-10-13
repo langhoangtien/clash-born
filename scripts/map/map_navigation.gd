@@ -4,6 +4,7 @@ extends RefCounted
 var layout: MapLayout
 var grid := AStarGrid2D.new()
 var agent_radius: float
+const TOWER_BODY_RADIUS := 44.0
 
 func _init(data: MapLayout, radius: float = 32.0) -> void:
 	layout = data
@@ -18,9 +19,16 @@ func _init(data: MapLayout, radius: float = 32.0) -> void:
 			var cell := Vector2i(x, y)
 			grid.set_point_solid(cell, not point_is_clear(data.cell_center(cell)))
 
+func _tower_is_clear(point: Vector2) -> bool:
+	for tower_cell in layout.tower_cells:
+		if point.distance_to(layout.cell_center(Vector2i(tower_cell))) < TOWER_BODY_RADIUS + agent_radius:
+			return false
+	return true
+
 func point_is_clear(point: Vector2) -> bool:
 	var size := layout.world_size()
 	if not point.is_finite() or point.x < agent_radius or point.y < agent_radius or point.x > size.x - agent_radius or point.y > size.y - agent_radius: return false
+	if not _tower_is_clear(point): return false
 	var first := layout.world_to_cell(point - Vector2.ONE * agent_radius)
 	var last := layout.world_to_cell(point + Vector2.ONE * agent_radius)
 	for y in range(first.y, last.y + 1):

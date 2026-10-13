@@ -57,7 +57,7 @@ func _build_ui() -> void:
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(title)
 	var help := Label.new()
-	help.text = "Right-click: move · WASD: move selected probe\nMiddle-drag / arrows: pan · Wheel: zoom · F: follow · O: overview"
+	help.text = "Right-click: move · WASD: move selected probe\nMiddle-drag / arrows: pan · Wheel: zoom · F: follow · O: overview · D: terrain debug"
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.add_theme_font_size_override("font_size", 14)
 	content.add_child(help)
@@ -152,3 +152,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_F: camera.follow_enabled = not camera.follow_enabled
 		elif event.physical_keycode == KEY_O: camera.fit_map()
+		elif event.physical_keycode == KEY_D:
+			world.set_debug_enabled(not world.debug_enabled)
+			status.text = "Terrain debug " + ("enabled" if world.debug_enabled else "disabled")
