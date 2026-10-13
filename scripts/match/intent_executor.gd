@@ -5,12 +5,14 @@ extends RefCounted
 var _applied_actor_ids: Dictionary = {}
 var _last_destinations: Dictionary = {}
 var traces: Array[String] = []
+var failure_facts: Array[BehaviorFact] = []
 var _tick: int = -1
 
 func begin_tick(tick: int) -> void:
 	_tick = tick
 	_applied_actor_ids.clear()
 	traces.clear()
+	failure_facts.clear()
 
 func apply(intent: BehaviorIntent, snapshot: BehaviorWorldSnapshot, entities: Dictionary, objectives: ObjectiveRegistry) -> bool:
 	if _tick != snapshot.tick or intent == null or intent.actor_id.is_empty() or _applied_actor_ids.has(intent.actor_id): return false
@@ -29,8 +31,13 @@ func apply(intent: BehaviorIntent, snapshot: BehaviorWorldSnapshot, entities: Di
 	if intent.has_destination:
 		var previous: Vector2 = _last_destinations.get(intent.actor_id, Vector2.INF)
 		if previous.distance_to(intent.destination) > 0.01:
-			actor.go_to(intent.destination)
+			if not actor.go_to(intent.destination):
+				_cancel(actor, intent, "UNREACHABLE", old_target)
+				failure_facts.append(BehaviorFact.new(BehaviorFact.Kind.TARGET_INVALID, intent.actor_id, intent.target_id, snapshot.tick, snapshot.tick + 1, "UNREACHABLE"))
+				return false
 			_last_destinations[intent.actor_id] = intent.destination
+	else:
+		actor.stop()
 	_trace(intent, old_target, actor.runtime.target_id, intent.destination)
 	return true
 
@@ -53,6 +60,7 @@ func _cancel(actor, intent: BehaviorIntent, reason: String, old_target: String) 
 		actor.runtime.target_id = ""
 		actor.stop()
 	_trace(intent, old_target, "", actor.position if actor != null else Vector2.ZERO, reason)
+	if reason == "INVALID_TARGET": failure_facts.append(BehaviorFact.new(BehaviorFact.Kind.TARGET_INVALID, intent.actor_id, intent.target_id, _tick, _tick + 1, reason))
 
 func _trace(intent: BehaviorIntent, old_target: String, new_target: String, destination: Vector2, override_reason: String = "") -> void:
 	var reason := override_reason if not override_reason.is_empty() else intent.reason

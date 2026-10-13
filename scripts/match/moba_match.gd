@@ -41,7 +41,6 @@ var draft_mode: bool = false
 var bot_build_index: int = 0
 var jungle_spawned: bool = false
 var jungle_camp_respawn_ticks: Dictionary = {}
-var lane_creep_ai = preload("res://scripts/match/lane_creep_ai.gd").new()
 var enemy_bot_ai = preload("res://scripts/match/enemy_bot_ai.gd").new()
 var runtime_profiler = preload("res://scripts/match/match_runtime_profiler.gd").new()
 var spatial_index = preload("res://scripts/match/match_spatial_index.gd").new()
@@ -54,11 +53,15 @@ var tower_registry: Dictionary = {}
 var objective_registry: ObjectiveRegistry = ObjectiveRegistryScript.new()
 var behavior_pipeline: BehaviorIntentPipeline = BehaviorIntentPipelineScript.new()
 var behavior_snapshot: BehaviorWorldSnapshot
+var _test_lane_creep_intents: Array[BehaviorIntent] = []
+var _test_lane_creep_snapshot: BehaviorWorldSnapshot
+var _test_lane_creep_tick: int = -1
 @export_group("AI Debug")
 @export var debug_mid_lane_only: bool = false
 @export var debug_ai_trace_enabled: bool = false
 var ai_debug_events: Array[String] = []
 var _last_ai_debug_signature: Dictionary = {}
+var _last_intent_debug_signature: Dictionary = {}
 
 func _enter_tree() -> void:
 	$World.layout = layout
@@ -171,6 +174,7 @@ func _attach(state: UnitRuntimeState, source: UnitStats, kind: String, lane: Str
 	if kind in ["creep", "hero"] and state.unit_id != "player": route = _lane_route(actor, lane)
 	var travel_speed_multiplier := 1.22 if state.unit_id == "enemy_hero" else 1.0
 	entities[state.unit_id] = {"actor": actor, "kind": kind, "lane": lane, "route": route, "route_index": 0, "siege": siege, "ranged_creep": ranged_creep, "tower_tier": 0, "tower_state": "IDLE", "tower_target_locked_until": 0, "protection_target_id": "", "protection_expires_tick": 0, "lane_buffed": false, "assigned_lane": lane, "ai_state": "GO_TO_LANE" if kind == "hero" and state.unit_id != "player" else "", "ai_state_since": 0, "ai_last_target_tick": 0, "travel_speed_multiplier": travel_speed_multiplier, "ai_phase": absi(state.unit_id.hash()) % 3, "creep_state": "LANE", "creep_chase_origin": state.position, "creep_lost_since": -1, "creep_reacquire_after": 0, "creep_unreachable_since": -1, "intent_state": "", "intent_target_id": "", "intent_destination": state.position, "intent_expiry_tick": -1}
+	if kind == "creep" and lane in ["TOP", "MID", "BOT"]: behavior_pipeline.register_lane_creep(state.unit_id, lane, route)
 	spatial_index.invalidate()
 	return actor
 
@@ -540,11 +544,19 @@ func _tick(_index: int) -> void:
 	var tick := combat.tick_count + 1
 	runtime_profiler.begin(tick, entities.size())
 	spatial_index.rebuild(entities)
-	# Phase 2 is a dark launch: facts from the prior tick are snapshotted and an
-	# empty controller set decides/applies before combat. No legacy actor is
-	# registered, so legacy target/path ownership remains exclusive until migration.
-	behavior_snapshot = behavior_pipeline.begin_tick(tick, entities)
-	behavior_pipeline.apply_intents(behavior_pipeline.decide(behavior_snapshot), behavior_snapshot, entities, objective_registry)
+	# Facts from the prior tick become one immutable snapshot. Lane creeps are the
+	# first migrated actor: their controller decides, then only IntentExecutor
+	# writes target/path before combat. Other actor types remain legacy-owned.
+	behavior_snapshot = behavior_pipeline.begin_tick(tick, entities, Callable(self, "_has_vision"), objective_registry)
+	behavior_pipeline.apply_intents(behavior_pipeline.decide(behavior_snapshot, settings), behavior_snapshot, entities, objective_registry)
+	_sync_migrated_lane_creep_debug(tick)
+	for trace in behavior_pipeline.executor.traces:
+		var actor_id := trace.get_slice(" ", 1).trim_prefix("actor_id=")
+		var signature := trace.substr(trace.find("state="))
+		if debug_ai_trace_enabled and _last_intent_debug_signature.get(actor_id, "") != signature:
+			_last_intent_debug_signature[actor_id] = signature
+			ai_debug_events.append("INTENT " + trace)
+			print("INTENT " + trace)
 	var income_interval := maxi(1, ceili(settings.passive_gold_interval_seconds * SimulationClock.TICKS_PER_SECOND))
 	if tick % income_interval == 0:
 		for hero in progression.values(): hero.award(0, settings.passive_gold_amount)
@@ -595,10 +607,10 @@ func _tick(_index: int) -> void:
 				# Target selection persists state at its decision site. Re-read it so a
 				# movement order never overwrites that state with this loop's old copy.
 				_drive_bot(entities.get(id, info), bot_target, tick)
-		else:
-			if tick % maxi(1, settings.creep_target_scan_ticks) == info.ai_phase or _current_target(actor) == null:
-				var creep_target := _choose_lane_creep_target(info, tick)
-				_drive_lane_creep(entities.get(id, info), creep_target, tick)
+		elif info.kind == "creep":
+			# Lane creeps/catapults are exclusively owned by BehaviorIntentPipeline.
+			# Neutral creeps were handled above and keep their legacy controller.
+			continue
 	_heal_fountains()
 	var events := combat.step()
 	if audio_router != null: audio_router.consume(events, entities, combat.tick_count, _audio_listener_position(), _audio_listener_radius())
@@ -620,7 +632,7 @@ func _tick(_index: int) -> void:
 		info.actor.runtime.current_tick = combat.tick_count
 		if info.kind == "tower": info.actor.view.structure_locked = not objective_registry.is_attackable(info.get("semantic_id", ""), entities)
 		elif info.kind == "core": info.actor.view.structure_locked = not _core_is_unlocked(info.actor.runtime.team_id)
-		_sync_intent(info, tick)
+		if not behavior_pipeline.lane_creep_memories.has(info.actor.runtime.unit_id): _sync_intent(info, tick)
 	_update_vision()
 	# Separation is visual/physical housekeeping. Running it at 3 Hz avoids a
 	# combat-tick O(n²) spike once lane waves and all jungle camps are alive.
@@ -631,6 +643,7 @@ func _tick(_index: int) -> void:
 			# Wave entities have no post-death UI. Drop their metrics too so a long
 			# match does not retain one Dictionary per historical creep.
 			combat.remove_unit(actor.runtime, true)
+			behavior_pipeline.unregister_actor(id)
 			actor.queue_free()
 			entities.erase(id)
 	_schedule_cleared_jungle_camps(tick)
@@ -641,6 +654,19 @@ func _tick(_index: int) -> void:
 			_end_match(1 - team)
 			break
 	runtime_profiler.finish()
+
+func _sync_migrated_lane_creep_debug(tick: int) -> void:
+	for actor_id in behavior_pipeline.lane_creep_memories:
+		if not entities.has(actor_id): continue
+		var memory: LaneCreepMemory = behavior_pipeline.lane_creep_memories[actor_id]
+		var info: Dictionary = entities[actor_id]
+		info.creep_state = memory.state
+		info.route_index = memory.route_index
+		info.intent_state = memory.state
+		info.intent_target_id = info.actor.runtime.target_id
+		info.intent_destination = info.actor.path[-1] if not info.actor.path.is_empty() else info.actor.position
+		info.intent_expiry_tick = tick + 1
+		_persist_entity_info(info)
 
 func _queue_behavior_fact(event: Dictionary) -> void:
 	if event.kind == "death":
@@ -775,11 +801,27 @@ func _tower_has_attacking_creep_cover(tower: MapUnit, attacking_team: int) -> bo
 			return true
 	return false
 
+## Transitional test adapter. Production lane creeps never call these helpers;
+## they are decided/applied in the pipeline at the start of _tick.
 func _choose_lane_creep_target(info: Dictionary, tick: int) -> MapUnit:
-	return lane_creep_ai.choose(self, info, tick)
+	var actor: MapUnit = info.actor
+	if not behavior_pipeline.lane_creep_memories.has(actor.runtime.unit_id): return null
+	if _test_lane_creep_snapshot == null or _test_lane_creep_tick != tick:
+		_test_lane_creep_snapshot = behavior_pipeline.begin_tick(tick, entities, Callable(self, "_has_vision"), objective_registry)
+		_test_lane_creep_intents.clear()
+		_test_lane_creep_tick = tick
+	var memory: LaneCreepMemory = behavior_pipeline.lane_creep_memories[actor.runtime.unit_id]
+	var intent := behavior_pipeline.lane_creep_controller.decide(_test_lane_creep_snapshot, memory, settings)
+	_test_lane_creep_intents.append(intent)
+	return entities[intent.target_id].actor if not intent.target_id.is_empty() and entities.has(intent.target_id) else null
 
-func _drive_lane_creep(info: Dictionary, target: MapUnit, tick: int) -> void:
-	lane_creep_ai.drive(self, info, target, tick)
+func _drive_lane_creep(info: Dictionary, _target: MapUnit, _tick: int) -> void:
+	var actor: MapUnit = info.actor
+	for intent in _test_lane_creep_intents:
+		if intent.actor_id != actor.runtime.unit_id: continue
+		behavior_pipeline.apply_intents([intent], _test_lane_creep_snapshot, entities, objective_registry)
+		_test_lane_creep_intents.erase(intent)
+		return
 
 func _unsafe_tower_dive(source: MapUnit, target: MapUnit) -> bool:
 	if source == null or target == null: return false
@@ -1038,6 +1080,10 @@ func _arm_lane_defenders(event: Dictionary) -> void:
 				info.protection_target_id = source.runtime.unit_id
 				info.protection_expires_tick = combat.tick_count + maxi(1, settings.tower_protection_ticks)
 				_persist_entity_info(info)
+		elif info.kind == "creep" and not info.get("neutral", false) and behavior_pipeline.lane_creep_memories.has(defender.runtime.unit_id):
+			# Migrated creeps consume BehaviorFact.HERO_DAMAGE next tick; legacy code
+			# must not write their retaliation/target/movement state.
+			continue
 		elif info.kind == "creep" and not info.get("neutral", false) and info.lane == target_info.get("assigned_lane", target_info.lane):
 			if defender.runtime.distance_to_unit(source.runtime) <= settings.creep_hero_protection_range:
 				# Retaliation is a fact for the lane-creep decision state machine, not

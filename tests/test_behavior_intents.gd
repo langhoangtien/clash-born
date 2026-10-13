@@ -16,7 +16,7 @@ func check(condition: bool, message: String) -> void:
 func _actor_snapshot(game, actor_id: String, visible: PackedStringArray) -> BehaviorActorSnapshot:
 	var info: Dictionary = game.entities[actor_id]
 	var actor: MapUnit = info.actor
-	return BehaviorActorSnapshot.new(actor_id, actor.runtime.team_id, actor.runtime.alive, info.kind, actor.position, actor.runtime.stats.collision_radius, actor.runtime.target_id, visible)
+	return BehaviorActorSnapshot.new(actor_id, actor.runtime.team_id, actor.runtime.alive, info.kind, info.get("lane", ""), info.get("neutral", false), actor.position, actor.runtime.stats.collision_radius, actor.runtime.attack_range(), actor.runtime.target_id, visible)
 
 func _snapshot(game, tick: int, source_id: String, visible: PackedStringArray) -> BehaviorWorldSnapshot:
 	var result := BehaviorWorldSnapshot.new(tick)

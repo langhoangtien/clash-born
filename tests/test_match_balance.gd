@@ -113,10 +113,10 @@ func _test_match() -> void:
 	var leash_info: Dictionary = main.entities[leash_creep.runtime.unit_id]
 	bot_actor.position = leash_creep.position + Vector2(main.settings.creep_hero_leash_range + 80.0, 0)
 	bot_actor.runtime.position = bot_actor.position
-	leash_creep.runtime.target_id = bot_actor.runtime.unit_id
-	leash_info.creep_chase_origin = leash_creep.position
-	leash_info.hero_aggro_until = main.combat.tick_count + main.settings.creep_hero_aggro_ticks
-	main.entities[leash_creep.runtime.unit_id] = leash_info
+	var leash_memory: LaneCreepMemory = main.behavior_pipeline.lane_creep_memories[leash_creep.runtime.unit_id]
+	leash_memory.retaliation_target_id = bot_actor.runtime.unit_id
+	leash_memory.retaliation_origin = leash_creep.position
+	leash_memory.retaliation_expiry_tick = main.combat.tick_count + main.settings.creep_hero_aggro_ticks
 	check(main._choose_lane_creep_target(leash_info, main.combat.tick_count + 1) != bot_actor and leash_creep.runtime.target_id.is_empty(), "Lane creep drops a hero beyond its retaliation leash instead of chasing through towers")
 	# Normal lane scanning must never pick a hero merely because no enemy creep is
 	# nearby. Only _arm_lane_defenders may install a hero target.
@@ -152,18 +152,16 @@ func _test_match() -> void:
 	main.entities[bot_actor.runtime.unit_id] = bot_info
 	check(main._bot_base_intruder(bot_info, "MID") == base_intruder, "Recovered bot recognizes hostile lane creeps that reached its fountain area")
 	check(main._bot_target(bot_info, main.combat.tick_count + 3) == base_intruder, "Recovered bot targets a base intruder before attempting to rally forward")
-	# Retaliation metadata survives the helper boundary: this is what enforces the
-	# short hero leash for a wave protecting its own hero.
+	# Direct hero damage becomes a fact; the migrated controller consumes it on
+	# its next snapshot rather than a damage callback writing creep state.
 	main.player.position = bot_actor.position + Vector2(120, 0)
 	main.player.runtime.position = main.player.position
 	var response_creep: MapUnit = main._spawn("response_creep", 1, main.settings.melee_creep, bot_actor.position + Vector2(45, 0), "creep", "MID")
-	main._arm_lane_defenders({"source_unit_id": main.player.runtime.unit_id, "target_unit_id": bot_actor.runtime.unit_id, "reflected": false})
+	main.behavior_pipeline.queue_fact(BehaviorFact.new(BehaviorFact.Kind.HERO_DAMAGE, main.player.runtime.unit_id, bot_actor.runtime.unit_id, main.combat.tick_count, main.combat.tick_count + 1, "DIRECT_HERO_DAMAGE"))
 	var response_info: Dictionary = main.entities[response_creep.runtime.unit_id]
-	check(response_info.get("retaliation_target_id", "") == main.player.runtime.unit_id, "Nearby lane creep receives direct hero-aggression retaliation fact")
-	check(int(response_info.get("hero_aggro_until", 0)) == main.combat.tick_count + main.settings.creep_hero_aggro_ticks, "Hero retaliation leash metadata persists in the runtime registry")
 	var retaliation_target: MapUnit = main._choose_lane_creep_target(response_info, main.combat.tick_count + 1)
 	main._drive_lane_creep(main.entities[response_creep.runtime.unit_id], retaliation_target, main.combat.tick_count + 1)
-	check(response_creep.runtime.target_id == main.player.runtime.unit_id and main.entities[response_creep.runtime.unit_id].creep_state == "HERO_RETALIATE", "Only the lane-creep state machine turns retaliation into a combat target")
+	check(response_creep.runtime.target_id == main.player.runtime.unit_id and main.behavior_pipeline.lane_creep_memories[response_creep.runtime.unit_id].state == "HERO_RETALIATE", "Only the intent lane-creep controller turns retaliation fact into a combat target")
 	check(main.settings.tower_t1_hp == 3200 and main.settings.tower_t4_hp == 4200 and main.settings.tower_t1_damage < main.settings.tower_t4_damage, "Tower durability is reduced while damage increases toward T4")
 	var red_guards := [main.entities[main.tower_registry["red_base_guard_left"]].actor, main.entities[main.tower_registry["red_base_guard_right"]].actor]
 	check(not main._core_is_unlocked(1), "Living T4 guards keep the red core locked")
@@ -172,10 +170,10 @@ func _test_match() -> void:
 	check(not main._core_is_unlocked(1), "Only the two T4 guards gate the core after lane towers fall")
 	red_guards[0].runtime.alive = false
 	check(not main._core_is_unlocked(1), "One remaining T4 guard still locks the core")
-	# Once all three lane chains are gone, the shared T4 guards are the next
-	# attackable structures for every lane rather than an unreachable dead end.
+	# Lane creeps stop after T3; only a future BaseObjectiveController may assign
+	# the shared T4 guards.
 	var t4_target: MapUnit = main.get_next_attackable_structure(0, "MID")
-	check(t4_target == red_guards[1], "T4 guard becomes the next legal structure after all lane T3 towers fall")
+	check(t4_target == null, "Lane creep objective query never returns T4 guard after T3")
 	main.player.position = red_guards[1].position + Vector2(100, 0)
 	main.player.runtime.position = main.player.position
 	main.request_attack("creep")
