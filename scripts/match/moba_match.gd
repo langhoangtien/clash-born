@@ -1,6 +1,9 @@
 extends Node2D
 ## Local playable match. The existing engine alone resolves damage/projectiles.
 const MatchAudioRouterScript = preload("res://scripts/match/match_audio_router.gd")
+const ObjectiveRegistryScript = preload("res://scripts/match/objective_registry.gd")
+const StructureNodeScript = preload("res://scripts/match/structure_node.gd")
+const BehaviorIntentPipelineScript = preload("res://scripts/match/behavior_intent_pipeline.gd")
 @export var layout: MapLayout
 @export var settings: MatchSettings
 var combat := CombatEngine.new(preload("res://data/balance/default_balance.tres"))
@@ -48,6 +51,9 @@ var full_map_mode: bool = false
 var ui_elapsed: float = 0.0
 var audio_router: Node
 var tower_registry: Dictionary = {}
+var objective_registry: ObjectiveRegistry = ObjectiveRegistryScript.new()
+var behavior_pipeline: BehaviorIntentPipeline = BehaviorIntentPipelineScript.new()
+var behavior_snapshot: BehaviorWorldSnapshot
 @export_group("AI Debug")
 @export var debug_mid_lane_only: bool = false
 @export var debug_ai_trace_enabled: bool = false
@@ -99,6 +105,7 @@ func _ready() -> void:
 		tower_info.prerequisites = layout.tower_prerequisites[index].duplicate()
 		_apply_tower_tier_stats(tower_info)
 		tower_registry[tower_info.semantic_id] = tower_id
+	_build_objective_registry()
 	var registry_errors := structure_registry_errors()
 	for error in registry_errors: push_error("STRUCTURE REGISTRY: " + error)
 	var fountain_view := Node2D.new()
@@ -181,41 +188,14 @@ func get_lane_defensive_tower(team: int, lane: String) -> MapUnit:
 	return null
 
 func get_next_attackable_structure(attacking_team: int, lane: String) -> MapUnit:
-	var owner := 1 - attacking_team
-	for tier in range(1, 4):
-		var id := "%s_%s_t%d" % ["blue" if owner == 0 else "red", lane.to_lower(), tier]
-		if not tower_registry.has(id):
-			push_error("Missing required structure registry entry: " + id)
-			return null
-		var runtime_id: String = tower_registry[id]
-		if not entities.has(runtime_id): continue # Explicitly destroyed and cleaned up.
-		var info: Dictionary = entities[runtime_id]
-		var tower: MapUnit = info.actor
-		if not tower.runtime.alive: continue
-		if not _tower_is_unlocked(info):
-			push_error("Structure chain is inconsistent; next living tower is locked: " + id)
-			return null
-		return tower
-	# T4 guards are shared base structures. They become the next legal target
-	# only after all lane T3 prerequisites have fallen; select one deterministically
-	# so creeps, heroes and bots use the same structure chain.
-	var side := "blue" if owner == 0 else "red"
-	for guard in [side + "_base_guard_left", side + "_base_guard_right"]:
-		if not tower_registry.has(guard):
-			push_error("Missing required throne guard registry entry: " + guard)
-			return null
-		var guard_runtime_id: String = tower_registry[guard]
-		if not entities.has(guard_runtime_id): continue
-		var guard_info: Dictionary = entities[guard_runtime_id]
-		if guard_info.actor.runtime.alive and _tower_is_unlocked(guard_info): return guard_info.actor
-	return null
+	# Contract 6.5: lane creeps may query only T1 -> T2 -> T3 of their own lane.
+	var node := objective_registry.next_lane_objective(attacking_team, lane, entities)
+	if node == null: return null
+	if not entities.has(node.runtime_id): return null
+	return entities[node.runtime_id].actor
 
 func _structure_chain_configured(attacking_team: int, lane: String) -> bool:
-	var owner := 1 - attacking_team
-	for tier in range(1, 4):
-		var semantic_id := "%s_%s_t%d" % ["blue" if owner == 0 else "red", lane.to_lower(), tier]
-		if not tower_registry.has(semantic_id): return false
-	return true
+	return objective_registry.lane_is_configured(attacking_team, lane)
 
 func get_defensive_anchor(team: int, lane: String) -> Vector2:
 	var tower := get_lane_defensive_tower(team, lane)
@@ -243,12 +223,23 @@ func _tower_escape_point(actor: MapUnit, tower: MapUnit) -> Vector2:
 	return tower.position + retreat_direction * (tower.runtime.attack_range() + settings.bot_tower_safety_margin + 120.0)
 
 func _tower_is_unlocked(candidate: Dictionary) -> bool:
-	if candidate.kind != "tower": return true
-	for prerequisite in candidate.get("prerequisites", PackedStringArray()):
-		if not tower_registry.has(prerequisite): return false
-		var tower_id: String = tower_registry[prerequisite]
-		if entities.has(tower_id) and entities[tower_id].actor.runtime.alive: return false
-	return true
+	var semantic_id: String = candidate.get("semantic_id", "")
+	return not semantic_id.is_empty() and objective_registry.is_attackable(semantic_id, entities)
+
+func _build_objective_registry() -> void:
+	objective_registry = ObjectiveRegistryScript.new()
+	for index in range(layout.tower_ids.size()):
+		var semantic_id: String = layout.tower_ids[index]
+		var runtime_id: String = tower_registry.get(semantic_id, "")
+		var tier: int = layout.tower_tiers[index]
+		var prerequisites: PackedStringArray = layout.tower_prerequisites[index]
+		# T4 unlocks once ANY lane T3 has fallen. T1/T2/T3 use ALL prerequisites.
+		var required_all := PackedStringArray() if tier == 4 else prerequisites
+		var required_any := prerequisites if tier == 4 else PackedStringArray()
+		objective_registry.register_node(StructureNodeScript.new(semantic_id, runtime_id, layout.tower_teams[index], layout.tower_lanes[index], tier, required_all, required_any))
+	for team in range(2):
+		var side := "blue" if team == 0 else "red"
+		objective_registry.register_node(StructureNodeScript.new("%s_core" % side, "core_%d" % team, team, "BASE", 5, PackedStringArray(["%s_base_guard_left" % side, "%s_base_guard_right" % side])))
 
 func _apply_tower_tier_stats(info: Dictionary) -> void:
 	var tower: MapUnit = info.actor
@@ -279,11 +270,13 @@ func structure_runtime_rows() -> Array[Dictionary]:
 		})
 	for team in range(2):
 		var core: MapUnit = cores[team] if team < cores.size() else null
-		rows.append({"id": "core_%d" % team, "runtime_id": "core_%d" % team, "team": team, "lane": "BASE", "tier": 5, "position": layout.throne_point(team), "prerequisites": PackedStringArray(["%s_base_guard_left" % ("blue" if team == 0 else "red"), "%s_base_guard_right" % ("blue" if team == 0 else "red")]), "alive": core != null and core.runtime.alive, "attackable": core != null and core.runtime.alive and _core_is_unlocked(team)})
+		var side := "blue" if team == 0 else "red"
+		rows.append({"id": "%s_core" % side, "runtime_id": "core_%d" % team, "team": team, "lane": "BASE", "tier": 5, "position": layout.throne_point(team), "prerequisites": PackedStringArray(["%s_base_guard_left" % side, "%s_base_guard_right" % side]), "alive": core != null and core.runtime.alive, "attackable": core != null and objective_registry.is_attackable("%s_core" % side, entities)})
 	return rows
 
 func structure_registry_errors() -> PackedStringArray:
 	var errors := layout.validation_errors()
+	for error in objective_registry.validate(): errors.append(error)
 	var expected_ids := {}
 	for index in range(layout.tower_cells.size()):
 		var semantic_id: String = layout.tower_ids[index]
@@ -425,21 +418,12 @@ func _can_apply_match_damage(_damage: Dictionary, _source: UnitRuntimeState, tar
 	var source_info: Dictionary = entities.get(_source.unit_id, {}) if _source != null else {}
 	if source_info.get("kind", "") == "tower" and target_info.get("siege", false):
 		_damage.final_damage *= settings.tower_damage_to_siege_multiplier
-	if target_info.kind == "tower": return _tower_is_unlocked(target_info)
-	if target_info.kind == "core": return _core_is_unlocked(target.team_id)
+	if target_info.kind == "tower": return objective_registry.is_attackable(target_info.get("semantic_id", ""), entities)
+	if target_info.kind == "core": return objective_registry.is_attackable("%s_core" % ("blue" if target.team_id == 0 else "red"), entities)
 	return true
 
 func _core_is_unlocked(team: int) -> bool:
-	# Lane towers gate their T4 guards through authored prerequisites. The core
-	# itself is gated only by both guards.
-	var side := "blue" if team == 0 else "red"
-	for guard in [side + "_base_guard_left", side + "_base_guard_right"]:
-		if not tower_registry.has(guard):
-			push_error("Missing required throne guard registry entry: " + guard)
-			return false
-		var runtime_id: String = tower_registry[guard]
-		if entities.has(runtime_id) and entities[runtime_id].actor.runtime.alive: return false
-	return true
+	return objective_registry.is_attackable("%s_core" % ("blue" if team == 0 else "red"), entities)
 
 func _lane_push_buff_active(team: int, lane: String) -> bool:
 	for info in entities.values():
@@ -556,6 +540,11 @@ func _tick(_index: int) -> void:
 	var tick := combat.tick_count + 1
 	runtime_profiler.begin(tick, entities.size())
 	spatial_index.rebuild(entities)
+	# Phase 2 is a dark launch: facts from the prior tick are snapshotted and an
+	# empty controller set decides/applies before combat. No legacy actor is
+	# registered, so legacy target/path ownership remains exclusive until migration.
+	behavior_snapshot = behavior_pipeline.begin_tick(tick, entities)
+	behavior_pipeline.apply_intents(behavior_pipeline.decide(behavior_snapshot), behavior_snapshot, entities, objective_registry)
 	var income_interval := maxi(1, ceili(settings.passive_gold_interval_seconds * SimulationClock.TICKS_PER_SECOND))
 	if tick % income_interval == 0:
 		for hero in progression.values(): hero.award(0, settings.passive_gold_amount)
@@ -614,6 +603,7 @@ func _tick(_index: int) -> void:
 	var events := combat.step()
 	if audio_router != null: audio_router.consume(events, entities, combat.tick_count, _audio_listener_position(), _audio_listener_radius())
 	for event in events:
+		_queue_behavior_fact(event)
 		if event.kind == "damage" and entities.has(event.target_unit_id):
 			# Keep combat readable: ordinary physical hits stay silent. Special hits remain visible.
 			if event.critical or event.damage_type != DamageCalculator.DamageType.PHYSICAL:
@@ -628,7 +618,8 @@ func _tick(_index: int) -> void:
 			_on_death(event.target_unit_id, events)
 	for info in entities.values():
 		info.actor.runtime.current_tick = combat.tick_count
-		if info.kind == "tower": info.actor.view.structure_locked = not _tower_is_unlocked(info)
+		if info.kind == "tower": info.actor.view.structure_locked = not objective_registry.is_attackable(info.get("semantic_id", ""), entities)
+		elif info.kind == "core": info.actor.view.structure_locked = not _core_is_unlocked(info.actor.runtime.team_id)
 		_sync_intent(info, tick)
 	_update_vision()
 	# Separation is visual/physical housekeeping. Running it at 3 Hz avoids a
@@ -650,6 +641,15 @@ func _tick(_index: int) -> void:
 			_end_match(1 - team)
 			break
 	runtime_profiler.finish()
+
+func _queue_behavior_fact(event: Dictionary) -> void:
+	if event.kind == "death":
+		behavior_pipeline.queue_fact(BehaviorFact.new(BehaviorFact.Kind.TARGET_INVALID, "", event.target_unit_id, combat.tick_count, combat.tick_count + 1, "DEAD"))
+		return
+	if event.kind != "damage" or event.get("reflected", false): return
+	if not entities.has(event.source_unit_id) or not entities.has(event.target_unit_id): return
+	if entities[event.source_unit_id].kind == "hero" and entities[event.target_unit_id].kind == "hero":
+		behavior_pipeline.queue_fact(BehaviorFact.new(BehaviorFact.Kind.HERO_DAMAGE, event.source_unit_id, event.target_unit_id, combat.tick_count, combat.tick_count + 1, "DIRECT_HERO_DAMAGE"))
 
 func in_fountain(unit: UnitRuntimeState) -> bool:
 	return unit.alive and unit.team_id in [0, 1] and unit.position.distance_to(layout.fountain_point(unit.team_id)) <= settings.fountain_radius
